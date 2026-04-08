@@ -58,11 +58,12 @@ export default function App() {
   const [profileMessage, setProfileMessage] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
-  // 订单和聊天功能相关状态
+  // 新增：订单和聊天功能相关状态
   const [orderTab, setOrderTab] = useState('posted'); // 'posted' 为我的发布，'accepted' 为我的接取
   const [activeChatTask, setActiveChatTask] = useState(null);
   const [chatMessages, setChatMessages] = useState({});
   const [chatInput, setChatInput] = useState('');
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   const [postFormData, setPostFormData] = useState({ title: '', desc: '', reward: '' });
   const [isPostingTask, setIsPostingTask] = useState(false);
@@ -90,6 +91,34 @@ export default function App() {
   useEffect(() => {
     setProfileDraft(currentUser);
   }, [currentUser]);
+
+  // 新增：当打开对话框时，开启轮询以获取最新消息
+  useEffect(() => {
+    let interval;
+    const fetchMessages = async () => {
+      if (!activeChatTask) return;
+      try {
+        const response = await axios.get(`${API_BASE_URL}/api/messages/${activeChatTask.id}`);
+        if (response.data.code === 200) {
+          setChatMessages(prev => ({
+            ...prev,
+            [activeChatTask.id]: response.data.data
+          }));
+        }
+      } catch (error) {
+        console.warn('获取消息失败，请确保后端已实现 /api/messages 接口');
+      }
+    };
+
+    if (activeChatTask) {
+      fetchMessages(); // 马上拉取一次
+      interval = setInterval(fetchMessages, 3000); // 每3秒刷新一次（短轮询）
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [activeChatTask]);
 
   const fetchTasks = async () => {
     try {
@@ -309,37 +338,44 @@ export default function App() {
     }
   };
 
-  const handleSendMessage = (e) => {
+  // 新增：发送聊天消息到真实的后端接口
+  const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!chatInput.trim() || !activeChatTask) return;
+    if (!chatInput.trim() || !activeChatTask || isSendingMessage) return;
 
     const taskId = activeChatTask.id;
-    const newMessage = {
-      id: Date.now(),
-      sender: 'me',
-      text: chatInput.trim(),
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
+    const text = chatInput.trim();
 
-    setChatMessages((prev) => ({
-      ...prev,
-      [taskId]: [...(prev[taskId] || []), newMessage],
-    }));
-    setChatInput('');
+    try {
+      setIsSendingMessage(true);
 
-    // 模拟对方自动回复
-    setTimeout(() => {
-      const replyMessage = {
-        id: Date.now() + 1,
-        sender: 'other',
-        text: '你好！我已经看到你的消息了，有什么问题可以直接沟通。',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      // 1. 乐观更新 UI：即使网络慢，界面上也先立刻显示自己发出的消息
+      const tempMessage = {
+        id: Date.now(),
+        senderUsername: currentUser.studentId,
+        text: text,
+        createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
+
       setChatMessages((prev) => ({
         ...prev,
-        [taskId]: [...(prev[taskId] || []), replyMessage],
+        [taskId]: [...(prev[taskId] || []), tempMessage],
       }));
-    }, 1500);
+      setChatInput('');
+
+      // 2. 调用真实的后端发送接口
+      await axios.post(`${API_BASE_URL}/api/messages`, {
+        taskId: taskId,
+        senderUsername: currentUser.studentId,
+        text: text
+      });
+
+    } catch (error) {
+      console.error('发送消息失败', error);
+      window.alert('消息发送失败，后端接口可能暂未启动');
+    } finally {
+      setIsSendingMessage(false);
+    }
   };
 
   const NavItem = ({ icon: Icon, label, id }) => (
@@ -904,6 +940,59 @@ export default function App() {
       </div>
   );
 
+  // 新增：消息列表视图
+  const MessagesView = () => {
+    // 筛选出所有当前用户参与、且已经有接单者的任务（只有接单后才允许对话）
+    const chatableTasks = tasks.filter(task =>
+        task.assignee &&
+        (task.author === currentUser.name || task.assignee === currentUser.studentId)
+    );
+
+    return (
+        <div className="p-5">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-bold text-slate-900">消息中心</h2>
+            <p className="mt-2 text-sm text-slate-500">与任务发布者或接单者进行沟通。</p>
+
+            <div className="mt-6 space-y-4">
+              {chatableTasks.length === 0 ? (
+                  <div className="rounded-2xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                    暂无消息会话，快去接单或发布任务吧
+                  </div>
+              ) : (
+                  chatableTasks.map((task) => {
+                    // 判断当前登录用户是发布者还是接单者，从而展示对方的名字
+                    const isAuthor = task.author === currentUser.name;
+                    const otherPartyName = isAuthor ? `接单者 (${task.assignee})` : `${task.author} (发布者)`;
+
+                    return (
+                        <div
+                            key={task.id}
+                            onClick={() => setActiveChatTask(task)}
+                            className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4 transition hover:bg-slate-100"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-cyan-100 text-cyan-700">
+                              <MessageSquare size={20} />
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-slate-900">{otherPartyName}</h3>
+                              <p className="mt-1 text-xs text-slate-500 line-clamp-1">任务：{task.title}</p>
+                            </div>
+                          </div>
+                          <div className="text-cyan-600">
+                            <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-bold">进入聊天</span>
+                          </div>
+                        </div>
+                    );
+                  })
+              )}
+            </div>
+          </div>
+        </div>
+    );
+  };
+
   // （修复点）把聊天弹窗作为渲染函数，而不是内部组件
   const renderChatOverlay = () => {
     if (!activeChatTask) return null;
@@ -933,26 +1022,31 @@ export default function App() {
                     这里是与 {activeChatTask.author || '发布者'} 的会话。<br/>你可以发送消息沟通跑腿细节。
                   </div>
               ) : (
-                  messages.map((msg) => (
-                      <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
-                        <div
-                            className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
-                                msg.sender === 'me'
-                                    ? 'bg-cyan-600 text-white rounded-br-none'
-                                    : 'border border-slate-200 bg-white text-slate-800 rounded-bl-none'
-                            }`}
-                        >
-                          <p className="leading-relaxed">{msg.text}</p>
-                          <span
-                              className={`mt-1 block text-[10px] ${
-                                  msg.sender === 'me' ? 'text-cyan-200' : 'text-slate-400'
+                  messages.map((msg) => {
+                    // 判断是否是当前用户自己发的消息
+                    const isMe = msg.senderUsername === currentUser.studentId || msg.sender === 'me';
+
+                    return (
+                        <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                          <div
+                              className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
+                                  isMe
+                                      ? 'bg-cyan-600 text-white rounded-br-none'
+                                      : 'border border-slate-200 bg-white text-slate-800 rounded-bl-none'
                               }`}
                           >
-                      {msg.time}
-                    </span>
+                            <p className="leading-relaxed">{msg.text}</p>
+                            <span
+                                className={`mt-1 block text-[10px] ${
+                                    isMe ? 'text-cyan-200' : 'text-slate-400'
+                                }`}
+                            >
+                        {msg.createdAt || msg.time}
+                      </span>
+                          </div>
                         </div>
-                      </div>
-                  ))
+                    );
+                  })
               )}
             </div>
 
@@ -963,14 +1057,15 @@ export default function App() {
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     placeholder="输入消息..."
-                    className="flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                    disabled={isSendingMessage}
+                    className="flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 disabled:bg-slate-100"
                 />
                 <button
                     type="submit"
-                    disabled={!chatInput.trim()}
+                    disabled={!chatInput.trim() || isSendingMessage}
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cyan-600 text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
-                  <Send size={18} className="-ml-0.5" />
+                  {isSendingMessage ? <LoaderCircle size={18} className="animate-spin" /> : <Send size={18} className="-ml-0.5" />}
                 </button>
               </form>
             </footer>
@@ -983,6 +1078,7 @@ export default function App() {
     if (activeTab === 'home') return HomeView();
     if (activeTab === 'post') return PostTaskView();
     if (activeTab === 'tasks') return OrdersView();
+    if (activeTab === 'messages') return MessagesView(); // 新增这行路由判断
     return ProfileView();
   };
 
@@ -1192,11 +1288,12 @@ export default function App() {
             <NavItem id="home" icon={Home} label="大厅" />
             <NavItem id="post" icon={PlusCircle} label="发布" />
             <NavItem id="tasks" icon={ClipboardList} label="订单" />
+            <NavItem id="messages" icon={MessageSquare} label="消息" />
             <NavItem id="profile" icon={User} label="我的" />
           </nav>
         </div>
 
-        {/* （修复点）直接调用渲染函数，而不是作为组件 <ChatOverlay /> 挂载 */}
+        {/* 新增：会话界面覆盖层 */}
         {renderChatOverlay()}
       </div>
   );
