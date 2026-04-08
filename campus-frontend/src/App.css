@@ -1,0 +1,49 @@
+.auth-shell {
+  background:
+          radial-gradient(circle at top left, rgba(34, 211, 238, 0.32), transparent 32%),
+          radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.18), transparent 30%),
+          linear-gradient(135deg, #e0f2fe 0%, #f8fafc 45%, #f1f5f9 100%);
+}
+
+.auth-brand {
+  background:
+          linear-gradient(160deg, rgba(15, 23, 42, 0.94), rgba(8, 47, 73, 0.88)),
+          linear-gradient(135deg, #0f172a, #164e63);
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-brand::before,
+.auth-brand::after {
+  content: '';
+  position: absolute;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.auth-brand::before {
+  width: 220px;
+  height: 220px;
+  top: -70px;
+  right: -40px;
+}
+
+.auth-brand::after {
+  width: 180px;
+  height: 180px;
+  bottom: -80px;
+  left: -30px;
+}
+
+.auth-brand__badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+  padding: 0.45rem 0.85rem;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
