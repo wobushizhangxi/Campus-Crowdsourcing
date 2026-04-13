@@ -1,0 +1,8 @@
+.m2/
+.mavenhome/
+release/
+campus-frontend/frontend.log
+campus-frontend/frontend.err.log
+config/application-local.properties
+.idea/dataSources.xml
+tools/cloudflared/

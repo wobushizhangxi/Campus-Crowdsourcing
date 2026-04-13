@@ -7,6 +7,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "tasks")
@@ -21,7 +22,9 @@ public class Task {
     private BigDecimal reward;
     private String status;
     private String author;
+    private String authorUsername;
     private String assignee;
+    private LocalDateTime completedAt;
 
     public Long getId() {
         return id;
@@ -75,7 +78,23 @@ public class Task {
         return assignee;
     }
 
+    public String getAuthorUsername() {
+        return authorUsername;
+    }
+
+    public void setAuthorUsername(String authorUsername) {
+        this.authorUsername = authorUsername;
+    }
+
     public void setAssignee(String assignee) {
         this.assignee = assignee;
+    }
+
+    public LocalDateTime getCompletedAt() {
+        return completedAt;
+    }
+
+    public void setCompletedAt(LocalDateTime completedAt) {
+        this.completedAt = completedAt;
     }
 }

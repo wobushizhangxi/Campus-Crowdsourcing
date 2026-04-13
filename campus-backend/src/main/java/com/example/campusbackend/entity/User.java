@@ -1,11 +1,20 @@
 package com.example.campusbackend.entity;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "users")
@@ -38,6 +47,19 @@ public class User {
 
     @Column(length = 1000)
     private String bio;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private UserRole role = UserRole.USER;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "user_permissions", joinColumns = @JoinColumn(name = "user_id"))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "permission", nullable = false, length = 40)
+    private Set<AdminPermission> permissions = new LinkedHashSet<>();
+
+    @Column(precision = 10, scale = 2)
+    private BigDecimal balance = BigDecimal.ZERO;
 
     public Long getId() {
         return id;
@@ -109,5 +131,29 @@ public class User {
 
     public void setBio(String bio) {
         this.bio = bio;
+    }
+
+    public UserRole getRole() {
+        return role;
+    }
+
+    public void setRole(UserRole role) {
+        this.role = role == null ? UserRole.USER : role;
+    }
+
+    public BigDecimal getBalance() {
+        return balance;
+    }
+
+    public void setBalance(BigDecimal balance) {
+        this.balance = balance;
+    }
+
+    public Set<AdminPermission> getPermissions() {
+        return permissions == null ? new LinkedHashSet<>() : permissions;
+    }
+
+    public void setPermissions(Set<AdminPermission> permissions) {
+        this.permissions = permissions == null ? new LinkedHashSet<>() : new LinkedHashSet<>(permissions);
     }
 }

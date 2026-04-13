@@ -34,8 +34,8 @@ function NavItem({ activeTab, icon, label, id, onSelect, showDot = false, featur
 
 export default function BottomNav({ activeTab, hasUnreadMessages, onSelectTab }) {
   return (
-    <nav className="fixed bottom-0 left-1/2 z-10 w-[min(calc(100%-1rem),1120px)] -translate-x-1/2 border-t border-slate-200 bg-white/96 px-2 pb-3 pt-2 backdrop-blur-xl lg:bottom-4 lg:rounded-[28px] lg:border lg:border-slate-200/80 lg:shadow-xl">
-      <div className="mx-auto grid max-w-2xl grid-cols-5 items-end">
+    <nav className="fixed bottom-0 left-1/2 z-10 w-full max-w-md -translate-x-1/2 border-t border-slate-200 bg-white/96 px-2 pb-3 pt-2 backdrop-blur-xl">
+      <div className="grid grid-cols-5 items-end">
         <NavItem activeTab={activeTab} id="home" icon={Home} label="首页" onSelect={onSelectTab} />
         <NavItem activeTab={activeTab} id="tasks" icon={ClipboardList} label="订单" onSelect={onSelectTab} />
         <NavItem activeTab={activeTab} id="post" icon={PlusCircle} label="发布" onSelect={onSelectTab} featured />

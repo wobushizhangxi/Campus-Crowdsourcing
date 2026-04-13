@@ -437,6 +437,8 @@ export default function App() {
   };
 
   const openWalletView = async () => {
+    closeChat();
+    setSelectedTask(null);
     setActiveTab('profile');
     setProfileSection('wallet');
     await refreshWalletData();
@@ -507,6 +509,8 @@ export default function App() {
       return;
     }
 
+    closeChat();
+    setSelectedTask(null);
     setActiveTab('profile');
     setProfileSection('admin');
     setAdminMessage('');
@@ -819,7 +823,11 @@ export default function App() {
           onAdminAdjustReasonChange={setAdminAdjustReason}
           onAdminKeywordChange={setAdminKeyword}
           onAdminSearch={handleAdminSearch}
-          onBack={() => setProfileSection('overview')}
+          onBack={() => {
+            setActiveTab('profile');
+            setProfileSection('overview');
+            setSelectedTask(null);
+          }}
           onSelectAdminUser={loadAdminUser}
           onSubmitAdminAdjustment={handleSubmitAdminAdjustment}
           onSubmitAdminPermissions={handleSubmitAdminPermissions}
@@ -889,11 +897,24 @@ export default function App() {
     );
   }
 
+  const isAdminScreenActive = profileSection === 'admin';
   const pageMeta = getCurrentPageMeta();
 
+  if (isAdminScreenActive) {
+    return (
+      <div className="min-h-screen bg-slate-100 text-slate-900 md:px-4 md:py-4">
+        <div className="mx-auto flex min-h-screen w-full max-w-[1280px] flex-col bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.16),_transparent_38%),linear-gradient(180deg,_#f8fbff_0%,_#ffffff_24%,_#f8fafc_100%)] md:min-h-[calc(100vh-2rem)] md:overflow-hidden md:rounded-[32px] md:shadow-2xl">
+          <main className="min-h-0 flex-1 overflow-y-auto">
+            {renderAppContent()}
+          </main>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-100 px-0 text-slate-900 lg:px-4 lg:py-4">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1120px] flex-col bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.16),_transparent_38%),linear-gradient(180deg,_#f8fbff_0%,_#ffffff_24%,_#f8fafc_100%)] shadow-2xl lg:min-h-[calc(100vh-2rem)] lg:overflow-hidden lg:rounded-[32px]">
+    <div className="min-h-screen bg-slate-100 px-0 text-slate-900">
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.16),_transparent_38%),linear-gradient(180deg,_#f8fbff_0%,_#ffffff_24%,_#f8fafc_100%)] shadow-2xl">
         <AppHeader
           pageMeta={pageMeta}
           currentUser={currentUser}
@@ -904,7 +925,7 @@ export default function App() {
           }}
         />
 
-        <main className="min-h-0 flex-1 overflow-y-auto pb-24 lg:pb-28">{renderAppContent()}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto pb-24">{renderAppContent()}</main>
 
         <BottomNav
           activeTab={activeTab}
