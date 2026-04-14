@@ -212,6 +212,32 @@ class SecuredBusinessFlowTests {
                 .andExpect(jsonPath("$.data.banned").value(true));
     }
 
+    @Test
+    void adminCanBanAndUnbanNormalUser() throws Exception {
+        String adminToken = registerAndIssueToken("admin001", "Admin", UserRole.ADMIN);
+        User user = createUser("user200", "User 200", UserRole.USER, new BigDecimal("1.00"));
+
+        mockMvc.perform(post("/api/admin/users/{id}/ban", user.getId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.banned").value(true));
+
+        mockMvc.perform(post("/api/admin/users/{id}/unban", user.getId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.banned").value(false));
+    }
+
+    @Test
+    void adminCannotBanAdminRoleUser() throws Exception {
+        String adminToken = registerAndIssueToken("admin001", "Admin", UserRole.ADMIN);
+        User anotherAdmin = createUser("admin002", "Admin 2", UserRole.ADMIN, new BigDecimal("1.00"));
+
+        mockMvc.perform(post("/api/admin/users/{id}/ban", anotherAdmin.getId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isForbidden());
+    }
+
     private String registerAndIssueToken(String username, String name, UserRole role) {
         User savedUser = createUser(username, name, role, new BigDecimal("20.00"));
         return jwtTokenService.generateToken(savedUser);

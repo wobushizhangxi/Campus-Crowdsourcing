@@ -4,6 +4,7 @@ import com.example.campusbackend.dto.BalanceAdjustmentRequest;
 import com.example.campusbackend.dto.PermissionUpdateRequest;
 import com.example.campusbackend.entity.BalanceRecord;
 import com.example.campusbackend.entity.User;
+import com.example.campusbackend.entity.UserRole;
 import com.example.campusbackend.repository.BalanceRecordRepository;
 import com.example.campusbackend.repository.UserRepository;
 import com.example.campusbackend.service.AdminPermissionService;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -54,7 +56,7 @@ public class AdminController {
             @RequestParam(defaultValue = "") String keyword,
             Authentication authentication
     ) {
-        User actor = requireViewUsersActor(authentication);
+        requireViewUsersActor(authentication);
         String normalizedKeyword = keyword == null ? "" : keyword.trim().toLowerCase();
         List<Map<String, Object>> users = userRepository.findAll().stream()
                 .filter(user -> normalizedKeyword.isEmpty()
@@ -63,7 +65,7 @@ public class AdminController {
                 .sorted(Comparator.comparing(User::getUsername))
                 .map(this::buildUserSummary)
                 .toList();
-        return buildResponse(HttpStatus.OK, "成功", users);
+        return buildResponse(HttpStatus.OK, "Success", users);
     }
 
     @GetMapping("/users/{id}")
@@ -71,12 +73,12 @@ public class AdminController {
         requireViewUsersActor(authentication);
         User user = userRepository.findById(id).orElse(null);
         if (user == null) {
-            return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
+            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
         }
 
         Map<String, Object> data = buildUserSummary(user);
         data.put("records", buildBalanceRecordsData(balanceRecordRepository.findTop50ByUsernameOrderByCreatedAtDesc(user.getUsername())));
-        return buildResponse(HttpStatus.OK, "成功", data);
+        return buildResponse(HttpStatus.OK, "Success", data);
     }
 
     @PostMapping("/users/{id}/balance-adjustments")
@@ -89,24 +91,24 @@ public class AdminController {
         User actor = requireAdjustBalanceActor(authentication);
         User user = userRepository.findById(id).orElse(null);
         if (user == null) {
-            return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
+            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
         }
 
         BigDecimal amount;
         try {
             amount = new BigDecimal(String.valueOf(request.getAmount()));
         } catch (Exception error) {
-            return buildResponse(HttpStatus.BAD_REQUEST, "金额格式不正确", null);
+            return buildResponse(HttpStatus.BAD_REQUEST, "Invalid amount format", null);
         }
 
         if (request.getReason() == null || request.getReason().trim().isEmpty()) {
-            return buildResponse(HttpStatus.BAD_REQUEST, "调整原因不能为空", null);
+            return buildResponse(HttpStatus.BAD_REQUEST, "Adjustment reason is required", null);
         }
 
         BigDecimal currentBalance = user.getBalance() == null ? BigDecimal.ZERO : user.getBalance();
         BigDecimal nextBalance = currentBalance.add(amount);
         if (nextBalance.compareTo(BigDecimal.ZERO) < 0) {
-            return buildResponse(HttpStatus.CONFLICT, "余额不能为负数", null);
+            return buildResponse(HttpStatus.CONFLICT, "Balance cannot be negative", null);
         }
 
         user.setBalance(nextBalance);
@@ -115,7 +117,7 @@ public class AdminController {
 
         Map<String, Object> data = buildUserSummary(user);
         data.put("records", buildBalanceRecordsData(balanceRecordRepository.findTop50ByUsernameOrderByCreatedAtDesc(user.getUsername())));
-        return buildResponse(HttpStatus.OK, "余额调整成功", data);
+        return buildResponse(HttpStatus.OK, "Balance adjusted", data);
     }
 
     @PostMapping("/users/{id}/permissions")
@@ -128,7 +130,7 @@ public class AdminController {
         return updatePermissions(id, request, authentication);
     }
 
-    @org.springframework.web.bind.annotation.PutMapping("/users/{id}/permissions")
+    @PutMapping("/users/{id}/permissions")
     @Transactional
     public ResponseEntity<Map<String, Object>> updatePermissions(
             @PathVariable Long id,
@@ -138,19 +140,53 @@ public class AdminController {
         requirePermissionGrantActor(authentication);
         User user = userRepository.findById(id).orElse(null);
         if (user == null) {
-            return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
+            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
         }
 
         try {
             user.setPermissions(adminPermissionService.normalizePermissions(request.getPermissions()));
         } catch (IllegalArgumentException error) {
-            return buildResponse(HttpStatus.BAD_REQUEST, "包含无效的权限项", null);
+            return buildResponse(HttpStatus.BAD_REQUEST, "Invalid permission set", null);
         }
 
         User savedUser = userRepository.save(user);
         Map<String, Object> data = buildUserSummary(savedUser);
         data.put("records", buildBalanceRecordsData(balanceRecordRepository.findTop50ByUsernameOrderByCreatedAtDesc(savedUser.getUsername())));
-        return buildResponse(HttpStatus.OK, "权限已更新", data);
+        return buildResponse(HttpStatus.OK, "Permissions updated", data);
+    }
+
+    @PostMapping("/users/{id}/ban")
+    @Transactional
+    public ResponseEntity<Map<String, Object>> banUser(@PathVariable Long id, Authentication authentication) {
+        requireViewUsersActor(authentication);
+        User target = userRepository.findById(id).orElse(null);
+        if (target == null) {
+            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
+        }
+        if (target.getRole() == UserRole.ADMIN) {
+            return buildResponse(HttpStatus.FORBIDDEN, "Admin account cannot be banned", null);
+        }
+
+        target.setBanned(true);
+        User saved = userRepository.save(target);
+        return buildResponse(HttpStatus.OK, "User banned", buildUserSummary(saved));
+    }
+
+    @PostMapping("/users/{id}/unban")
+    @Transactional
+    public ResponseEntity<Map<String, Object>> unbanUser(@PathVariable Long id, Authentication authentication) {
+        requireViewUsersActor(authentication);
+        User target = userRepository.findById(id).orElse(null);
+        if (target == null) {
+            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
+        }
+        if (target.getRole() == UserRole.ADMIN) {
+            return buildResponse(HttpStatus.FORBIDDEN, "Admin account cannot be unbanned", null);
+        }
+
+        target.setBanned(false);
+        User saved = userRepository.save(target);
+        return buildResponse(HttpStatus.OK, "User unbanned", buildUserSummary(saved));
     }
 
     private Map<String, Object> buildUserSummary(User user) {
@@ -189,8 +225,8 @@ public class AdminController {
         balanceRecord.setAmount(amount);
         balanceRecord.setBalanceAfter(balanceAfter);
         balanceRecord.setType("admin_adjustment");
-        balanceRecord.setTitle("管理员余额调整");
-        balanceRecord.setDescription("操作人：" + actorUsername + "；原因：" + reason);
+        balanceRecord.setTitle("admin balance adjustment");
+        balanceRecord.setDescription("operator: " + actorUsername + "; reason: " + reason);
         balanceRecord.setCreatedAt(LocalDateTime.now());
         balanceRecordRepository.save(balanceRecord);
     }
@@ -198,7 +234,7 @@ public class AdminController {
     private User requireAdminAccessActor(Authentication authentication) {
         User actor = currentUserService.requireCurrentUser(authentication);
         if (!adminPermissionService.canAccessAdminPanel(actor)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权限");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
         }
         return actor;
     }
@@ -206,7 +242,7 @@ public class AdminController {
     private User requireViewUsersActor(Authentication authentication) {
         User actor = requireAdminAccessActor(authentication);
         if (!adminPermissionService.canViewUsers(actor)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权限");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
         }
         return actor;
     }
@@ -214,7 +250,7 @@ public class AdminController {
     private User requireAdjustBalanceActor(Authentication authentication) {
         User actor = requireAdminAccessActor(authentication);
         if (!adminPermissionService.canAdjustBalance(actor)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权限");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
         }
         return actor;
     }
@@ -222,7 +258,7 @@ public class AdminController {
     private User requirePermissionGrantActor(Authentication authentication) {
         User actor = requireAdminAccessActor(authentication);
         if (!adminPermissionService.canGrantPermissions(actor)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权限");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
         }
         return actor;
     }
