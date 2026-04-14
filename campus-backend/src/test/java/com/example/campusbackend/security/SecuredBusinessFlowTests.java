@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -268,6 +269,34 @@ class SecuredBusinessFlowTests {
                                   "text": "hello"
                                 }
                                 """.formatted(task.getId())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void deleteUserAnonymizesHistoryAndRemovesAccount() throws Exception {
+        String adminToken = registerAndIssueToken("admin001", "Admin", UserRole.ADMIN);
+        User target = createUser("user300", "User 300", UserRole.USER, new BigDecimal("3.00"));
+        Task task = createAcceptedTask("user300", "user300");
+
+        mockMvc.perform(delete("/api/admin/users/{id}", target.getId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk());
+
+        assertThat(userRepository.findById(target.getId())).isEmpty();
+
+        Task reloaded = taskRepository.findById(task.getId()).orElseThrow();
+        assertThat(reloaded.getAuthorUsername()).isEqualTo("deleted-user-" + target.getId());
+        assertThat(reloaded.getAuthor()).isEqualTo("已注销用户");
+        assertThat(reloaded.getAssignee()).isEqualTo("deleted-user-" + target.getId());
+    }
+
+    @Test
+    void adminCannotDeleteSelf() throws Exception {
+        User admin = createUser("adminSelf", "Admin Self", UserRole.ADMIN, new BigDecimal("1.00"));
+        String token = jwtTokenService.generateToken(admin);
+
+        mockMvc.perform(delete("/api/admin/users/{id}", admin.getId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isForbidden());
     }
 

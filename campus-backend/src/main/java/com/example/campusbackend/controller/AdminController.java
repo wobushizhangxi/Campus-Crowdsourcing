@@ -6,6 +6,8 @@ import com.example.campusbackend.entity.BalanceRecord;
 import com.example.campusbackend.entity.User;
 import com.example.campusbackend.entity.UserRole;
 import com.example.campusbackend.repository.BalanceRecordRepository;
+import com.example.campusbackend.repository.MessageRepository;
+import com.example.campusbackend.repository.TaskRepository;
 import com.example.campusbackend.repository.UserRepository;
 import com.example.campusbackend.service.AdminPermissionService;
 import com.example.campusbackend.service.CurrentUserService;
@@ -13,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,17 +39,23 @@ public class AdminController {
 
     private final UserRepository userRepository;
     private final BalanceRecordRepository balanceRecordRepository;
+    private final TaskRepository taskRepository;
+    private final MessageRepository messageRepository;
     private final CurrentUserService currentUserService;
     private final AdminPermissionService adminPermissionService;
 
     public AdminController(
             UserRepository userRepository,
             BalanceRecordRepository balanceRecordRepository,
+            TaskRepository taskRepository,
+            MessageRepository messageRepository,
             CurrentUserService currentUserService,
             AdminPermissionService adminPermissionService
     ) {
         this.userRepository = userRepository;
         this.balanceRecordRepository = balanceRecordRepository;
+        this.taskRepository = taskRepository;
+        this.messageRepository = messageRepository;
         this.currentUserService = currentUserService;
         this.adminPermissionService = adminPermissionService;
     }
@@ -187,6 +196,31 @@ public class AdminController {
         target.setBanned(false);
         User saved = userRepository.save(target);
         return buildResponse(HttpStatus.OK, "User unbanned", buildUserSummary(saved));
+    }
+
+    @DeleteMapping("/users/{id}")
+    @Transactional
+    public ResponseEntity<Map<String, Object>> deleteUser(@PathVariable Long id, Authentication authentication) {
+        User actor = requireViewUsersActor(authentication);
+        User target = userRepository.findById(id).orElse(null);
+        if (target == null) {
+            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
+        }
+        if (actor.getId().equals(target.getId())) {
+            return buildResponse(HttpStatus.FORBIDDEN, "Cannot delete current account", null);
+        }
+        if (target.getRole() == UserRole.ADMIN) {
+            return buildResponse(HttpStatus.FORBIDDEN, "Admin account cannot be deleted", null);
+        }
+
+        String placeholder = "deleted-user-" + target.getId();
+        taskRepository.anonymizeAuthor(target.getUsername(), placeholder, "已注销用户");
+        taskRepository.anonymizeAssignee(target.getUsername(), placeholder);
+        messageRepository.anonymizeSender(target.getUsername(), placeholder);
+        balanceRecordRepository.anonymizeUsername(target.getUsername(), placeholder);
+        userRepository.delete(target);
+
+        return buildResponse(HttpStatus.OK, "User deleted", Map.of("id", id, "placeholder", placeholder));
     }
 
     private Map<String, Object> buildUserSummary(User user) {
