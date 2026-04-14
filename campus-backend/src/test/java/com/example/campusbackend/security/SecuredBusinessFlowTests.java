@@ -238,6 +238,39 @@ class SecuredBusinessFlowTests {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void bannedUserCanLoginButCannotCreateTaskOrSendMessage() throws Exception {
+        User bannedUser = createUser("banned001", "Banned", UserRole.USER, new BigDecimal("20.00"));
+        bannedUser.setBanned(true);
+        userRepository.save(bannedUser);
+        String token = jwtTokenService.generateToken(bannedUser);
+
+        mockMvc.perform(post("/api/tasks")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "x",
+                                  "description": "y",
+                                  "reward": 1.00
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+
+        Task task = createAcceptedTask("banned001", "banned001");
+
+        mockMvc.perform(post("/api/messages")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "taskId": %d,
+                                  "text": "hello"
+                                }
+                                """.formatted(task.getId())))
+                .andExpect(status().isForbidden());
+    }
+
     private String registerAndIssueToken(String username, String name, UserRole role) {
         User savedUser = createUser(username, name, role, new BigDecimal("20.00"));
         return jwtTokenService.generateToken(savedUser);

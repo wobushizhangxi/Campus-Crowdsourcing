@@ -148,6 +148,24 @@ class UserSelfServiceTests {
         assertThat(updatedAlice.getUsername()).isEqualTo("alice002");
     }
 
+    @Test
+    void bannedUserCannotUpdateProfile() throws Exception {
+        User user = createUser("banned002", "Banned 2", UserRole.USER, new BigDecimal("1.00"));
+        user.setBanned(true);
+        userRepository.save(user);
+        String token = jwtTokenService.generateToken(user);
+
+        mockMvc.perform(put("/api/users/profile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "newName"
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
     private User createUser(String username, String name, UserRole role, BigDecimal balance) {
         User user = new User();
         user.setUsername(username);

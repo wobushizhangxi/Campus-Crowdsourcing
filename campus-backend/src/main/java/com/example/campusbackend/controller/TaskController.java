@@ -56,6 +56,9 @@ public class TaskController {
     @Transactional
     public ResponseEntity<Map<String, Object>> createTask(@RequestBody Task task, Authentication authentication) {
         User publisher = currentUserService.requireCurrentUser(authentication);
+        if (publisher.isBanned()) {
+            return buildResponse(HttpStatus.FORBIDDEN, "Account is banned", null);
+        }
         BigDecimal reward = normalizeMoney(task.getReward());
         if (reward.compareTo(BigDecimal.ZERO) <= 0) {
             return buildResponse(HttpStatus.BAD_REQUEST, "悬赏金额必须大于0", null);
@@ -96,6 +99,9 @@ public class TaskController {
     @PostMapping("/{id}/accept")
     public ResponseEntity<Map<String, Object>> acceptTask(@PathVariable Long id, Authentication authentication) {
         User assigneeUser = currentUserService.requireCurrentUser(authentication);
+        if (assigneeUser.isBanned()) {
+            return buildResponse(HttpStatus.FORBIDDEN, "Account is banned", null);
+        }
         Task task = taskRepository.findById(id).orElse(null);
         if (task == null) {
             return buildResponse(HttpStatus.NOT_FOUND, "任务不存在", null);
@@ -121,6 +127,9 @@ public class TaskController {
     @Transactional
     public ResponseEntity<Map<String, Object>> completeTask(@PathVariable Long id, Authentication authentication) {
         User actor = currentUserService.requireCurrentUser(authentication);
+        if (actor.isBanned()) {
+            return buildResponse(HttpStatus.FORBIDDEN, "Account is banned", null);
+        }
         Task task = taskRepository.findById(id).orElse(null);
         if (task == null) {
             return buildResponse(HttpStatus.NOT_FOUND, "任务不存在", null);

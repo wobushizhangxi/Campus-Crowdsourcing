@@ -108,6 +108,9 @@ public class UserController {
             Authentication authentication
     ) {
         User actor = currentUserService.requireCurrentUser(authentication);
+        if (actor.isBanned()) {
+            return buildResponse(HttpStatus.FORBIDDEN, "Account is banned", null);
+        }
         User target = userRepository.findById(id).orElse(null);
         if (target == null) {
             return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
@@ -122,6 +125,9 @@ public class UserController {
     @PutMapping("/profile")
     public ResponseEntity<Map<String, Object>> updateProfile(Authentication authentication, @RequestBody AuthRequest request) {
         User actor = currentUserService.requireCurrentUser(authentication);
+        if (actor.isBanned()) {
+            return buildResponse(HttpStatus.FORBIDDEN, "Account is banned", null);
+        }
         return updateUserProfile(actor, request);
     }
 
