@@ -27,9 +27,11 @@ export default function AdminView({
   onAdminKeywordChange,
   onAdminSearch,
   onBack,
+  onDeleteAdminUser,
   onSelectAdminUser,
   onSubmitAdminAdjustment,
   onSubmitAdminPermissions,
+  onToggleAdminBan,
   onToggleAdminPermission,
 }) {
   const formatRole = (role) => (role === 'ADMIN' ? '管理员' : role === 'USER' ? '普通用户' : role);
@@ -59,8 +61,8 @@ export default function AdminView({
 
         <div className="mt-4">
           <p className="text-sm text-cyan-200">管理后台</p>
-          <h2 className="mt-2 text-2xl font-bold">用户权限与余额管理</h2>
-          <p className="mt-2 text-sm text-slate-300">搜索用户、配置后台权限，并按授权范围执行余额调整。</p>
+          <h2 className="mt-2 text-2xl font-bold">用户管理</h2>
+          <p className="mt-2 text-sm text-slate-300">搜索用户，调整权限与余额，并执行封禁/删除操作。</p>
         </div>
       </section>
 
@@ -80,7 +82,7 @@ export default function AdminView({
           <button
             type="submit"
             disabled={!canViewUsers}
-            className="rounded-2xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700 sm:self-auto"
+            className="rounded-2xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-cyan-300"
           >
             搜索
           </button>
@@ -101,13 +103,9 @@ export default function AdminView({
         <div className="mt-4 grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
           <div className="space-y-3 xl:max-h-[calc(100vh-20rem)] xl:overflow-y-auto xl:pr-1">
             {!canViewUsers ? (
-              <div className="rounded-2xl bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-                当前账号没有查看用户权限。
-              </div>
+              <div className="rounded-2xl bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">当前账号没有查看用户权限。</div>
             ) : adminUsers.length === 0 ? (
-              <div className="rounded-2xl bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-                没有匹配的用户。
-              </div>
+              <div className="rounded-2xl bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">没有匹配的用户。</div>
             ) : (
               adminUsers.map((user) => (
                 <button
@@ -124,9 +122,7 @@ export default function AdminView({
                     <div className="min-w-0">
                       <p className="font-semibold text-slate-900">{user.name || user.username}</p>
                       <p className="mt-1 text-xs text-slate-500">{user.username} | {formatRole(user.role)}</p>
-                      <p className="mt-1 text-[11px] text-slate-400">
-                        {user.role === 'ADMIN' ? '管理员默认拥有全部权限' : `已授予 ${user.permissions?.length || 0} 项权限`}
-                      </p>
+                      {user.banned ? <p className="mt-1 text-[11px] font-semibold text-rose-600">已封禁</p> : null}
                     </div>
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600">
                       {formatRmb(user.balance)}
@@ -146,25 +142,10 @@ export default function AdminView({
                       <p className="text-sm text-slate-500">当前选中用户</p>
                       <h3 className="mt-1 text-lg font-bold text-slate-900">{adminSelectedUser.name || adminSelectedUser.username}</h3>
                       <p className="mt-1 text-sm text-slate-500">{adminSelectedUser.username} | {formatRole(adminSelectedUser.role)}</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {adminSelectedUser.role === 'ADMIN' ? (
-                          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">
-                            管理员默认拥有全部权限
-                          </span>
-                        ) : (adminSelectedUser.permissions || []).length === 0 ? (
-                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
-                            未授予额外权限
-                          </span>
-                        ) : (
-                          (adminSelectedUser.permissions || []).map((permission) => (
-                            <span
-                              key={permission}
-                              className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-bold text-cyan-700"
-                            >
-                              {formatAdminPermissionLabel(permission)}
-                            </span>
-                          ))
-                        )}
+                      <div className="mt-2">
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${adminSelectedUser.banned ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {adminSelectedUser.banned ? '已封禁' : '正常'}
+                        </span>
                       </div>
                     </div>
                     <div className="rounded-2xl bg-amber-50 px-4 py-3 text-right text-amber-700 sm:min-w-[180px]">
@@ -173,6 +154,29 @@ export default function AdminView({
                       <p className="text-lg font-bold text-slate-900">{formatRmb(adminSelectedUser.balance)}</p>
                     </div>
                   </div>
+
+                  {adminSelectedUser.role !== 'ADMIN' ? (
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={onToggleAdminBan}
+                        disabled={isAdminSubmitting}
+                        className={`rounded-2xl px-4 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70 ${
+                          adminSelectedUser.banned ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-500 hover:bg-amber-600'
+                        }`}
+                      >
+                        {adminSelectedUser.banned ? '解封账号' : '封禁账号'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onDeleteAdminUser}
+                        disabled={isAdminSubmitting}
+                        className="rounded-2xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        永久删除
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="grid gap-4 xl:grid-cols-2">
@@ -186,7 +190,7 @@ export default function AdminView({
 
                     {adminSelectedUser.role === 'ADMIN' ? (
                       <div className="rounded-2xl bg-amber-50 px-4 py-4 text-sm text-amber-700">
-                        管理员角色默认拥有全部后台权限，无需单独授予。
+                        管理员角色默认拥有全部后台权限。
                       </div>
                     ) : canGrantPermissions ? (
                       <>
@@ -205,6 +209,7 @@ export default function AdminView({
                               <span className="block min-w-0">
                                 <span className="block text-sm font-semibold text-slate-900">{permission.label}</span>
                                 <span className="mt-1 block text-xs text-slate-500">{permission.description}</span>
+                                <span className="mt-1 block text-[11px] text-slate-400">{formatAdminPermissionLabel(permission.code)}</span>
                               </span>
                             </label>
                           ))}
@@ -219,15 +224,13 @@ export default function AdminView({
                         </button>
                       </>
                     ) : (
-                      <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                        当前账号没有分配权限的权限。
-                      </div>
+                      <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-500">当前账号没有分配权限的权限。</div>
                     )}
                   </form>
 
                   {canAdjustBalance ? (
                     <form onSubmit={onSubmitAdminAdjustment} className="space-y-3 rounded-2xl bg-white p-4 shadow-sm">
-                      <h4 className="text-base font-bold text-slate-900">手动调整</h4>
+                      <h4 className="text-base font-bold text-slate-900">手动调整余额</h4>
                       <label className="block">
                         <span className="mb-2 block text-sm font-medium text-slate-700">调整金额</span>
                         <input
@@ -246,7 +249,7 @@ export default function AdminView({
                           value={adminAdjustReason}
                           onChange={(event) => onAdminAdjustReasonChange(event.target.value)}
                           className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
-                          placeholder="请说明调整原因"
+                          placeholder="请输入调整原因"
                         />
                       </label>
                       <button
@@ -259,9 +262,7 @@ export default function AdminView({
                       </button>
                     </form>
                   ) : (
-                    <div className="rounded-2xl bg-white px-4 py-4 text-sm text-slate-500 shadow-sm">
-                      当前账号没有调整余额权限。
-                    </div>
+                    <div className="rounded-2xl bg-white px-4 py-4 text-sm text-slate-500 shadow-sm">当前账号没有调整余额权限。</div>
                   )}
                 </div>
 
@@ -275,9 +276,7 @@ export default function AdminView({
 
                   <div className="mt-4 space-y-3">
                     {(adminSelectedUser.records || []).length === 0 ? (
-                      <div className="rounded-2xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-                        暂无余额记录。
-                      </div>
+                      <div className="rounded-2xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">暂无余额记录。</div>
                     ) : (
                       adminSelectedUser.records.map((record) => {
                         const meta = getBalanceRecordMeta(record.type);
@@ -310,7 +309,7 @@ export default function AdminView({
               </>
             ) : (
               <div className="rounded-2xl bg-white px-4 py-10 text-center text-sm text-slate-500 shadow-sm">
-                请选择一个用户查看余额详情。
+                请选择一个用户查看详情。
               </div>
             )}
           </div>

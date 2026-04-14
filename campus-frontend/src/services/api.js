@@ -60,6 +60,7 @@ const requestApi = async (method, path, data, config = {}) => {
 export const apiGet = (path, config) => requestApi('get', path, undefined, config);
 export const apiPost = (path, data, config) => requestApi('post', path, data, config);
 export const apiPut = (path, data, config) => requestApi('put', path, data, config);
+export const apiDelete = (path, config) => requestApi('delete', path, undefined, config);
 
 export const isUnauthorizedError = (error) => error?.response?.status === 401;
 

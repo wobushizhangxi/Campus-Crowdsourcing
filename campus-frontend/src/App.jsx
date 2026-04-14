@@ -14,7 +14,7 @@ import WalletView from './components/pages/WalletView';
 import useAccountMemory from './hooks/useAccountMemory';
 import useChat from './hooks/useChat';
 import useWorkspaceData from './hooks/useWorkspaceData';
-import { apiGet, apiPost, apiPut, getRequestErrorMessage, isUnauthorizedError } from './services/api';
+import { apiDelete, apiGet, apiPost, apiPut, getRequestErrorMessage, isUnauthorizedError } from './services/api';
 import { adminPermissionOptions, hasAdminPermission } from './utils/adminPermissions';
 import { clearAuthSession, persistAuthSession, readAuthToken } from './utils/authSession';
 import { formatDateTime, formatRmb, formatSignedRmb, getBalanceRecordMeta } from './utils/formatters';
@@ -608,6 +608,59 @@ export default function App() {
     }
   };
 
+  const handleToggleAdminBan = async () => {
+    if (!adminSelectedUser?.id) {
+      return;
+    }
+    if (!window.confirm(`确定${adminSelectedUser.banned ? '解封' : '封禁'}该账号吗？`)) {
+      return;
+    }
+
+    try {
+      setIsAdminSubmitting(true);
+      setAdminError('');
+      const endpoint = adminSelectedUser.banned
+        ? `/api/admin/users/${adminSelectedUser.id}/unban`
+        : `/api/admin/users/${adminSelectedUser.id}/ban`;
+      const response = await apiPost(endpoint);
+      const nextUser = response.data?.data || null;
+      setAdminSelectedUser(nextUser);
+      setAdminMessage(adminSelectedUser.banned ? '账号已解封。' : '账号已封禁。');
+      await loadAdminUsers(adminKeyword);
+    } catch (error) {
+      setAdminError(withAuthHandling(error, '更新封禁状态失败。'));
+    } finally {
+      setIsAdminSubmitting(false);
+    }
+  };
+
+  const handleDeleteAdminUser = async () => {
+    if (!adminSelectedUser?.id) {
+      return;
+    }
+
+    const typedUsername = window.prompt(`请输入用户名 ${adminSelectedUser.username} 以确认永久删除：`) || '';
+    if (typedUsername !== adminSelectedUser.username) {
+      setAdminError('用户名确认不一致，已取消删除。');
+      return;
+    }
+
+    try {
+      setIsAdminSubmitting(true);
+      setAdminError('');
+      await apiDelete(`/api/admin/users/${adminSelectedUser.id}`);
+      setAdminSelectedUser(null);
+      setAdminPermissionDraft([]);
+      setAdminMessage('账号已永久删除。');
+      await loadAdminUsers(adminKeyword);
+      await refreshWorkspaceState({ includeWallet: false, silent: true });
+    } catch (error) {
+      setAdminError(withAuthHandling(error, '删除用户失败。'));
+    } finally {
+      setIsAdminSubmitting(false);
+    }
+  };
+
   const completedHistoryTasks = [...tasks]
     .filter((task) => task.status === 'completed' && (isTaskOwnedByCurrentUser(task) || task.assignee === currentUser.studentId))
     .sort((firstTask, secondTask) => {
@@ -829,8 +882,10 @@ export default function App() {
             setSelectedTask(null);
           }}
           onSelectAdminUser={loadAdminUser}
+          onDeleteAdminUser={handleDeleteAdminUser}
           onSubmitAdminAdjustment={handleSubmitAdminAdjustment}
           onSubmitAdminPermissions={handleSubmitAdminPermissions}
+          onToggleAdminBan={handleToggleAdminBan}
           onToggleAdminPermission={handleToggleAdminPermission}
         />
       );
