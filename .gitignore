@@ -6,3 +6,5 @@ campus-frontend/frontend.err.log
 config/application-local.properties
 .idea/dataSources.xml
 tools/cloudflared/
+.worktrees/
+worktrees/
