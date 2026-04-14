@@ -193,15 +193,38 @@ class SecuredBusinessFlowTests {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    void authAndAdminPayloadContainBannedFlag() throws Exception {
+        String adminToken = registerAndIssueToken("admin001", "Admin", UserRole.ADMIN);
+        User user = createUser("user100", "User 100", UserRole.USER, new BigDecimal("1.00"));
+        user.setBanned(true);
+        userRepository.save(user);
+        String userToken = jwtTokenService.generateToken(user);
+
+        mockMvc.perform(get("/api/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.user.banned").value(true));
+
+        mockMvc.perform(get("/api/admin/users/{id}", user.getId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.banned").value(true));
+    }
+
     private String registerAndIssueToken(String username, String name, UserRole role) {
+        User savedUser = createUser(username, name, role, new BigDecimal("20.00"));
+        return jwtTokenService.generateToken(savedUser);
+    }
+
+    private User createUser(String username, String name, UserRole role, BigDecimal balance) {
         User user = new User();
         user.setUsername(username);
         user.setPassword(passwordEncoder.encode("Secret123!"));
         user.setName(name);
         user.setRole(role);
-        user.setBalance(new BigDecimal("20.00"));
-        User savedUser = userRepository.save(user);
-        return jwtTokenService.generateToken(savedUser);
+        user.setBalance(balance);
+        return userRepository.save(user);
     }
 
     private Task createAcceptedTask(String authorUsername, String assigneeUsername) {

@@ -61,6 +61,9 @@ public class User {
     @Column(precision = 10, scale = 2)
     private BigDecimal balance = BigDecimal.ZERO;
 
+    @Column(nullable = false)
+    private boolean banned = false;
+
     public Long getId() {
         return id;
     }
@@ -147,6 +150,14 @@ public class User {
 
     public void setBalance(BigDecimal balance) {
         this.balance = balance;
+    }
+
+    public boolean isBanned() {
+        return banned;
+    }
+
+    public void setBanned(boolean banned) {
+        this.banned = banned;
     }
 
     public Set<AdminPermission> getPermissions() {

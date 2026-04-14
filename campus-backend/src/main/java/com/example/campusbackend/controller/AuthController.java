@@ -125,6 +125,7 @@ public class AuthController {
         data.put("address", user.getAddress());
         data.put("bio", user.getBio());
         data.put("balance", user.getBalance());
+        data.put("banned", user.isBanned());
         data.put("role", user.getRole().name());
         data.put("permissions", adminPermissionService.toPermissionNames(user));
         data.put("completedCount", taskRepository.countCompletedTasksForUser(user.getUsername(), user.getName()));

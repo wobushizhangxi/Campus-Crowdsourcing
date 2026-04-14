@@ -161,6 +161,7 @@ public class AdminController {
         data.put("role", user.getRole().name());
         data.put("permissions", adminPermissionService.toPermissionNames(user));
         data.put("balance", user.getBalance());
+        data.put("banned", user.isBanned());
         data.put("email", user.getEmail());
         data.put("phone", user.getPhone());
         return data;
