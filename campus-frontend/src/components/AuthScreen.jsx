@@ -35,7 +35,7 @@ export default function AuthScreen({
             <div className="relative z-10">
               <div className="auth-brand__badge">校园众包平台</div>
               <h1 className="mt-6 max-w-md text-4xl font-black leading-tight md:text-5xl">
-                更安全的校园任务协作与接单平台
+                安全的校园任务协作与接单平台
               </h1>
               <p className="mt-4 max-w-md text-sm leading-7 text-cyan-50/90 md:text-base">
                 注册账号、发布任务、接取委托，并通过登录态安全管理你的钱包与资料。
@@ -43,9 +43,9 @@ export default function AuthScreen({
 
               <div className="mt-8 grid gap-3">
                 {[
-                  { icon: ShieldCheck, title: '登录保护', text: '请求现在通过令牌认证，不再信任浏览器里随意提交的用户名。' },
-                  { icon: UserPlus, title: '开放注册', text: '新用户可以直接注册并立即开始使用平台。' },
-                  { icon: Mail, title: '管理员控制', text: '余额变动仅允许管理员操作，不再开放公共充值入口。' },
+                  { icon: ShieldCheck, title: '助人', text: '帮助每一个需要帮助的人。' },
+                  { icon: UserPlus, title: '开放', text: '我们都可以让校园变更好。' },
+                  { icon: Mail, title: '和谐', text: '让新和谐风气从这里开始。' },
                 ].map(({ icon, title, text }) => (
                   <div key={title} className="flex gap-3 rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
                     <div className="mt-0.5 rounded-xl bg-white/15 p-2">

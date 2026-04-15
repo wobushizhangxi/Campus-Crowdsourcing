@@ -1,0 +1,26 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="64" y1="52" x2="446" y2="456" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#26D4FF"/>
+      <stop offset="1" stop-color="#0A6BFF"/>
+    </linearGradient>
+    <linearGradient id="trail" x1="150" y1="144" x2="372" y2="364" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E8FDFF"/>
+      <stop offset="1" stop-color="#B6F2FF"/>
+    </linearGradient>
+    <filter id="glow" x="101" y="106" width="307" height="300" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+      <feGaussianBlur stdDeviation="12" result="effect1_foregroundBlur_0_1"/>
+    </filter>
+  </defs>
+  <rect x="36" y="36" width="440" height="440" rx="116" fill="url(#bg)"/>
+  <circle cx="383" cy="126" r="36" fill="#87F3FF" fill-opacity="0.75"/>
+  <circle cx="141" cy="380" r="24" fill="#8BE8FF" fill-opacity="0.7"/>
+  <g filter="url(#glow)">
+    <path d="M150 321C188 265 232 224 277 196C308 177 340 162 372 151" stroke="url(#trail)" stroke-width="40" stroke-linecap="round"/>
+    <path d="M223 338C250 311 273 283 292 254" stroke="#0B84FF" stroke-width="22" stroke-linecap="round"/>
+  </g>
+  <circle cx="150" cy="321" r="28" fill="#F6FEFF"/>
+  <circle cx="372" cy="151" r="28" fill="#F6FEFF"/>
+</svg>
