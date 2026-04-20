@@ -1,27 +1,40 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, existsSync } from 'node:fs';
 
 const root = new URL('..', import.meta.url);
 const appSource = readFileSync(new URL('./src/App.jsx', root), 'utf8');
-const navSource = readFileSync(new URL('./src/components/layout/BottomNav.jsx', root), 'utf8');
-const profileSource = readFileSync(new URL('./src/components/pages/ProfileView.jsx', root), 'utf8');
+const bottomNavSource = readFileSync(new URL('./src/components/layout/BottomNav.jsx', root), 'utf8');
+const appHeaderSource = readFileSync(new URL('./src/components/layout/AppHeader.jsx', root), 'utf8');
+const sidebarPath = new URL('./src/components/layout/SidebarNav.jsx', root);
+const sidebarSource = existsSync(sidebarPath) ? readFileSync(sidebarPath, 'utf8') : '';
 
 const checks = [
   {
-    description: 'main app shell stays mobile-sized',
-    passed: appSource.includes('max-w-md'),
+    description: 'App.jsx contains the md sidebar grid columns',
+    passed: appSource.includes('md:grid-cols-[88px_minmax(0,1fr)]'),
   },
   {
-    description: 'admin view is rendered in a dedicated screen branch',
-    passed: appSource.includes('const isAdminScreenActive = profileSection === \'admin\''),
+    description: 'App.jsx contains the xl sidebar grid columns',
+    passed: appSource.includes('xl:grid-cols-[260px_minmax(0,1fr)]'),
   },
   {
-    description: 'default bottom navigation remains mobile-sized',
-    passed: navSource.includes('max-w-md'),
+    description: 'App.jsx contains the shell max width',
+    passed: appSource.includes('max-w-[1600px]'),
   },
   {
-    description: 'profile still exposes a dedicated admin entry',
-    passed: profileSource.includes('onOpenAdmin'),
+    description: 'App.jsx renders the sidebar navigation',
+    passed: appSource.includes('<SidebarNav'),
+  },
+  {
+    description: 'BottomNav.jsx is mobile-only',
+    passed: bottomNavSource.includes('md:hidden'),
+  },
+  {
+    description: 'AppHeader.jsx supports desktop wrapping and padding',
+    passed: appHeaderSource.includes('lg:flex-row') && appHeaderSource.includes('xl:px-8'),
+  },
+  {
+    description: 'SidebarNav.jsx exists and tracks unread and active state',
+    passed: existsSync(sidebarPath) && sidebarSource.includes('hasUnreadMessages') && sidebarSource.includes('activeTab'),
   },
 ];
 

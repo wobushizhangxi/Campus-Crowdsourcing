@@ -3,6 +3,7 @@ import AuthScreen from './components/AuthScreen';
 import AppHeader from './components/layout/AppHeader';
 import BottomNav from './components/layout/BottomNav';
 import ChatOverlay from './components/overlays/ChatOverlay';
+import SidebarNav from './components/layout/SidebarNav';
 import AdminView from './components/pages/AdminView';
 import HistoryView from './components/pages/HistoryView';
 import HomeView from './components/pages/HomeView';
@@ -952,41 +953,37 @@ export default function App() {
     );
   }
 
-  const isAdminScreenActive = profileSection === 'admin';
+  const isWideContentPage = profileSection === 'admin' || activeTab === 'messages';
+  const contentMaxWidthClass = isWideContentPage ? 'max-w-[1480px]' : 'max-w-[1180px]';
   const pageMeta = getCurrentPageMeta();
 
-  if (isAdminScreenActive) {
-    return (
-      <div className="min-h-screen bg-slate-100 text-slate-900 md:px-4 md:py-4">
-        <div className="mx-auto flex min-h-screen w-full max-w-[1280px] flex-col bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.16),_transparent_38%),linear-gradient(180deg,_#f8fbff_0%,_#ffffff_24%,_#f8fafc_100%)] md:min-h-[calc(100vh-2rem)] md:overflow-hidden md:rounded-[32px] md:shadow-2xl">
-          <main className="min-h-0 flex-1 overflow-y-auto">
-            {renderAppContent()}
-          </main>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-slate-100 px-0 text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.16),_transparent_38%),linear-gradient(180deg,_#f8fbff_0%,_#ffffff_24%,_#f8fafc_100%)] shadow-2xl">
-        <AppHeader
-          pageMeta={pageMeta}
-          currentUser={currentUser}
-          onOpenProfile={() => {
-            setActiveTab('profile');
-            setProfileSection('overview');
-            setSelectedTask(null);
-          }}
-        />
-
-        <main className="min-h-0 flex-1 overflow-y-auto pb-24">{renderAppContent()}</main>
-
-        <BottomNav
+    <div className="min-h-screen bg-slate-100 text-slate-900 md:px-4 md:py-4">
+      <div className="mx-auto grid min-h-screen w-full max-w-[1600px] grid-cols-1 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.16),_transparent_38%),linear-gradient(180deg,_#f8fbff_0%,_#ffffff_24%,_#f8fafc_100%)] shadow-2xl md:min-h-[calc(100vh-2rem)] md:overflow-hidden md:rounded-[32px] md:grid-cols-[88px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]">
+        <SidebarNav
           activeTab={activeTab}
+          currentUser={currentUser}
           hasUnreadMessages={hasUnreadMessages}
           onSelectTab={handleSelectTab}
         />
+
+        <div className="flex min-h-0 min-w-0 flex-col">
+          <div className={`mx-auto flex min-h-0 w-full min-w-0 flex-1 flex-col ${contentMaxWidthClass}`}>
+            <AppHeader
+              pageMeta={pageMeta}
+              currentUser={currentUser}
+              onOpenProfile={() => {
+                setActiveTab('profile');
+                setProfileSection('overview');
+                setSelectedTask(null);
+              }}
+            />
+
+            <main className="min-h-0 flex-1 overflow-y-auto pb-24">{renderAppContent()}</main>
+          </div>
+
+          <BottomNav activeTab={activeTab} hasUnreadMessages={hasUnreadMessages} onSelectTab={handleSelectTab} />
+        </div>
       </div>
       <ChatOverlay
         activeChatTask={activeChatTask}
