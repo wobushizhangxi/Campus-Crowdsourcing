@@ -278,9 +278,12 @@ export default function useChat({
 
     const taskId = activeChatTask.id;
     const messages = chatMessages[taskId] || [];
+    const latestMessage = messages[messages.length - 1];
     const latestServerMessageId = getLatestServerMessageId(taskId);
     const lastObservedMessageId = chatMessageCursorRef.current[taskId] || 0;
     const isConversationSwitch = lastActiveChatTaskIdRef.current !== taskId;
+    const latestMessageFromCurrentUser = latestMessage?.senderUsername === currentUser.studentId;
+    const latestMessageIsPendingOwnMessage = Boolean(latestMessage?.pending && latestMessageFromCurrentUser);
 
     markConversationAsRead(activeChatTask.id);
 
@@ -293,6 +296,9 @@ export default function useChat({
     }
 
     if (latestServerMessageId <= lastObservedMessageId) {
+      if (latestMessageIsPendingOwnMessage && isChatPinnedToBottomRef.current) {
+        scrollChatToBottom('auto');
+      }
       return;
     }
 
@@ -309,6 +315,9 @@ export default function useChat({
     setChatMessageCursor(taskId, latestServerMessageId);
 
     if (newIncomingMessageCount === 0) {
+      if (latestMessageFromCurrentUser && isChatPinnedToBottomRef.current) {
+        scrollChatToBottom('auto');
+      }
       return;
     }
 
