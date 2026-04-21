@@ -39,13 +39,20 @@ const checks = [
   },
   {
     description: 'HomeView.jsx contains the desktop workflow grid columns',
-    passed: homeViewSource.includes('xl:grid-cols-[minmax(0,1.15fr)_380px]'),
+    passed:
+      homeViewSource.includes('xl:grid-cols-[minmax(0,1.15fr)_380px]') &&
+      homeViewSource.includes('type="button"') &&
+      homeViewSource.includes('aria-pressed={desktopSelectedTask?.id === task.id}') &&
+      homeViewSource.includes('focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2'),
   },
   {
     description: 'OrdersView.jsx contains the selectedOrderId desktop split grid columns',
     passed:
       ordersViewSource.includes('selectedOrderId') &&
-      ordersViewSource.includes('xl:grid-cols-[minmax(0,1fr)_340px]'),
+      ordersViewSource.includes('xl:grid-cols-[minmax(0,1fr)_340px]') &&
+      ordersViewSource.includes('type="button"') &&
+      ordersViewSource.includes('aria-pressed={selectedOrder?.id === task.id}') &&
+      ordersViewSource.includes('focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2'),
   },
   {
     description: 'PostTaskView.jsx contains the desktop workflow grid columns',

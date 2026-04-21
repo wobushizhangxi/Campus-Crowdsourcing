@@ -175,10 +175,12 @@ export default function OrdersView({
                 const isSelected = selectedOrder?.id === task.id;
 
                 return (
-                  <div
+                  <button
                     key={task.id}
+                    type="button"
+                    aria-pressed={selectedOrder?.id === task.id}
                     onClick={() => setSelectedOrderId(task.id)}
-                    className={`cursor-pointer rounded-3xl border bg-white p-5 text-sm text-slate-700 shadow-sm transition hover:bg-slate-50 ${
+                    className={`w-full rounded-3xl border bg-white p-5 text-left text-sm text-slate-700 shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 ${
                       isSelected ? 'border-cyan-300 ring-1 ring-cyan-100' : 'border-slate-200 hover:border-cyan-200'
                     }`}
                   >
@@ -212,7 +214,7 @@ export default function OrdersView({
                         </button>
                       ) : null}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
