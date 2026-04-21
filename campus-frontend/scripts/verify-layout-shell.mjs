@@ -84,6 +84,31 @@ const checks = [
       ordersViewSource.includes('openChat(task)'),
   },
   {
+    description: 'OrdersView.jsx keeps readable Chinese copy',
+    passed:
+      ordersViewSource.includes('订单总览') &&
+      ordersViewSource.includes('在这里查看你发布的任务和已接取的任务。') &&
+      ordersViewSource.includes('我发布的') &&
+      ordersViewSource.includes('我接取的') &&
+      ordersViewSource.includes('当前列表里还没有任务。') &&
+      ordersViewSource.includes("return '待接单';") &&
+      ordersViewSource.includes("return '进行中';") &&
+      ordersViewSource.includes("return '已完成';") &&
+      ordersViewSource.includes("return status || '未知';") &&
+      ordersViewSource.includes('标记完成') &&
+      ordersViewSource.includes('打开聊天') &&
+      ordersViewSource.includes('任务说明') &&
+      ordersViewSource.includes('暂无补充说明。') &&
+      ordersViewSource.includes('任务信息') &&
+      ordersViewSource.includes('发布者') &&
+      ordersViewSource.includes('接单人') &&
+      ordersViewSource.includes('订单详情') &&
+      ordersViewSource.includes('从左侧选择一个订单') &&
+      !ordersViewSource.includes('鐠併垹') &&
+      !ordersViewSource.includes('閹存垵') &&
+      !ordersViewSource.includes('瑜版挸'),
+  },
+  {
     description: 'PostTaskView.jsx contains the desktop workflow grid columns',
     passed: postTaskViewSource.includes('xl:grid-cols-[minmax(0,1fr)_360px]'),
   },
