@@ -109,6 +109,10 @@ const checks = [
       countOccurrences(ordersViewSource, '\u8ba2\u5355\u8be6\u60c5') === 1 &&
       countOccurrences(
         ordersViewSource,
+        '\u4ece\u5de6\u4fa7\u9009\u62e9\u4e00\u4e2a\u8ba2\u5355'
+      ) === 1 &&
+      countOccurrences(
+        ordersViewSource,
         '\u8fd9\u91cc\u4f1a\u663e\u793a\u4efb\u52a1\u8bf4\u660e\u3001\u72b6\u6001\u548c\u53ef\u6267\u884c\u64cd\u4f5c\u3002\u4f60\u53ef\u4ee5\u7ee7\u7eed\u5728\u5de6\u4fa7\u5207\u6362\u5217\u8868\u3002'
       ) === 1 &&
       ordersViewSource.includes("return '\u5f85\u63a5\u5355';") &&
