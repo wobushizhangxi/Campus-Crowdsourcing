@@ -59,7 +59,6 @@ export default function ChatPanel({
               type="button"
               onClick={onClose}
               ref={closeButtonRef}
-              autoFocus={isOverlay && Boolean(activeChatTask)}
               className="rounded-full bg-slate-100 p-2 text-slate-600 transition hover:bg-slate-200"
               aria-label={CLOSE_CHAT_LABEL}
             >

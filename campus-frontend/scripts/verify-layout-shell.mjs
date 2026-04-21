@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from 'node:fs';
 
 const root = new URL('..', import.meta.url);
 const appSource = readFileSync(new URL('./src/App.jsx', root), 'utf8');
+const useChatSource = readFileSync(new URL('./src/hooks/useChat.js', root), 'utf8');
 const messagesViewSource = readFileSync(new URL('./src/components/pages/MessagesView.jsx', root), 'utf8');
 const homeViewSource = readFileSync(new URL('./src/components/pages/HomeView.jsx', root), 'utf8');
 const ordersViewSource = readFileSync(new URL('./src/components/pages/OrdersView.jsx', root), 'utf8');
@@ -43,6 +44,14 @@ const checks = [
   {
     description: 'App.jsx clears chat state when the session expires',
     passed: appSource.includes('resetChatState();') && appSource.includes('const handleSessionExpired = () => {'),
+  },
+  {
+    description: 'useChat.js resets scroll state when opening a conversation',
+    passed:
+      useChatSource.includes('isChatPinnedToBottomRef.current = true;') &&
+      useChatSource.includes('lastActiveChatTaskIdRef') &&
+      useChatSource.includes('isConversationSwitch') &&
+      useChatSource.includes('lastActiveChatTaskIdRef.current = null;'),
   },
   {
     description: 'MessagesView.jsx contains the desktop chat workspace columns',
@@ -127,19 +136,25 @@ const checks = [
     passed: chatOverlaySource.includes('<ChatPanel'),
   },
   {
-    description: 'ChatOverlay.jsx exposes modal semantics and Escape handling',
+    description: 'ChatOverlay.jsx exposes modal semantics, Escape handling, and focus trap',
     passed:
       chatOverlaySource.includes('role="dialog"') &&
       chatOverlaySource.includes('aria-modal="true"') &&
-      chatOverlaySource.includes("event.key === 'Escape'"),
+      chatOverlaySource.includes("event.key === 'Escape'") &&
+      chatOverlaySource.includes("event.key !== 'Tab'") &&
+      chatOverlaySource.includes('focusin') &&
+      chatOverlaySource.includes('FOCUSABLE_SELECTOR'),
   },
   {
     description: 'ChatPanel.jsx carries the wider overlay sizing',
     passed: chatPanelSource.includes('sm:max-w-3xl') && chatPanelSource.includes('xl:max-w-5xl'),
   },
   {
-    description: 'ChatPanel.jsx exposes accessible dialog labels',
-    passed: chatPanelSource.includes('dialogTitleId') && chatPanelSource.includes('dialogDescriptionId'),
+    description: 'ChatPanel.jsx exposes accessible dialog labels and no autoFocus',
+    passed:
+      chatPanelSource.includes('dialogTitleId') &&
+      chatPanelSource.includes('dialogDescriptionId') &&
+      !chatPanelSource.includes('autoFocus='),
   },
   {
     description: 'App.jsx contains the shell max width',

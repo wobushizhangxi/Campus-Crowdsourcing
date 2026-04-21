@@ -18,6 +18,7 @@ export default function useChat({
   const chatScrollContainerRef = useRef(null);
   const isChatPinnedToBottomRef = useRef(true);
   const chatMessageCursorRef = useRef({});
+  const lastActiveChatTaskIdRef = useRef(null);
 
   const setChatMessageCursor = useCallback((taskId, messageId) => {
     if (!taskId) {
@@ -119,16 +120,16 @@ export default function useChat({
   }, [getLatestServerMessageId]);
 
   const openChat = useCallback((task) => {
-    const latestMessageId = getLatestServerMessageId(task.id);
     setActiveChatTask(task);
     setChatPendingNewMessageCount(0);
-    setChatMessageCursor(task.id, latestMessageId);
+    isChatPinnedToBottomRef.current = true;
     markConversationAsRead(task.id);
-  }, [getLatestServerMessageId, markConversationAsRead, setChatMessageCursor]);
+  }, [markConversationAsRead]);
 
   const closeChat = useCallback(() => {
     setActiveChatTask(null);
     setChatPendingNewMessageCount(0);
+    lastActiveChatTaskIdRef.current = null;
   }, []);
 
   const scrollChatToBottom = useCallback((behavior = 'auto') => {
@@ -221,6 +222,7 @@ export default function useChat({
     setChatPendingNewMessageCount(0);
     isChatPinnedToBottomRef.current = true;
     chatMessageCursorRef.current = {};
+    lastActiveChatTaskIdRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -278,8 +280,18 @@ export default function useChat({
     const messages = chatMessages[taskId] || [];
     const latestServerMessageId = getLatestServerMessageId(taskId);
     const lastObservedMessageId = chatMessageCursorRef.current[taskId] || 0;
+    const isConversationSwitch = lastActiveChatTaskIdRef.current !== taskId;
 
     markConversationAsRead(activeChatTask.id);
+
+    if (isConversationSwitch) {
+      lastActiveChatTaskIdRef.current = taskId;
+      setChatMessageCursor(taskId, latestServerMessageId);
+      setChatPendingNewMessageCount(0);
+      scrollChatToBottom('auto');
+      return;
+    }
+
     if (latestServerMessageId <= lastObservedMessageId) {
       return;
     }
