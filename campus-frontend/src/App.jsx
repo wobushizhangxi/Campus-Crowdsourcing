@@ -802,12 +802,24 @@ export default function App() {
     if (activeTab === 'messages') {
       return (
         <MessagesView
+          activeChatTask={activeChatTask}
+          chatInput={chatInput}
+          chatMessages={chatMessages}
+          chatPendingNewMessageCount={chatPendingNewMessageCount}
+          chatScrollContainerRef={chatScrollContainerRef}
+          currentUser={currentUser}
           formatRmb={formatRmb}
           getConversationTitle={getConversationTitle}
           getLatestServerMessage={getLatestServerMessage}
           getTaskStatusMeta={getTaskStatusMeta}
+          handleSendMessage={handleSendMessage}
           isConversationUnread={isConversationUnread}
+          isSendingMessage={isSendingMessage}
           openChat={openChat}
+          onChatInputChange={setChatInput}
+          onClose={closeChat}
+          onScroll={syncChatPinnedState}
+          scrollChatToBottom={scrollChatToBottom}
           sortedChatableTasks={sortedChatableTasks}
         />
       );
@@ -992,6 +1004,7 @@ export default function App() {
         currentUser={currentUser}
         getConversationTitle={getConversationTitle}
         handleSendMessage={handleSendMessage}
+        isMessagesPage={activeTab === 'messages'}
         isSendingMessage={isSendingMessage}
         onChatInputChange={setChatInput}
         onClose={closeChat}
