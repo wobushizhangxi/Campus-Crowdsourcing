@@ -24,8 +24,8 @@ export default function AuthScreen({
 
   return (
     <div className="auth-shell min-h-screen px-4 py-8 text-slate-900">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-6xl items-center">
-        <div className="grid w-full overflow-hidden rounded-[32px] border border-white/60 bg-white/80 shadow-2xl backdrop-blur md:grid-cols-[1.05fr_0.95fr]">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[1280px] items-center">
+        <div className="grid w-full overflow-hidden rounded-[32px] border border-white/60 bg-white/80 shadow-2xl backdrop-blur lg:grid-cols-[1.05fr_0.95fr]">
           <section className="auth-brand relative overflow-hidden px-6 py-8 text-white md:px-10 md:py-12">
             <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${authBrandImageUrl})` }} />
             <div className="absolute inset-0 bg-slate-950/55" />

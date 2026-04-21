@@ -17,6 +17,19 @@ export default function useChat({
 
   const chatScrollContainerRef = useRef(null);
   const isChatPinnedToBottomRef = useRef(true);
+  const chatMessageCursorRef = useRef({});
+  const lastActiveChatTaskIdRef = useRef(null);
+
+  const setChatMessageCursor = useCallback((taskId, messageId) => {
+    if (!taskId) {
+      return;
+    }
+
+    chatMessageCursorRef.current = {
+      ...chatMessageCursorRef.current,
+      [taskId]: messageId,
+    };
+  }, []);
 
   const chatableTasks = useMemo(
     () => tasks.filter(
@@ -109,12 +122,14 @@ export default function useChat({
   const openChat = useCallback((task) => {
     setActiveChatTask(task);
     setChatPendingNewMessageCount(0);
+    isChatPinnedToBottomRef.current = true;
     markConversationAsRead(task.id);
   }, [markConversationAsRead]);
 
   const closeChat = useCallback(() => {
     setActiveChatTask(null);
     setChatPendingNewMessageCount(0);
+    lastActiveChatTaskIdRef.current = null;
   }, []);
 
   const scrollChatToBottom = useCallback((behavior = 'auto') => {
@@ -126,7 +141,10 @@ export default function useChat({
     container.scrollTo({ top: container.scrollHeight, behavior });
     isChatPinnedToBottomRef.current = true;
     setChatPendingNewMessageCount(0);
-  }, []);
+    if (activeChatTask) {
+      setChatMessageCursor(activeChatTask.id, getLatestServerMessageId(activeChatTask.id));
+    }
+  }, [activeChatTask, getLatestServerMessageId, setChatMessageCursor]);
 
   const syncChatPinnedState = useCallback(() => {
     const container = chatScrollContainerRef.current;
@@ -203,6 +221,8 @@ export default function useChat({
     setLastViewedMessageIds({});
     setChatPendingNewMessageCount(0);
     isChatPinnedToBottomRef.current = true;
+    chatMessageCursorRef.current = {};
+    lastActiveChatTaskIdRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -256,17 +276,58 @@ export default function useChat({
       return;
     }
 
-    markConversationAsRead(activeChatTask.id);
-    const frameId = requestAnimationFrame(() => {
-      if (isChatPinnedToBottomRef.current) {
-        scrollChatToBottom('auto');
-      } else {
-        setChatPendingNewMessageCount((prev) => prev + 1);
-      }
-    });
+    const taskId = activeChatTask.id;
+    const messages = chatMessages[taskId] || [];
+    const latestMessage = messages[messages.length - 1];
+    const latestServerMessageId = getLatestServerMessageId(taskId);
+    const lastObservedMessageId = chatMessageCursorRef.current[taskId] || 0;
+    const isConversationSwitch = lastActiveChatTaskIdRef.current !== taskId;
+    const latestMessageFromCurrentUser = latestMessage?.senderUsername === currentUser.studentId;
+    const latestMessageIsPendingOwnMessage = Boolean(latestMessage?.pending && latestMessageFromCurrentUser);
 
-    return () => cancelAnimationFrame(frameId);
-  }, [activeChatTask, chatMessages, markConversationAsRead, scrollChatToBottom]);
+    markConversationAsRead(activeChatTask.id);
+
+    if (isConversationSwitch) {
+      lastActiveChatTaskIdRef.current = taskId;
+      setChatMessageCursor(taskId, latestServerMessageId);
+      setChatPendingNewMessageCount(0);
+      scrollChatToBottom('auto');
+      return;
+    }
+
+    if (latestServerMessageId <= lastObservedMessageId) {
+      if (latestMessageIsPendingOwnMessage && isChatPinnedToBottomRef.current) {
+        scrollChatToBottom('auto');
+      }
+      return;
+    }
+
+    const newIncomingMessageCount = messages.filter((message) => {
+      const messageId = Number(message?.id);
+      return (
+        !message?.pending &&
+        Number.isFinite(messageId) &&
+        messageId > lastObservedMessageId &&
+        message.senderUsername !== currentUser.studentId
+      );
+    }).length;
+
+    setChatMessageCursor(taskId, latestServerMessageId);
+
+    if (newIncomingMessageCount === 0) {
+      if (latestMessageFromCurrentUser && isChatPinnedToBottomRef.current) {
+        scrollChatToBottom('auto');
+      }
+      return;
+    }
+
+    if (isChatPinnedToBottomRef.current) {
+      scrollChatToBottom('auto');
+      return;
+    }
+
+    setChatPendingNewMessageCount((prev) => prev + newIncomingMessageCount);
+  }, [activeChatTask, chatMessages, currentUser.studentId, getLatestServerMessageId, markConversationAsRead, scrollChatToBottom, setChatMessageCursor]);
 
   return {
     activeChatTask,

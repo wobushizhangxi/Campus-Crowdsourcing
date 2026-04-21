@@ -1,4 +1,14 @@
-import { ArrowLeft, LoaderCircle, Send } from 'lucide-react';
+import { useCallback, useEffect, useRef } from 'react';
+import ChatPanel from '../chat/ChatPanel';
+
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  '[href]',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
 
 export default function ChatOverlay({
   activeChatTask,
@@ -15,89 +25,139 @@ export default function ChatOverlay({
   onScroll,
   scrollChatToBottom,
 }) {
-  if (!activeChatTask) {
-    return null;
-  }
+  const overlayRef = useRef(null);
+  const closeButtonRef = useRef(null);
+  const restoreFocusRef = useRef(null);
 
-  const messages = chatMessages[activeChatTask.id] || [];
+  const getFocusableElements = useCallback(() => {
+    const container = overlayRef.current;
+    if (!container) {
+      return [];
+    }
+
+    return Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR)).filter(
+      (element) => element instanceof HTMLElement && !element.hasAttribute('disabled'),
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!activeChatTask) {
+      restoreFocusRef.current = null;
+      return undefined;
+    }
+
+    const activeElement = document.activeElement;
+    restoreFocusRef.current = activeElement instanceof HTMLElement ? activeElement : null;
+    const frameId = requestAnimationFrame(() => {
+      closeButtonRef.current?.focus();
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      const restoreTarget = restoreFocusRef.current;
+      restoreFocusRef.current = null;
+
+      if (restoreTarget && restoreTarget.isConnected) {
+        restoreTarget.focus();
+      }
+    };
+  }, [activeChatTask]);
+
+  const focusFirstElement = useCallback(() => {
+    const focusableElements = getFocusableElements();
+    const firstElement = focusableElements[0];
+    if (firstElement) {
+      firstElement.focus();
+    } else {
+      overlayRef.current?.focus();
+    }
+  }, [getFocusableElements]);
+
+  const handleKeyDown = useCallback((event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose?.();
+      return;
+    }
+
+    if (event.key !== 'Tab') {
+      return;
+    }
+
+    const focusableElements = getFocusableElements();
+    if (focusableElements.length === 0) {
+      event.preventDefault();
+      overlayRef.current?.focus();
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    const currentIndex = focusableElements.findIndex((element) => element === activeElement);
+    const lastIndex = focusableElements.length - 1;
+
+    event.preventDefault();
+    if (event.shiftKey) {
+      const previousIndex = currentIndex <= 0 ? lastIndex : currentIndex - 1;
+      focusableElements[previousIndex].focus();
+      return;
+    }
+
+    const nextIndex = currentIndex === -1 || currentIndex === lastIndex ? 0 : currentIndex + 1;
+    focusableElements[nextIndex].focus();
+  }, [getFocusableElements, onClose]);
+
+  useEffect(() => {
+    if (!activeChatTask) {
+      return undefined;
+    }
+
+    const handleFocusIn = (event) => {
+      const container = overlayRef.current;
+      if (!container || container.contains(event.target)) {
+        return;
+      }
+
+      focusFirstElement();
+    };
+
+    document.addEventListener('focusin', handleFocusIn);
+
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn);
+    };
+  }, [activeChatTask, focusFirstElement]);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-center bg-slate-900/40 backdrop-blur-sm sm:items-center">
-      <div className="relative flex h-full w-full max-w-md flex-col bg-slate-50 text-slate-900 shadow-2xl sm:h-[85vh] sm:overflow-hidden sm:rounded-[32px]">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className="rounded-full bg-slate-100 p-2 text-slate-600 transition hover:bg-slate-200"
-            >
-              <ArrowLeft size={20} />
-            </button>
-            <div>
-              <h2 className="text-lg font-bold">{getConversationTitle(activeChatTask)}</h2>
-              <p className="text-xs text-slate-500">任务：{activeChatTask.title}</p>
-            </div>
-          </div>
-        </header>
-
-        <div ref={chatScrollContainerRef} onScroll={onScroll} className="flex-1 space-y-4 overflow-y-auto p-5">
-          {messages.length === 0 ? (
-            <div className="mt-10 text-center text-sm text-slate-400">
-              当前会话还没有消息，先发一条消息开始沟通吧。
-            </div>
-          ) : (
-            messages.map((message) => {
-              const isMe = message.senderUsername === currentUser.studentId || message.sender === 'me';
-
-              return (
-                <div key={message.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
-                      isMe
-                        ? 'rounded-br-none bg-cyan-600 text-white'
-                        : 'rounded-bl-none border border-slate-200 bg-white text-slate-800'
-                    }`}
-                  >
-                    <p className="leading-relaxed">{message.text}</p>
-                    <span className={`mt-1 block text-[10px] ${isMe ? 'text-cyan-200' : 'text-slate-400'}`}>
-                      {message.createdAt || message.time}
-                    </span>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        <footer className="border-t border-slate-200 bg-white p-4 pb-6">
-          <form onSubmit={handleSendMessage} className="flex items-center gap-3">
-            <input
-              type="text"
-              value={chatInput}
-              onChange={(event) => onChatInputChange(event.target.value)}
-              placeholder="输入消息内容"
-              disabled={isSendingMessage}
-              className="flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 disabled:bg-slate-100"
-            />
-            <button
-              type="submit"
-              disabled={!chatInput.trim() || isSendingMessage}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cyan-600 text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              {isSendingMessage ? <LoaderCircle size={18} className="animate-spin" /> : <Send size={18} className="-ml-0.5" />}
-            </button>
-          </form>
-        </footer>
-
-        {chatPendingNewMessageCount > 0 ? (
-          <button
-            type="button"
-            onClick={() => scrollChatToBottom('smooth')}
-            className="absolute bottom-24 right-4 rounded-full bg-cyan-600 px-4 py-2 text-xs font-semibold text-white shadow-lg transition hover:bg-cyan-700"
-          >
-            {chatPendingNewMessageCount > 99 ? '99+ 条新消息' : `${chatPendingNewMessageCount} 条新消息`}
-          </button>
-        ) : null}
-      </div>
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-50 flex justify-center bg-slate-900/40 backdrop-blur-sm sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="chat-overlay-title"
+      aria-describedby="chat-overlay-description"
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
+    >
+      <ChatPanel
+        activeChatTask={activeChatTask}
+        chatInput={chatInput}
+        chatMessages={chatMessages}
+        chatPendingNewMessageCount={chatPendingNewMessageCount}
+        chatScrollContainerRef={chatScrollContainerRef}
+        currentUser={currentUser}
+        dialogDescriptionId="chat-overlay-description"
+        dialogTitleId="chat-overlay-title"
+        getConversationTitle={getConversationTitle}
+        handleSendMessage={handleSendMessage}
+        isSendingMessage={isSendingMessage}
+        onChatInputChange={onChatInputChange}
+        onClose={onClose}
+        closeButtonRef={closeButtonRef}
+        onScroll={onScroll}
+        scrollChatToBottom={scrollChatToBottom}
+        variant="overlay"
+      />
     </div>
   );
 }

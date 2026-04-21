@@ -3,6 +3,7 @@ import AuthScreen from './components/AuthScreen';
 import AppHeader from './components/layout/AppHeader';
 import BottomNav from './components/layout/BottomNav';
 import ChatOverlay from './components/overlays/ChatOverlay';
+import SidebarNav from './components/layout/SidebarNav';
 import AdminView from './components/pages/AdminView';
 import HistoryView from './components/pages/HistoryView';
 import HomeView from './components/pages/HomeView';
@@ -18,7 +19,7 @@ import { apiDelete, apiGet, apiPost, apiPut, getRequestErrorMessage, isUnauthori
 import { adminPermissionOptions, hasAdminPermission } from './utils/adminPermissions';
 import { clearAuthSession, persistAuthSession, readAuthToken } from './utils/authSession';
 import { formatDateTime, formatRmb, formatSignedRmb, getBalanceRecordMeta } from './utils/formatters';
-import { createInitialAuthForms, emptyAuthForms, emptyUser, mapUserDataToCurrentUser } from './utils/user';
+import { createInitialAuthForms, emptyUser, mapUserDataToCurrentUser } from './utils/user';
 
 const authBrandImageUrl =
   'https://images.unsplash.com/photo-1741637335289-c99652d3155f?auto=format&fit=crop&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&q=80&w=1600';
@@ -53,6 +54,9 @@ export default function App() {
   const [isAdminSubmitting, setIsAdminSubmitting] = useState(false);
   const [adminPermissionDraft, setAdminPermissionDraft] = useState([]);
   const [isAdminPermissionSubmitting, setIsAdminPermissionSubmitting] = useState(false);
+  const [isDesktopMessagesWorkspace, setIsDesktopMessagesWorkspace] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches,
+  );
 
   const hasAttemptedSessionRestoreRef = useRef(false);
   const canAccessAdminPanel = hasAdminPermission(currentUser, 'ADMIN_ACCESS');
@@ -65,6 +69,7 @@ export default function App() {
     setIsAuthenticated(false);
     setCurrentUser(emptyUser);
     setSelectedTask(null);
+    resetChatState();
     setIsEditingProfile(false);
     setProfileDraft(emptyUser);
     setProfileMessage('');
@@ -161,6 +166,21 @@ export default function App() {
   }, [currentUser]);
 
   useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 1280px)');
+
+    const updateWorkspaceMode = (event) => {
+      setIsDesktopMessagesWorkspace(event.matches);
+    };
+
+    setIsDesktopMessagesWorkspace(mediaQuery.matches);
+    mediaQuery.addEventListener('change', updateWorkspaceMode);
+
+    return () => {
+      mediaQuery.removeEventListener('change', updateWorkspaceMode);
+    };
+  }, []);
+
+  useEffect(() => {
     if (profileSection === 'admin' && !canAccessAdminPanel) {
       setProfileSection('overview');
       setAdminError('当前账号没有管理后台权限。');
@@ -194,7 +214,7 @@ export default function App() {
           setProfileSection('overview');
           setLastSyncAt(new Date());
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
           clearAuthSession();
           setAuthError('本地登录状态已失效，请重新登录。');
@@ -682,6 +702,16 @@ export default function App() {
     return total + (Number.isFinite(reward) ? reward : 0);
   }, 0);
 
+  const handleWorkspaceTabChange = (tabId) => {
+    if (activeTab === 'messages' && isDesktopMessagesWorkspace && tabId !== 'messages') {
+      closeChat();
+    }
+
+    setActiveTab(tabId);
+    setSelectedTask(null);
+    setProfileSection('overview');
+  };
+
   const getCurrentPageMeta = () => {
     if (profileSection === 'history') {
       return {
@@ -746,13 +776,7 @@ export default function App() {
     };
   };
 
-  const handleSelectTab = (tabId) => {
-    setActiveTab(tabId);
-    setSelectedTask(null);
-    if (tabId === 'profile') {
-      setProfileSection('overview');
-    }
-  };
+  const handleSelectTab = handleWorkspaceTabChange;
 
   const renderAppContent = () => {
     if (activeTab === 'home') {
@@ -803,12 +827,24 @@ export default function App() {
     if (activeTab === 'messages') {
       return (
         <MessagesView
+          activeChatTask={activeChatTask}
+          chatInput={chatInput}
+          chatMessages={chatMessages}
+          chatPendingNewMessageCount={chatPendingNewMessageCount}
+          chatScrollContainerRef={chatScrollContainerRef}
+          currentUser={currentUser}
           formatRmb={formatRmb}
           getConversationTitle={getConversationTitle}
           getLatestServerMessage={getLatestServerMessage}
           getTaskStatusMeta={getTaskStatusMeta}
+          handleSendMessage={handleSendMessage}
           isConversationUnread={isConversationUnread}
+          isSendingMessage={isSendingMessage}
           openChat={openChat}
+          onChatInputChange={setChatInput}
+          onClose={closeChat}
+          onScroll={syncChatPinnedState}
+          scrollChatToBottom={scrollChatToBottom}
           sortedChatableTasks={sortedChatableTasks}
         />
       );
@@ -952,57 +988,51 @@ export default function App() {
     );
   }
 
-  const isAdminScreenActive = profileSection === 'admin';
+  const isWideContentPage = profileSection === 'admin' || activeTab === 'messages';
+  const contentMaxWidthClass = isWideContentPage ? 'max-w-[1480px]' : 'max-w-[1180px]';
   const pageMeta = getCurrentPageMeta();
 
-  if (isAdminScreenActive) {
-    return (
-      <div className="min-h-screen bg-slate-100 text-slate-900 md:px-4 md:py-4">
-        <div className="mx-auto flex min-h-screen w-full max-w-[1280px] flex-col bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.16),_transparent_38%),linear-gradient(180deg,_#f8fbff_0%,_#ffffff_24%,_#f8fafc_100%)] md:min-h-[calc(100vh-2rem)] md:overflow-hidden md:rounded-[32px] md:shadow-2xl">
-          <main className="min-h-0 flex-1 overflow-y-auto">
-            {renderAppContent()}
-          </main>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-slate-100 px-0 text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.16),_transparent_38%),linear-gradient(180deg,_#f8fbff_0%,_#ffffff_24%,_#f8fafc_100%)] shadow-2xl">
-        <AppHeader
-          pageMeta={pageMeta}
-          currentUser={currentUser}
-          onOpenProfile={() => {
-            setActiveTab('profile');
-            setProfileSection('overview');
-            setSelectedTask(null);
-          }}
-        />
-
-        <main className="min-h-0 flex-1 overflow-y-auto pb-24">{renderAppContent()}</main>
-
-        <BottomNav
+    <div className="min-h-screen bg-slate-100 text-slate-900 md:px-4 md:py-4">
+      <div className="mx-auto grid min-h-screen w-full max-w-[1600px] grid-cols-1 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.16),_transparent_38%),linear-gradient(180deg,_#f8fbff_0%,_#ffffff_24%,_#f8fafc_100%)] shadow-2xl md:min-h-[calc(100vh-2rem)] md:overflow-hidden md:rounded-[32px] md:grid-cols-[88px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]">
+        <SidebarNav
           activeTab={activeTab}
+          currentUser={currentUser}
           hasUnreadMessages={hasUnreadMessages}
           onSelectTab={handleSelectTab}
         />
+
+        <div className="flex min-h-0 min-w-0 flex-col">
+          <div className={`mx-auto flex min-h-0 w-full min-w-0 flex-1 flex-col ${contentMaxWidthClass}`}>
+            <AppHeader
+              pageMeta={pageMeta}
+              currentUser={currentUser}
+              onOpenProfile={() => handleWorkspaceTabChange('profile')}
+            />
+
+            <main className="min-h-0 flex-1 overflow-y-auto pb-24">{renderAppContent()}</main>
+          </div>
+
+          <BottomNav activeTab={activeTab} hasUnreadMessages={hasUnreadMessages} onSelectTab={handleSelectTab} />
+        </div>
       </div>
-      <ChatOverlay
-        activeChatTask={activeChatTask}
-        chatInput={chatInput}
-        chatMessages={chatMessages}
-        chatPendingNewMessageCount={chatPendingNewMessageCount}
-        chatScrollContainerRef={chatScrollContainerRef}
-        currentUser={currentUser}
-        getConversationTitle={getConversationTitle}
-        handleSendMessage={handleSendMessage}
-        isSendingMessage={isSendingMessage}
-        onChatInputChange={setChatInput}
-        onClose={closeChat}
-        onScroll={syncChatPinnedState}
-        scrollChatToBottom={scrollChatToBottom}
-      />
+      {activeChatTask && !(activeTab === 'messages' && isDesktopMessagesWorkspace) ? (
+        <ChatOverlay
+          activeChatTask={activeChatTask}
+          chatInput={chatInput}
+          chatMessages={chatMessages}
+          chatPendingNewMessageCount={chatPendingNewMessageCount}
+          chatScrollContainerRef={chatScrollContainerRef}
+          currentUser={currentUser}
+          getConversationTitle={getConversationTitle}
+          handleSendMessage={handleSendMessage}
+          isSendingMessage={isSendingMessage}
+          onChatInputChange={setChatInput}
+          onClose={closeChat}
+          onScroll={syncChatPinnedState}
+          scrollChatToBottom={scrollChatToBottom}
+        />
+      ) : null}
     </div>
   );
 }

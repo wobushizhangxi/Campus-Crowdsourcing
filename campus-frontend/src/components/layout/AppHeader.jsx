@@ -1,7 +1,7 @@
 export default function AppHeader({ pageMeta, currentUser, onOpenProfile }) {
   return (
-    <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/88 px-5 pb-4 pt-5 backdrop-blur-xl">
-      <div className="flex items-start justify-between gap-4 sm:items-center">
+    <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/88 px-5 pb-4 pt-5 backdrop-blur-xl md:px-6 xl:px-8">
+      <div className="flex flex-col items-start gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-bold uppercase tracking-[0.34em] text-cyan-600">{pageMeta.eyebrow}</p>
           <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-900">{pageMeta.title}</h1>
