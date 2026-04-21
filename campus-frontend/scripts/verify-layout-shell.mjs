@@ -3,6 +3,9 @@ import { readFileSync, existsSync } from 'node:fs';
 const root = new URL('..', import.meta.url);
 const appSource = readFileSync(new URL('./src/App.jsx', root), 'utf8');
 const messagesViewSource = readFileSync(new URL('./src/components/pages/MessagesView.jsx', root), 'utf8');
+const homeViewSource = readFileSync(new URL('./src/components/pages/HomeView.jsx', root), 'utf8');
+const ordersViewSource = readFileSync(new URL('./src/components/pages/OrdersView.jsx', root), 'utf8');
+const postTaskViewSource = readFileSync(new URL('./src/components/pages/PostTaskView.jsx', root), 'utf8');
 const chatOverlaySource = readFileSync(new URL('./src/components/overlays/ChatOverlay.jsx', root), 'utf8');
 const chatPanelPath = new URL('./src/components/chat/ChatPanel.jsx', root);
 const chatPanelSource = existsSync(chatPanelPath) ? readFileSync(chatPanelPath, 'utf8') : '';
@@ -33,6 +36,20 @@ const checks = [
   {
     description: 'MessagesView.jsx contains the desktop chat workspace columns',
     passed: messagesViewSource.includes('xl:grid-cols-[380px_minmax(0,1fr)]'),
+  },
+  {
+    description: 'HomeView.jsx contains the desktop workflow grid columns',
+    passed: homeViewSource.includes('xl:grid-cols-[minmax(0,1.15fr)_380px]'),
+  },
+  {
+    description: 'OrdersView.jsx contains the selectedOrderId desktop split grid columns',
+    passed:
+      ordersViewSource.includes('selectedOrderId') &&
+      ordersViewSource.includes('xl:grid-cols-[minmax(0,1fr)_340px]'),
+  },
+  {
+    description: 'PostTaskView.jsx contains the desktop workflow grid columns',
+    passed: postTaskViewSource.includes('xl:grid-cols-[minmax(0,1fr)_360px]'),
   },
   {
     description: 'MessagesView.jsx renders the shared chat panel',
