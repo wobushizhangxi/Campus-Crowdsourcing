@@ -54,7 +54,9 @@ export default function App() {
   const [isAdminSubmitting, setIsAdminSubmitting] = useState(false);
   const [adminPermissionDraft, setAdminPermissionDraft] = useState([]);
   const [isAdminPermissionSubmitting, setIsAdminPermissionSubmitting] = useState(false);
-  const [isDesktopMessagesWorkspace, setIsDesktopMessagesWorkspace] = useState(false);
+  const [isDesktopMessagesWorkspace, setIsDesktopMessagesWorkspace] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches,
+  );
 
   const hasAttemptedSessionRestoreRef = useRef(false);
   const canAccessAdminPanel = hasAdminPermission(currentUser, 'ADMIN_ACCESS');

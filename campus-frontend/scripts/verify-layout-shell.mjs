@@ -21,8 +21,10 @@ const checks = [
     passed: appSource.includes('xl:grid-cols-[260px_minmax(0,1fr)]'),
   },
   {
-    description: 'App.jsx tracks desktop messages workspace via matchMedia',
-    passed: appSource.includes("matchMedia('(min-width: 1280px)')"),
+    description: 'App.jsx initializes desktop messages workspace synchronously from matchMedia',
+    passed:
+      appSource.includes("useState(() =>") &&
+      appSource.includes("typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches"),
   },
   {
     description: 'App.jsx guards the chat overlay on desktop messages mode',

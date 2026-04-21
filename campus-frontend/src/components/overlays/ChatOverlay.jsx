@@ -9,7 +9,6 @@ export default function ChatOverlay({
   currentUser,
   getConversationTitle,
   handleSendMessage,
-  isMessagesPage = false,
   isSendingMessage,
   onChatInputChange,
   onClose,
