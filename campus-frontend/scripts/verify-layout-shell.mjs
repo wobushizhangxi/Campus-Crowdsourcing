@@ -82,6 +82,7 @@ const checks = [
       walletViewSource.includes('xl:grid-cols-[minmax(0,1fr)_320px]') &&
       walletViewSource.includes('xl:order-2') &&
       walletViewSource.includes('xl:order-1') &&
+      walletViewSource.includes('\\u6211\\u7684\\u94b1\\u5305') &&
       walletViewSource.indexOf('<aside') < walletViewSource.indexOf('walletRecords.map(') &&
       walletViewSource.indexOf('<aside') < walletViewSource.indexOf('xl:order-1'),
   },
@@ -91,6 +92,7 @@ const checks = [
       historyViewSource.includes('xl:grid-cols-[minmax(0,1fr)_320px]') &&
       historyViewSource.includes('xl:order-2') &&
       historyViewSource.includes('xl:order-1') &&
+      historyViewSource.includes('\\u5386\\u53f2\\u8bb0\\u5f55') &&
       historyViewSource.indexOf('<aside') < historyViewSource.indexOf('completedHistoryTasks.map(') &&
       historyViewSource.indexOf('<aside') < historyViewSource.indexOf('xl:order-1'),
   },

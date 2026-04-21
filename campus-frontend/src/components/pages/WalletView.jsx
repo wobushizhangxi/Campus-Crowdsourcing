@@ -1,5 +1,23 @@
 import { ArrowLeft, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react';
 
+const walletCopy = {
+  back: '\u8fd4\u56de',
+  refresh: '\u5237\u65b0',
+  title: '\u6211\u7684\u94b1\u5305',
+  heroBody: '\u4efb\u52a1\u53d1\u5e03\u65f6\u4f1a\u5148\u9884\u6263\u8d4f\u91d1\uff0c\u4efb\u52a1\u5b8c\u6210\u540e\u518d\u7ed3\u7b97\u7ed9\u63a5\u5355\u4eba\u3002',
+  summaryTitle: '\u4f59\u989d\u53d8\u52a8\u7531\u7ba1\u7406\u5458\u7edf\u4e00\u7ba1\u7406',
+  summaryBody: '\u516c\u5f00\u5145\u503c\u5df2\u5173\u95ed\uff0c\u5982\u9700\u8c03\u6574\u4f59\u989d\u8bf7\u8054\u7cfb\u7ba1\u7406\u5458\u3002',
+  detailTitle: '\u4f59\u989d\u660e\u7ec6',
+  detailBody: '\u67e5\u770b\u8d26\u6237\u6700\u8fd1\u7684\u4f59\u989d\u53d8\u52a8\u8bb0\u5f55\u3002',
+  loading: '\u6b63\u5728\u52a0\u8f7d\u94b1\u5305\u8bb0\u5f55...',
+  empty: '\u6682\u65e0\u4f59\u989d\u8bb0\u5f55\u3002',
+  changeTitle: '\u4f59\u989d\u53d8\u52a8',
+  changeDescription: '\u6682\u65e0\u8bf4\u660e\u3002',
+  afterBalance: '\u53d8\u52a8\u540e\u4f59\u989d\uff1a',
+  recentSync: '\u6700\u8fd1\u540c\u6b65\uff1a',
+  notSynced: '\u5c1a\u672a\u540c\u6b65',
+};
+
 export default function WalletView({
   closeWalletView,
   currentUser,
@@ -25,7 +43,7 @@ export default function WalletView({
               className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-white/15"
             >
               <ArrowLeft size={16} />
-              杩斿洖
+              {walletCopy.back}
             </button>
             <button
               type="button"
@@ -34,20 +52,18 @@ export default function WalletView({
               className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:bg-white/5"
             >
               {isRefreshingProfile ? <LoaderCircle size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-              鍒锋柊
+              {walletCopy.refresh}
             </button>
           </div>
 
           <div className="mt-4">
-            <p className="text-sm text-cyan-200">鎴戠殑閽卞寘</p>
+            <p className="text-sm text-cyan-200">{walletCopy.title}</p>
             <h2 className="mt-2 text-3xl font-black">{formatRmb(currentUser.balance)}</h2>
-            <p className="mt-2 text-sm text-slate-300">
-              浠诲姟鍙戝竷鏃朵細鍏堥鎵ｈ祻閲戯紝浠诲姟瀹屾垚鍚庡啀缁撶畻缁欐帴鍗曚汉銆?
-            </p>
+            <p className="mt-2 text-sm text-slate-300">{walletCopy.heroBody}</p>
           </div>
 
           <p className="mt-5 text-xs text-slate-300">
-            鏈€杩戝悓姝ワ細{lastSyncAt ? formatDateTime(lastSyncAt) : '灏氭湭鍚屾'}
+            {walletCopy.recentSync}{lastSyncAt ? formatDateTime(lastSyncAt) : walletCopy.notSynced}
           </p>
         </section>
 
@@ -57,8 +73,8 @@ export default function WalletView({
               <ShieldCheck size={20} />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900">浣欓鍙樺姩鐢辩鐞嗗憳缁熶竴绠＄悊</h3>
-              <p className="mt-1 text-sm text-slate-500">鍏紑鍏呭€煎凡鍏抽棴锛屽闇€璋冩暣浣欓璇疯仈绯荤鐞嗗憳銆?</p>
+              <h3 className="text-lg font-bold text-slate-900">{walletCopy.summaryTitle}</h3>
+              <p className="mt-1 text-sm text-slate-500">{walletCopy.summaryBody}</p>
             </div>
           </div>
 
@@ -73,8 +89,8 @@ export default function WalletView({
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm xl:order-1">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">浣欓鏄庣粏</h3>
-            <p className="mt-1 text-sm text-slate-500">鏌ョ湅璐︽埛鏈€杩戠殑浣欓鍙樺姩璁板綍銆?</p>
+            <h3 className="text-lg font-bold text-slate-900">{walletCopy.detailTitle}</h3>
+            <p className="mt-1 text-sm text-slate-500">{walletCopy.detailBody}</p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
             {walletRecords.length}
@@ -84,11 +100,11 @@ export default function WalletView({
         <div className="mt-4 space-y-3">
           {isWalletLoading ? (
             <div className="rounded-2xl bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-              姝ｅ湪鍔犺浇閽卞寘璁板綍...
+              {walletCopy.loading}
             </div>
           ) : walletRecords.length === 0 ? (
             <div className="rounded-2xl bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-              鏆傛棤浣欓璁板綍銆?
+              {walletCopy.empty}
             </div>
           ) : (
             walletRecords.map((record) => {
@@ -102,12 +118,12 @@ export default function WalletView({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-bold text-slate-900">{record.title || '浣欓鍙樺姩'}</h3>
+                        <h3 className="text-base font-bold text-slate-900">{record.title || walletCopy.changeTitle}</h3>
                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${recordMeta.className}`}>
                           {recordMeta.label}
                         </span>
                       </div>
-                      <p className="mt-2 text-xs text-slate-500">{record.description || '鏆傛棤璇存槑銆?'}</p>
+                      <p className="mt-2 text-xs text-slate-500">{record.description || walletCopy.changeDescription}</p>
                     </div>
                     <span
                       className={`shrink-0 text-sm font-bold ${Number(record.amount) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
@@ -117,7 +133,10 @@ export default function WalletView({
                   </div>
 
                   <div className="mt-3 flex items-center justify-between rounded-2xl bg-white px-4 py-3 text-xs text-slate-500">
-                    <span>鍙樺姩鍚庝綑棰濓細{formatRmb(record.balanceAfter)}</span>
+                    <span>
+                      {walletCopy.afterBalance}
+                      {formatRmb(record.balanceAfter)}
+                    </span>
                     <span>{formatDateTime(record.createdAt)}</span>
                   </div>
                 </article>
