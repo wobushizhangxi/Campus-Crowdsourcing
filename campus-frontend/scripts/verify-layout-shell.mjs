@@ -20,6 +20,8 @@ const appHeaderSource = readFileSync(new URL('./src/components/layout/AppHeader.
 const sidebarPath = new URL('./src/components/layout/SidebarNav.jsx', root);
 const sidebarSource = existsSync(sidebarPath) ? readFileSync(sidebarPath, 'utf8') : '';
 
+const countOccurrences = (source, needle) => source.split(needle).length - 1;
+
 const checks = [
   {
     description: 'App.jsx contains the md sidebar grid columns',
@@ -84,26 +86,32 @@ const checks = [
       ordersViewSource.includes('openChat(task)'),
   },
   {
-    description: 'OrdersView.jsx keeps readable Chinese copy',
+    description: 'OrdersView.jsx keeps readable Chinese copy in mobile and desktop branches',
     passed:
-      ordersViewSource.includes('订单总览') &&
-      ordersViewSource.includes('在这里查看你发布的任务和已接取的任务。') &&
-      ordersViewSource.includes('我发布的') &&
-      ordersViewSource.includes('我接取的') &&
-      ordersViewSource.includes('当前列表里还没有任务。') &&
+      countOccurrences(ordersViewSource, '订单总览') === 2 &&
+      countOccurrences(ordersViewSource, '在这里查看你发布的任务和已接取的任务。') === 2 &&
+      countOccurrences(ordersViewSource, '我发布的') === 2 &&
+      countOccurrences(ordersViewSource, '我接取的') === 2 &&
+      countOccurrences(ordersViewSource, '当前列表里还没有任务。') === 2 &&
+      countOccurrences(ordersViewSource, '状态：{getOrderStatusLabel(') === 3 &&
+      countOccurrences(ordersViewSource, '赏金：') === 3 &&
+      countOccurrences(ordersViewSource, '标记完成') === 3 &&
+      countOccurrences(ordersViewSource, '打开聊天') === 3 &&
+      countOccurrences(ordersViewSource, '当前选中') === 1 &&
+      countOccurrences(ordersViewSource, '任务编号') === 1 &&
+      countOccurrences(ordersViewSource, '任务说明') === 2 &&
+      countOccurrences(ordersViewSource, '暂无补充说明。') === 1 &&
+      countOccurrences(ordersViewSource, '任务信息') === 1 &&
+      countOccurrences(ordersViewSource, '发布者') === 1 &&
+      countOccurrences(ordersViewSource, '匿名用户') === 1 &&
+      countOccurrences(ordersViewSource, '接单人') === 1 &&
+      countOccurrences(ordersViewSource, '尚未接单') === 1 &&
+      countOccurrences(ordersViewSource, '订单详情') === 1 &&
+      countOccurrences(ordersViewSource, '从左侧选择一个订单') === 1 &&
       ordersViewSource.includes("return '待接单';") &&
       ordersViewSource.includes("return '进行中';") &&
       ordersViewSource.includes("return '已完成';") &&
       ordersViewSource.includes("return status || '未知';") &&
-      ordersViewSource.includes('标记完成') &&
-      ordersViewSource.includes('打开聊天') &&
-      ordersViewSource.includes('任务说明') &&
-      ordersViewSource.includes('暂无补充说明。') &&
-      ordersViewSource.includes('任务信息') &&
-      ordersViewSource.includes('发布者') &&
-      ordersViewSource.includes('接单人') &&
-      ordersViewSource.includes('订单详情') &&
-      ordersViewSource.includes('从左侧选择一个订单') &&
       !ordersViewSource.includes('鐠併垹') &&
       !ordersViewSource.includes('閹存垵') &&
       !ordersViewSource.includes('瑜版挸'),
