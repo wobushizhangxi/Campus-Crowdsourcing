@@ -41,9 +41,13 @@ const checks = [
     description: 'HomeView.jsx contains the desktop workflow grid columns',
     passed:
       homeViewSource.includes('xl:grid-cols-[minmax(0,1.15fr)_380px]') &&
+      homeViewSource.includes('const currentSelectedTask = selectedTaskId ? tasks.find((task) => task.id === selectedTaskId) || null : null;') &&
+      homeViewSource.includes('if (selectedTaskId && !currentSelectedTask)') &&
+      homeViewSource.includes('setSelectedTask(null);') &&
       homeViewSource.includes('type="button"') &&
       homeViewSource.includes('aria-pressed={desktopSelectedTask?.id === task.id}') &&
-      homeViewSource.includes('focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2'),
+      homeViewSource.includes('focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2') &&
+      homeViewSource.includes('xl:sticky xl:top-5'),
   },
   {
     description: 'OrdersView.jsx contains the safe desktop order selector structure',

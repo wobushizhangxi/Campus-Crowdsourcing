@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { ArrowLeft, CheckCircle, ClipboardList, MapPin, ShieldCheck } from 'lucide-react';
 
 const getTaskStatusLabel = (status) => {
@@ -23,13 +24,21 @@ export default function HomeView({
   tasks,
 }) {
   const openTasks = tasks.filter((task) => task.status === 'open');
-  const taskStatusLabel = getTaskStatusLabel(selectedTask?.status);
-  const desktopSelectedTask = selectedTask || null;
+  const selectedTaskId = selectedTask?.id ?? null;
+  const currentSelectedTask = selectedTaskId ? tasks.find((task) => task.id === selectedTaskId) || null : null;
+  const taskStatusLabel = getTaskStatusLabel(currentSelectedTask?.status);
+  const desktopSelectedTask = currentSelectedTask;
+
+  useEffect(() => {
+    if (selectedTaskId && !currentSelectedTask) {
+      setSelectedTask(null);
+    }
+  }, [currentSelectedTask, selectedTaskId, setSelectedTask]);
 
   return (
     <>
       <div className="space-y-4 p-5 xl:hidden">
-        {selectedTask ? (
+        {currentSelectedTask ? (
           <>
             <section className="rounded-3xl bg-slate-900 p-5 text-white shadow-lg">
               <button
@@ -43,14 +52,14 @@ export default function HomeView({
               <div className="mt-4 flex items-start justify-between gap-4">
                 <div>
                   <p className="text-sm text-cyan-200">任务详情</p>
-                  <h2 className="mt-2 text-2xl font-bold">{selectedTask.title}</h2>
+                  <h2 className="mt-2 text-2xl font-bold">{currentSelectedTask.title}</h2>
                   <p className="mt-2 text-sm text-slate-300">
-                    发布者：{selectedTask.author || '匿名用户'} | 状态：{taskStatusLabel}
+                    发布者：{currentSelectedTask.author || '匿名用户'} | 状态：{taskStatusLabel}
                   </p>
                 </div>
                 <div className="rounded-2xl bg-white/10 px-4 py-3 text-right">
                   <p className="text-xs text-slate-300">赏金</p>
-                  <p className="text-2xl font-bold">{formatRmb(selectedTask.reward)}</p>
+                  <p className="text-2xl font-bold">{formatRmb(currentSelectedTask.reward)}</p>
                 </div>
               </div>
             </section>
@@ -58,7 +67,7 @@ export default function HomeView({
             <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-lg font-bold text-slate-900">任务说明</h3>
               <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">
-                {selectedTask.description || '暂无补充说明。'}
+                {currentSelectedTask.description || '暂无补充说明。'}
               </p>
             </section>
 
@@ -67,11 +76,11 @@ export default function HomeView({
               <div className="mt-4 space-y-3 text-sm">
                 <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
                   <span className="text-slate-500">任务编号</span>
-                  <span className="font-semibold text-slate-900">{selectedTask.id}</span>
+                  <span className="font-semibold text-slate-900">{currentSelectedTask.id}</span>
                 </div>
                 <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
                   <span className="text-slate-500">发布者</span>
-                  <span className="font-semibold text-slate-900">{selectedTask.author || '匿名用户'}</span>
+                  <span className="font-semibold text-slate-900">{currentSelectedTask.author || '匿名用户'}</span>
                 </div>
                 <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
                   <span className="text-slate-500">地点</span>
@@ -90,10 +99,10 @@ export default function HomeView({
               </div>
             </section>
 
-            {selectedTask.status === 'open' ? (
+            {currentSelectedTask.status === 'open' ? (
               <button
                 type="button"
-                onClick={() => handleAcceptTask(selectedTask.id)}
+                onClick={() => handleAcceptTask(currentSelectedTask.id)}
                 className="w-full rounded-2xl bg-slate-900 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 接取任务
