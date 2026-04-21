@@ -100,8 +100,8 @@ export default function AdminView({
           </div>
         ) : null}
 
-        <div className="mt-4 grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <div className="space-y-3 xl:max-h-[calc(100vh-20rem)] xl:overflow-y-auto xl:pr-1">
+        <div className="mt-4 grid gap-4 2xl:grid-cols-[360px_minmax(0,1fr)]">
+          <div className="space-y-3 2xl:max-h-[calc(100vh-20rem)] 2xl:overflow-y-auto 2xl:pr-1">
             {!canViewUsers ? (
               <div className="rounded-2xl bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">当前账号没有查看用户权限。</div>
             ) : adminUsers.length === 0 ? (

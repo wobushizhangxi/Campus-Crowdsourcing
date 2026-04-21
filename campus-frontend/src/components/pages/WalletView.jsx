@@ -1,4 +1,4 @@
-import { ArrowLeft, LoaderCircle, RefreshCw, ShieldCheck, Wallet } from 'lucide-react';
+import { ArrowLeft, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react';
 
 export default function WalletView({
   closeWalletView,
@@ -15,62 +15,12 @@ export default function WalletView({
   walletRecords,
 }) {
   return (
-    <div className="space-y-4 p-5">
-      <section className="rounded-3xl bg-slate-900 p-5 text-white shadow-lg">
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={closeWalletView}
-            className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-white/15"
-          >
-            <ArrowLeft size={16} />
-            返回
-          </button>
-          <button
-            type="button"
-            onClick={handleManualRefresh}
-            disabled={isRefreshingProfile}
-            className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:bg-white/5"
-          >
-            {isRefreshingProfile ? <LoaderCircle size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-            刷新
-          </button>
-        </div>
-
-        <div className="mt-4">
-          <p className="text-sm text-cyan-200">我的钱包</p>
-          <h2 className="mt-2 text-3xl font-black">{formatRmb(currentUser.balance)}</h2>
-          <p className="mt-2 text-sm text-slate-300">任务发布时会先预扣赏金，任务完成后再结算给接单人。</p>
-        </div>
-
-        <p className="mt-5 text-xs text-slate-300">
-          最近同步：{lastSyncAt ? formatDateTime(lastSyncAt) : '尚未同步'}
-        </p>
-      </section>
-
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="rounded-2xl bg-amber-100 p-3 text-amber-700">
-            <ShieldCheck size={20} />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-slate-900">余额变动由管理员统一管理</h3>
-            <p className="mt-1 text-sm text-slate-500">公开充值已关闭，如需调整余额请联系管理员。</p>
-          </div>
-        </div>
-
-        {walletError ? (
-          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
-            {walletError}
-          </div>
-        ) : null}
-      </section>
-
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="space-y-4 p-5 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start xl:gap-4 xl:space-y-0">
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm xl:col-start-1">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-bold text-slate-900">余额明细</h3>
-            <p className="mt-1 text-sm text-slate-500">查看你账户最近的余额变动记录。</p>
+            <p className="mt-1 text-sm text-slate-500">查看账户最近的余额变动记录。</p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
             {walletRecords.length}
@@ -105,7 +55,9 @@ export default function WalletView({
                       </div>
                       <p className="mt-2 text-xs text-slate-500">{record.description || '暂无说明。'}</p>
                     </div>
-                    <span className={`shrink-0 text-sm font-bold ${Number(record.amount) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <span
+                      className={`shrink-0 text-sm font-bold ${Number(record.amount) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                    >
                       {formatSignedRmb(record.amount)}
                     </span>
                   </div>
@@ -120,6 +72,60 @@ export default function WalletView({
           )}
         </div>
       </section>
+
+      <aside className="space-y-4 xl:sticky xl:top-5 xl:col-start-2">
+        <section className="rounded-3xl bg-slate-900 p-5 text-white shadow-lg">
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={closeWalletView}
+              className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-white/15"
+            >
+              <ArrowLeft size={16} />
+              返回
+            </button>
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              disabled={isRefreshingProfile}
+              className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:bg-white/5"
+            >
+              {isRefreshingProfile ? <LoaderCircle size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+              刷新
+            </button>
+          </div>
+
+          <div className="mt-4">
+            <p className="text-sm text-cyan-200">我的钱包</p>
+            <h2 className="mt-2 text-3xl font-black">{formatRmb(currentUser.balance)}</h2>
+            <p className="mt-2 text-sm text-slate-300">
+              任务发布时会先预扣赏金，任务完成后再结算给接单人。
+            </p>
+          </div>
+
+          <p className="mt-5 text-xs text-slate-300">
+            最近同步：{lastSyncAt ? formatDateTime(lastSyncAt) : '尚未同步'}
+          </p>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl bg-amber-100 p-3 text-amber-700">
+              <ShieldCheck size={20} />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">余额变动由管理员统一管理</h3>
+              <p className="mt-1 text-sm text-slate-500">公开充值已关闭，如需调整余额请联系管理员。</p>
+            </div>
+          </div>
+
+          {walletError ? (
+            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+              {walletError}
+            </div>
+          ) : null}
+        </section>
+      </aside>
     </div>
   );
 }

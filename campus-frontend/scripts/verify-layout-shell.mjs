@@ -6,6 +6,11 @@ const messagesViewSource = readFileSync(new URL('./src/components/pages/Messages
 const homeViewSource = readFileSync(new URL('./src/components/pages/HomeView.jsx', root), 'utf8');
 const ordersViewSource = readFileSync(new URL('./src/components/pages/OrdersView.jsx', root), 'utf8');
 const postTaskViewSource = readFileSync(new URL('./src/components/pages/PostTaskView.jsx', root), 'utf8');
+const profileViewSource = readFileSync(new URL('./src/components/pages/ProfileView.jsx', root), 'utf8');
+const walletViewSource = readFileSync(new URL('./src/components/pages/WalletView.jsx', root), 'utf8');
+const historyViewSource = readFileSync(new URL('./src/components/pages/HistoryView.jsx', root), 'utf8');
+const adminViewSource = readFileSync(new URL('./src/components/pages/AdminView.jsx', root), 'utf8');
+const authScreenSource = readFileSync(new URL('./src/components/AuthScreen.jsx', root), 'utf8');
 const chatOverlaySource = readFileSync(new URL('./src/components/overlays/ChatOverlay.jsx', root), 'utf8');
 const chatPanelPath = new URL('./src/components/chat/ChatPanel.jsx', root);
 const chatPanelSource = existsSync(chatPanelPath) ? readFileSync(chatPanelPath, 'utf8') : '';
@@ -66,6 +71,26 @@ const checks = [
   {
     description: 'PostTaskView.jsx contains the desktop workflow grid columns',
     passed: postTaskViewSource.includes('xl:grid-cols-[minmax(0,1fr)_360px]'),
+  },
+  {
+    description: 'ProfileView.jsx contains the desktop account grid columns',
+    passed: profileViewSource.includes('xl:grid-cols-[320px_minmax(0,1fr)]'),
+  },
+  {
+    description: 'WalletView.jsx contains the desktop wallet grid columns',
+    passed: walletViewSource.includes('xl:grid-cols-[minmax(0,1fr)_320px]'),
+  },
+  {
+    description: 'HistoryView.jsx contains the desktop history grid columns',
+    passed: historyViewSource.includes('xl:grid-cols-[minmax(0,1fr)_320px]'),
+  },
+  {
+    description: 'AdminView.jsx contains the 2xl admin grid columns',
+    passed: adminViewSource.includes('2xl:grid-cols-[360px_minmax(0,1fr)]'),
+  },
+  {
+    description: 'AuthScreen.jsx contains the large-screen auth split and shell width',
+    passed: authScreenSource.includes('lg:grid-cols-[1.05fr_0.95fr]') && authScreenSource.includes('max-w-[1280px]'),
   },
   {
     description: 'MessagesView.jsx renders the shared chat panel',
