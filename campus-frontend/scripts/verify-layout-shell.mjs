@@ -78,11 +78,21 @@ const checks = [
   },
   {
     description: 'WalletView.jsx contains the desktop wallet grid columns',
-    passed: walletViewSource.includes('xl:grid-cols-[minmax(0,1fr)_320px]'),
+    passed:
+      walletViewSource.includes('xl:grid-cols-[minmax(0,1fr)_320px]') &&
+      walletViewSource.includes('xl:order-2') &&
+      walletViewSource.includes('xl:order-1') &&
+      walletViewSource.indexOf('<aside') < walletViewSource.indexOf('walletRecords.map(') &&
+      walletViewSource.indexOf('<aside') < walletViewSource.indexOf('xl:order-1'),
   },
   {
     description: 'HistoryView.jsx contains the desktop history grid columns',
-    passed: historyViewSource.includes('xl:grid-cols-[minmax(0,1fr)_320px]'),
+    passed:
+      historyViewSource.includes('xl:grid-cols-[minmax(0,1fr)_320px]') &&
+      historyViewSource.includes('xl:order-2') &&
+      historyViewSource.includes('xl:order-1') &&
+      historyViewSource.indexOf('<aside') < historyViewSource.indexOf('completedHistoryTasks.map(') &&
+      historyViewSource.indexOf('<aside') < historyViewSource.indexOf('xl:order-1'),
   },
   {
     description: 'AdminView.jsx contains the 2xl admin grid columns',
