@@ -16,17 +16,8 @@ export default function ChatOverlay({
   onScroll,
   scrollChatToBottom,
 }) {
-  if (!activeChatTask) {
-    return null;
-  }
-
-  // The messages page already renders the inline chat panel at xl widths.
-  const overlayClasses = `fixed inset-0 z-50 flex justify-center bg-slate-900/40 backdrop-blur-sm sm:items-center ${
-    isMessagesPage ? 'xl:hidden' : ''
-  }`;
-
   return (
-    <div className={overlayClasses}>
+    <div className="fixed inset-0 z-50 flex justify-center bg-slate-900/40 backdrop-blur-sm sm:items-center">
       <ChatPanel
         activeChatTask={activeChatTask}
         chatInput={chatInput}

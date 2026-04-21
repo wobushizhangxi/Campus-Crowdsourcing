@@ -58,10 +58,11 @@ export default function MessagesView({
                 const taskStatusMeta = getTaskStatusMeta(task.status);
 
                 return (
-                  <div
+                  <button
                     key={task.id}
+                    type="button"
                     onClick={() => openChat(task)}
-                    className="flex cursor-pointer items-start justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-cyan-200 hover:bg-slate-50"
+                    className="flex w-full items-start justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-cyan-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-200"
                   >
                     <div className="flex items-center gap-4">
                       <div className="mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-cyan-100 text-cyan-700">
@@ -115,7 +116,7 @@ export default function MessagesView({
                         {isUnread ? '\u7acb\u5373\u67e5\u770b' : '\u6253\u5f00'}
                       </span>
                     </div>
-                  </div>
+                  </button>
                 );
               })
             )}

@@ -51,7 +51,7 @@ export default function ChatPanel({
     <section className={panelClasses}>
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 shadow-sm sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
-          {onClose ? (
+          {onClose && activeChatTask ? (
             <button
               type="button"
               onClick={onClose}

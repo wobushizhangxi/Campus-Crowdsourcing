@@ -54,6 +54,7 @@ export default function App() {
   const [isAdminSubmitting, setIsAdminSubmitting] = useState(false);
   const [adminPermissionDraft, setAdminPermissionDraft] = useState([]);
   const [isAdminPermissionSubmitting, setIsAdminPermissionSubmitting] = useState(false);
+  const [isDesktopMessagesWorkspace, setIsDesktopMessagesWorkspace] = useState(false);
 
   const hasAttemptedSessionRestoreRef = useRef(false);
   const canAccessAdminPanel = hasAdminPermission(currentUser, 'ADMIN_ACCESS');
@@ -160,6 +161,21 @@ export default function App() {
   useEffect(() => {
     setProfileDraft(currentUser);
   }, [currentUser]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 1280px)');
+
+    const updateWorkspaceMode = (event) => {
+      setIsDesktopMessagesWorkspace(event.matches);
+    };
+
+    setIsDesktopMessagesWorkspace(mediaQuery.matches);
+    mediaQuery.addEventListener('change', updateWorkspaceMode);
+
+    return () => {
+      mediaQuery.removeEventListener('change', updateWorkspaceMode);
+    };
+  }, []);
 
   useEffect(() => {
     if (profileSection === 'admin' && !canAccessAdminPanel) {
@@ -995,22 +1011,23 @@ export default function App() {
           <BottomNav activeTab={activeTab} hasUnreadMessages={hasUnreadMessages} onSelectTab={handleSelectTab} />
         </div>
       </div>
-      <ChatOverlay
-        activeChatTask={activeChatTask}
-        chatInput={chatInput}
-        chatMessages={chatMessages}
-        chatPendingNewMessageCount={chatPendingNewMessageCount}
-        chatScrollContainerRef={chatScrollContainerRef}
-        currentUser={currentUser}
-        getConversationTitle={getConversationTitle}
-        handleSendMessage={handleSendMessage}
-        isMessagesPage={activeTab === 'messages'}
-        isSendingMessage={isSendingMessage}
-        onChatInputChange={setChatInput}
-        onClose={closeChat}
-        onScroll={syncChatPinnedState}
-        scrollChatToBottom={scrollChatToBottom}
-      />
+      {activeChatTask && !(activeTab === 'messages' && isDesktopMessagesWorkspace) ? (
+        <ChatOverlay
+          activeChatTask={activeChatTask}
+          chatInput={chatInput}
+          chatMessages={chatMessages}
+          chatPendingNewMessageCount={chatPendingNewMessageCount}
+          chatScrollContainerRef={chatScrollContainerRef}
+          currentUser={currentUser}
+          getConversationTitle={getConversationTitle}
+          handleSendMessage={handleSendMessage}
+          isSendingMessage={isSendingMessage}
+          onChatInputChange={setChatInput}
+          onClose={closeChat}
+          onScroll={syncChatPinnedState}
+          scrollChatToBottom={scrollChatToBottom}
+        />
+      ) : null}
     </div>
   );
 }
