@@ -46,13 +46,18 @@ const checks = [
       homeViewSource.includes('focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2'),
   },
   {
-    description: 'OrdersView.jsx contains the selectedOrderId desktop split grid columns',
+    description: 'OrdersView.jsx contains the safe desktop order selector structure',
     passed:
       ordersViewSource.includes('selectedOrderId') &&
       ordersViewSource.includes('xl:grid-cols-[minmax(0,1fr)_340px]') &&
+      ordersViewSource.includes('className={`rounded-3xl border bg-white p-5 text-sm text-slate-700 shadow-sm transition ${') &&
+      ordersViewSource.includes('className={`w-full rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 ${') &&
       ordersViewSource.includes('type="button"') &&
       ordersViewSource.includes('aria-pressed={selectedOrder?.id === task.id}') &&
-      ordersViewSource.includes('focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2'),
+      ordersViewSource.includes('setSelectedOrderId(task.id)') &&
+      ordersViewSource.includes('className="mt-4 flex justify-end gap-2 border-t border-slate-200 pt-3"') &&
+      ordersViewSource.includes('handleCompleteTask(task.id, event)') &&
+      ordersViewSource.includes('openChat(task)'),
   },
   {
     description: 'PostTaskView.jsx contains the desktop workflow grid columns',
