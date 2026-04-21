@@ -701,6 +701,16 @@ export default function App() {
     return total + (Number.isFinite(reward) ? reward : 0);
   }, 0);
 
+  const handleWorkspaceTabChange = (tabId) => {
+    if (activeTab === 'messages' && isDesktopMessagesWorkspace && tabId !== 'messages') {
+      closeChat();
+    }
+
+    setActiveTab(tabId);
+    setSelectedTask(null);
+    setProfileSection('overview');
+  };
+
   const getCurrentPageMeta = () => {
     if (profileSection === 'history') {
       return {
@@ -765,11 +775,7 @@ export default function App() {
     };
   };
 
-  const handleSelectTab = (tabId) => {
-    setActiveTab(tabId);
-    setSelectedTask(null);
-    setProfileSection('overview');
-  };
+  const handleSelectTab = handleWorkspaceTabChange;
 
   const renderAppContent = () => {
     if (activeTab === 'home') {
@@ -1000,11 +1006,7 @@ export default function App() {
             <AppHeader
               pageMeta={pageMeta}
               currentUser={currentUser}
-              onOpenProfile={() => {
-                setActiveTab('profile');
-                setProfileSection('overview');
-                setSelectedTask(null);
-              }}
+              onOpenProfile={() => handleWorkspaceTabChange('profile')}
             />
 
             <main className="min-h-0 flex-1 overflow-y-auto pb-24">{renderAppContent()}</main>

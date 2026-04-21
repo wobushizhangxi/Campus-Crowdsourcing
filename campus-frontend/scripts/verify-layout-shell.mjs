@@ -35,18 +35,20 @@ const checks = [
       appSource.includes("typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches"),
   },
   {
-    description: 'App.jsx guards the chat overlay on desktop messages mode',
-    passed: appSource.includes("!(activeTab === 'messages' && isDesktopMessagesWorkspace)"),
+    description: 'App.jsx closes desktop messages chat when leaving the messages tab',
+    passed:
+      appSource.includes("if (activeTab === 'messages' && isDesktopMessagesWorkspace && tabId !== 'messages') {") &&
+      appSource.includes('closeChat();'),
   },
   {
     description: 'MessagesView.jsx contains the desktop chat workspace columns',
     passed: messagesViewSource.includes('xl:grid-cols-[380px_minmax(0,1fr)]'),
   },
   {
-    description: 'HomeView.jsx contains the desktop workflow grid columns',
+    description: 'HomeView.jsx keeps selected task scoped to openTasks',
     passed:
       homeViewSource.includes('xl:grid-cols-[minmax(0,1.15fr)_380px]') &&
-      homeViewSource.includes('const currentSelectedTask = selectedTaskId ? tasks.find((task) => task.id === selectedTaskId) || null : null;') &&
+      homeViewSource.includes('const currentSelectedTask = selectedTaskId ? openTasks.find((task) => task.id === selectedTaskId) || null : null;') &&
       homeViewSource.includes('if (selectedTaskId && !currentSelectedTask)') &&
       homeViewSource.includes('setSelectedTask(null);') &&
       homeViewSource.includes('type="button"') &&

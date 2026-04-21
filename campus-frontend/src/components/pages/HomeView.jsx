@@ -25,7 +25,7 @@ export default function HomeView({
 }) {
   const openTasks = tasks.filter((task) => task.status === 'open');
   const selectedTaskId = selectedTask?.id ?? null;
-  const currentSelectedTask = selectedTaskId ? tasks.find((task) => task.id === selectedTaskId) || null : null;
+  const currentSelectedTask = selectedTaskId ? openTasks.find((task) => task.id === selectedTaskId) || null : null;
   const taskStatusLabel = getTaskStatusLabel(currentSelectedTask?.status);
   const desktopSelectedTask = currentSelectedTask;
 
