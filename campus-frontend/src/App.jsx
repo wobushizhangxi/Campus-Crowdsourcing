@@ -69,6 +69,7 @@ export default function App() {
     setIsAuthenticated(false);
     setCurrentUser(emptyUser);
     setSelectedTask(null);
+    resetChatState();
     setIsEditingProfile(false);
     setProfileDraft(emptyUser);
     setProfileMessage('');

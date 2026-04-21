@@ -41,6 +41,10 @@ const checks = [
       appSource.includes('closeChat();'),
   },
   {
+    description: 'App.jsx clears chat state when the session expires',
+    passed: appSource.includes('resetChatState();') && appSource.includes('const handleSessionExpired = () => {'),
+  },
+  {
     description: 'MessagesView.jsx contains the desktop chat workspace columns',
     passed: messagesViewSource.includes('xl:grid-cols-[380px_minmax(0,1fr)]'),
   },
@@ -111,6 +115,10 @@ const checks = [
     passed: messagesViewSource.includes('<ChatPanel'),
   },
   {
+    description: 'MessagesView.jsx exposes the selected conversation state',
+    passed: messagesViewSource.includes('aria-pressed={isSelectedConversation}') && messagesViewSource.includes('ACTIVE_CONVERSATION_LABEL'),
+  },
+  {
     description: 'ChatPanel.jsx exists and defaults to the inline variant',
     passed: existsSync(chatPanelPath) && chatPanelSource.includes("variant = 'inline'"),
   },
@@ -119,8 +127,19 @@ const checks = [
     passed: chatOverlaySource.includes('<ChatPanel'),
   },
   {
+    description: 'ChatOverlay.jsx exposes modal semantics and Escape handling',
+    passed:
+      chatOverlaySource.includes('role="dialog"') &&
+      chatOverlaySource.includes('aria-modal="true"') &&
+      chatOverlaySource.includes("event.key === 'Escape'"),
+  },
+  {
     description: 'ChatPanel.jsx carries the wider overlay sizing',
     passed: chatPanelSource.includes('sm:max-w-3xl') && chatPanelSource.includes('xl:max-w-5xl'),
+  },
+  {
+    description: 'ChatPanel.jsx exposes accessible dialog labels',
+    passed: chatPanelSource.includes('dialogTitleId') && chatPanelSource.includes('dialogDescriptionId'),
   },
   {
     description: 'App.jsx contains the shell max width',

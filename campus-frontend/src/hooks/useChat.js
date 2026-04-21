@@ -17,6 +17,18 @@ export default function useChat({
 
   const chatScrollContainerRef = useRef(null);
   const isChatPinnedToBottomRef = useRef(true);
+  const chatMessageCursorRef = useRef({});
+
+  const setChatMessageCursor = useCallback((taskId, messageId) => {
+    if (!taskId) {
+      return;
+    }
+
+    chatMessageCursorRef.current = {
+      ...chatMessageCursorRef.current,
+      [taskId]: messageId,
+    };
+  }, []);
 
   const chatableTasks = useMemo(
     () => tasks.filter(
@@ -107,10 +119,12 @@ export default function useChat({
   }, [getLatestServerMessageId]);
 
   const openChat = useCallback((task) => {
+    const latestMessageId = getLatestServerMessageId(task.id);
     setActiveChatTask(task);
     setChatPendingNewMessageCount(0);
+    setChatMessageCursor(task.id, latestMessageId);
     markConversationAsRead(task.id);
-  }, [markConversationAsRead]);
+  }, [getLatestServerMessageId, markConversationAsRead, setChatMessageCursor]);
 
   const closeChat = useCallback(() => {
     setActiveChatTask(null);
@@ -126,7 +140,10 @@ export default function useChat({
     container.scrollTo({ top: container.scrollHeight, behavior });
     isChatPinnedToBottomRef.current = true;
     setChatPendingNewMessageCount(0);
-  }, []);
+    if (activeChatTask) {
+      setChatMessageCursor(activeChatTask.id, getLatestServerMessageId(activeChatTask.id));
+    }
+  }, [activeChatTask, getLatestServerMessageId, setChatMessageCursor]);
 
   const syncChatPinnedState = useCallback(() => {
     const container = chatScrollContainerRef.current;
@@ -203,6 +220,7 @@ export default function useChat({
     setLastViewedMessageIds({});
     setChatPendingNewMessageCount(0);
     isChatPinnedToBottomRef.current = true;
+    chatMessageCursorRef.current = {};
   }, []);
 
   useEffect(() => {
@@ -256,17 +274,39 @@ export default function useChat({
       return;
     }
 
-    markConversationAsRead(activeChatTask.id);
-    const frameId = requestAnimationFrame(() => {
-      if (isChatPinnedToBottomRef.current) {
-        scrollChatToBottom('auto');
-      } else {
-        setChatPendingNewMessageCount((prev) => prev + 1);
-      }
-    });
+    const taskId = activeChatTask.id;
+    const messages = chatMessages[taskId] || [];
+    const latestServerMessageId = getLatestServerMessageId(taskId);
+    const lastObservedMessageId = chatMessageCursorRef.current[taskId] || 0;
 
-    return () => cancelAnimationFrame(frameId);
-  }, [activeChatTask, chatMessages, markConversationAsRead, scrollChatToBottom]);
+    markConversationAsRead(activeChatTask.id);
+    if (latestServerMessageId <= lastObservedMessageId) {
+      return;
+    }
+
+    const newIncomingMessageCount = messages.filter((message) => {
+      const messageId = Number(message?.id);
+      return (
+        !message?.pending &&
+        Number.isFinite(messageId) &&
+        messageId > lastObservedMessageId &&
+        message.senderUsername !== currentUser.studentId
+      );
+    }).length;
+
+    setChatMessageCursor(taskId, latestServerMessageId);
+
+    if (newIncomingMessageCount === 0) {
+      return;
+    }
+
+    if (isChatPinnedToBottomRef.current) {
+      scrollChatToBottom('auto');
+      return;
+    }
+
+    setChatPendingNewMessageCount((prev) => prev + newIncomingMessageCount);
+  }, [activeChatTask, chatMessages, currentUser.studentId, getLatestServerMessageId, markConversationAsRead, scrollChatToBottom, setChatMessageCursor]);
 
   return {
     activeChatTask,

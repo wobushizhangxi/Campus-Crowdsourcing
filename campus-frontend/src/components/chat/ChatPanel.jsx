@@ -19,6 +19,9 @@ export default function ChatPanel({
   chatPendingNewMessageCount,
   chatScrollContainerRef,
   currentUser,
+  dialogDescriptionId,
+  dialogTitleId,
+  closeButtonRef,
   getConversationTitle,
   handleSendMessage,
   isSendingMessage,
@@ -55,6 +58,8 @@ export default function ChatPanel({
             <button
               type="button"
               onClick={onClose}
+              ref={closeButtonRef}
+              autoFocus={isOverlay && Boolean(activeChatTask)}
               className="rounded-full bg-slate-100 p-2 text-slate-600 transition hover:bg-slate-200"
               aria-label={CLOSE_CHAT_LABEL}
             >
@@ -62,8 +67,12 @@ export default function ChatPanel({
             </button>
           ) : null}
           <div className="min-w-0">
-            <h2 className="truncate text-lg font-bold text-slate-900">{conversationTitle}</h2>
-            <p className="truncate text-xs text-slate-500">{conversationSubtitle}</p>
+            <h2 id={dialogTitleId} className="truncate text-lg font-bold text-slate-900">
+              {conversationTitle}
+            </h2>
+            <p id={dialogDescriptionId} className="truncate text-xs text-slate-500">
+              {conversationSubtitle}
+            </p>
           </div>
         </div>
         {activeChatTask ? (

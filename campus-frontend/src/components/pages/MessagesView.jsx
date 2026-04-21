@@ -7,6 +7,7 @@ const EMPTY_LIST = '\u8fd8\u6ca1\u6709\u4f1a\u8bdd\u3002\u5148\u63a5\u53d6\u4efb
 const EMPTY_PREVIEW = '\u6682\u65e0\u6d88\u606f';
 const NEW_MESSAGE_LABEL = '\u65b0\u6d88\u606f';
 const TASK_LABEL = '\u4efb\u52a1';
+const ACTIVE_CONVERSATION_LABEL = '\u5f53\u524d\u4f1a\u8bdd';
 
 export default function MessagesView({
   activeChatTask,
@@ -54,6 +55,7 @@ export default function MessagesView({
               sortedChatableTasks.map((task) => {
                 const latestMessage = getLatestServerMessage(task.id);
                 const isUnread = isConversationUnread(task.id);
+                const isSelectedConversation = activeChatTask?.id === task.id;
                 const latestPreview = latestMessage?.text || EMPTY_PREVIEW;
                 const taskStatusMeta = getTaskStatusMeta(task.status);
 
@@ -62,7 +64,12 @@ export default function MessagesView({
                     key={task.id}
                     type="button"
                     onClick={() => openChat(task)}
-                    className="flex w-full items-start justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-cyan-200 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-200"
+                    aria-pressed={isSelectedConversation}
+                    className={`flex w-full items-start justify-between gap-3 rounded-3xl border p-5 text-left shadow-sm transition focus:outline-none focus:ring-2 focus:ring-cyan-200 ${
+                      isSelectedConversation
+                        ? 'border-cyan-500 bg-cyan-50 shadow-md ring-1 ring-cyan-200'
+                        : 'border-slate-200 bg-white hover:border-cyan-200 hover:bg-slate-50'
+                    }`}
                   >
                     <div className="flex items-center gap-4">
                       <div className="mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-cyan-100 text-cyan-700">
@@ -105,6 +112,11 @@ export default function MessagesView({
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-2">
+                      {isSelectedConversation ? (
+                        <span className="rounded-full bg-cyan-600 px-3 py-1 text-xs font-bold text-white">
+                          {ACTIVE_CONVERSATION_LABEL}
+                        </span>
+                      ) : null}
                       {latestMessage?.createdAt ? (
                         <span className="text-xs text-slate-400">{latestMessage.createdAt}</span>
                       ) : null}
