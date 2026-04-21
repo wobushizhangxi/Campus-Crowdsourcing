@@ -8,8 +8,9 @@ const navItems = [
   { id: 'profile', label: 'Profile', icon: User },
 ];
 
-function SidebarItem({ activeTab, featured = false, hasUnreadMessages, icon: Icon, id, label, onSelectTab }) {
+function SidebarItem({ activeTab, featured = false, hasUnreadMessages, icon, id, label, onSelectTab }) {
   const isActive = activeTab === id;
+  const IconComponent = icon;
 
   return (
     <button
@@ -38,7 +39,7 @@ function SidebarItem({ activeTab, featured = false, hasUnreadMessages, icon: Ico
               : 'bg-slate-100 text-slate-500 group-hover:text-slate-900'
         }`}
       >
-        <Icon size={20} strokeWidth={2.3} />
+        <IconComponent size={20} strokeWidth={2.3} />
         {id === 'messages' && hasUnreadMessages ? (
           <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" />
         ) : null}

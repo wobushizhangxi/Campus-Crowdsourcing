@@ -19,7 +19,7 @@ import { apiDelete, apiGet, apiPost, apiPut, getRequestErrorMessage, isUnauthori
 import { adminPermissionOptions, hasAdminPermission } from './utils/adminPermissions';
 import { clearAuthSession, persistAuthSession, readAuthToken } from './utils/authSession';
 import { formatDateTime, formatRmb, formatSignedRmb, getBalanceRecordMeta } from './utils/formatters';
-import { createInitialAuthForms, emptyAuthForms, emptyUser, mapUserDataToCurrentUser } from './utils/user';
+import { createInitialAuthForms, emptyUser, mapUserDataToCurrentUser } from './utils/user';
 
 const authBrandImageUrl =
   'https://images.unsplash.com/photo-1741637335289-c99652d3155f?auto=format&fit=crop&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&q=80&w=1600';
@@ -213,7 +213,7 @@ export default function App() {
           setProfileSection('overview');
           setLastSyncAt(new Date());
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
           clearAuthSession();
           setAuthError('本地登录状态已失效，请重新登录。');

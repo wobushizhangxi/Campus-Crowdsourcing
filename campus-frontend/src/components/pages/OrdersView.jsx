@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { MessageSquare } from 'lucide-react';
 
 const getOrderStatusLabel = (status) => {
@@ -28,22 +28,10 @@ export default function OrdersView({
   const myAcceptedTasks = tasks.filter((task) => task.assignee === currentUser.studentId);
   const displayTasks = orderTab === 'posted' ? myPostedTasks : myAcceptedTasks;
   const [selectedOrderId, setSelectedOrderId] = useState(null);
-
-  useEffect(() => {
-    if (displayTasks.length === 0) {
-      if (selectedOrderId !== null) {
-        setSelectedOrderId(null);
-      }
-      return;
-    }
-
-    const hasSelection = displayTasks.some((task) => task.id === selectedOrderId);
-    if (!hasSelection) {
-      setSelectedOrderId(displayTasks[0].id);
-    }
-  }, [displayTasks, selectedOrderId]);
-
-  const selectedOrder = displayTasks.find((task) => task.id === selectedOrderId) || displayTasks[0] || null;
+  const resolvedSelectedOrderId = displayTasks.some((task) => task.id === selectedOrderId)
+    ? selectedOrderId
+    : displayTasks[0]?.id ?? null;
+  const selectedOrder = displayTasks.find((task) => task.id === resolvedSelectedOrderId) || null;
 
   return (
     <>
