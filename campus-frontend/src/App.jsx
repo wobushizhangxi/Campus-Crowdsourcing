@@ -750,9 +750,7 @@ export default function App() {
   const handleSelectTab = (tabId) => {
     setActiveTab(tabId);
     setSelectedTask(null);
-    if (tabId === 'profile') {
-      setProfileSection('overview');
-    }
+    setProfileSection('overview');
   };
 
   const renderAppContent = () => {

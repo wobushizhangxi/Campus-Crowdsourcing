@@ -15,6 +15,8 @@ function SidebarItem({ activeTab, featured = false, hasUnreadMessages, icon: Ico
     <button
       type="button"
       onClick={() => onSelectTab(id)}
+      aria-label={label}
+      title={label}
       className={`group relative flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition md:justify-center xl:justify-start ${
         featured
           ? isActive
