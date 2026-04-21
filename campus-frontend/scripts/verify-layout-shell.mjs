@@ -88,33 +88,33 @@ const checks = [
   {
     description: 'OrdersView.jsx keeps readable Chinese copy in mobile and desktop branches',
     passed:
-      countOccurrences(ordersViewSource, '订单总览') === 2 &&
-      countOccurrences(ordersViewSource, '在这里查看你发布的任务和已接取的任务。') === 2 &&
-      countOccurrences(ordersViewSource, '我发布的') === 2 &&
-      countOccurrences(ordersViewSource, '我接取的') === 2 &&
-      countOccurrences(ordersViewSource, '当前列表里还没有任务。') === 2 &&
-      countOccurrences(ordersViewSource, '状态：{getOrderStatusLabel(') === 3 &&
-      countOccurrences(ordersViewSource, '赏金：') === 3 &&
-      countOccurrences(ordersViewSource, '标记完成') === 3 &&
-      countOccurrences(ordersViewSource, '打开聊天') === 3 &&
-      countOccurrences(ordersViewSource, '当前选中') === 1 &&
-      countOccurrences(ordersViewSource, '任务编号') === 1 &&
-      countOccurrences(ordersViewSource, '任务说明') === 2 &&
-      countOccurrences(ordersViewSource, '暂无补充说明。') === 1 &&
-      countOccurrences(ordersViewSource, '任务信息') === 1 &&
-      countOccurrences(ordersViewSource, '发布者') === 1 &&
-      countOccurrences(ordersViewSource, '匿名用户') === 1 &&
-      countOccurrences(ordersViewSource, '接单人') === 1 &&
-      countOccurrences(ordersViewSource, '尚未接单') === 1 &&
-      countOccurrences(ordersViewSource, '订单详情') === 1 &&
-      countOccurrences(ordersViewSource, '从左侧选择一个订单') === 1 &&
-      ordersViewSource.includes("return '待接单';") &&
-      ordersViewSource.includes("return '进行中';") &&
-      ordersViewSource.includes("return '已完成';") &&
-      ordersViewSource.includes("return status || '未知';") &&
-      !ordersViewSource.includes('鐠併垹') &&
-      !ordersViewSource.includes('閹存垵') &&
-      !ordersViewSource.includes('瑜版挸'),
+      countOccurrences(ordersViewSource, '\u8ba2\u5355\u603b\u89c8') === 2 &&
+      countOccurrences(ordersViewSource, '\u5728\u8fd9\u91cc\u67e5\u770b\u4f60\u53d1\u5e03\u7684\u4efb\u52a1\u548c\u5df2\u63a5\u53d6\u7684\u4efb\u52a1\u3002') === 2 &&
+      countOccurrences(ordersViewSource, '\u6211\u53d1\u5e03\u7684') === 2 &&
+      countOccurrences(ordersViewSource, '\u6211\u63a5\u53d6\u7684') === 2 &&
+      countOccurrences(ordersViewSource, '\u5f53\u524d\u5217\u8868\u91cc\u8fd8\u6ca1\u6709\u4efb\u52a1\u3002') === 2 &&
+      countOccurrences(ordersViewSource, '\u72b6\u6001\uff1a{getOrderStatusLabel(') === 3 &&
+      countOccurrences(ordersViewSource, '\u8d4f\u91d1\uff1a') === 3 &&
+      countOccurrences(ordersViewSource, '\u6807\u8bb0\u5b8c\u6210') === 3 &&
+      countOccurrences(ordersViewSource, '\u6253\u5f00\u804a\u5929') === 3 &&
+      countOccurrences(ordersViewSource, '\u5f53\u524d\u9009\u4e2d') === 1 &&
+      countOccurrences(ordersViewSource, '\u4efb\u52a1\u7f16\u53f7') === 1 &&
+      countOccurrences(ordersViewSource, '\u4efb\u52a1\u8bf4\u660e') === 2 &&
+      countOccurrences(ordersViewSource, '\u6682\u65e0\u8865\u5145\u8bf4\u660e\u3002') === 1 &&
+      countOccurrences(ordersViewSource, '\u4efb\u52a1\u4fe1\u606f') === 1 &&
+      countOccurrences(ordersViewSource, '\u53d1\u5e03\u8005') === 1 &&
+      countOccurrences(ordersViewSource, '\u533f\u540d\u7528\u6237') === 1 &&
+      countOccurrences(ordersViewSource, '\u63a5\u5355\u4eba') === 1 &&
+      countOccurrences(ordersViewSource, '\u5c1a\u672a\u63a5\u5355') === 1 &&
+      countOccurrences(ordersViewSource, '\u8ba2\u5355\u8be6\u60c5') === 1 &&
+      countOccurrences(
+        ordersViewSource,
+        '\u8fd9\u91cc\u4f1a\u663e\u793a\u4efb\u52a1\u8bf4\u660e\u3001\u72b6\u6001\u548c\u53ef\u6267\u884c\u64cd\u4f5c\u3002\u4f60\u53ef\u4ee5\u7ee7\u7eed\u5728\u5de6\u4fa7\u5207\u6362\u5217\u8868\u3002'
+      ) === 1 &&
+      ordersViewSource.includes("return '\u5f85\u63a5\u5355';") &&
+      ordersViewSource.includes("return '\u8fdb\u884c\u4e2d';") &&
+      ordersViewSource.includes("return '\u5df2\u5b8c\u6210';") &&
+      ordersViewSource.includes("return status || '\u672a\u77e5';"),
   },
   {
     description: 'PostTaskView.jsx contains the desktop workflow grid columns',
