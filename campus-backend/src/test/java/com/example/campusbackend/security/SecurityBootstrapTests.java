@@ -60,6 +60,12 @@ class SecurityBootstrapTests {
     }
 
     @Test
+    void anonymousUserCanLoadTaskCategories() throws Exception {
+        mockMvc.perform(get("/api/categories"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void startupCreatesAdminAccountWithHashedPasswordAndRoleField() {
         User admin = userRepository.findByUsername("admin001").orElseThrow();
 

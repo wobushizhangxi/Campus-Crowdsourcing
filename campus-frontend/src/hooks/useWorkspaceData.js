@@ -10,6 +10,7 @@ export default function useWorkspaceData({
   onUnauthorized,
 }) {
   const [tasks, setTasks] = useState([]);
+  const [taskCategories, setTaskCategories] = useState([]);
   const [taskError, setTaskError] = useState('');
   const [isRefreshingProfile, setIsRefreshingProfile] = useState(false);
   const [walletRecords, setWalletRecords] = useState([]);
@@ -18,6 +19,8 @@ export default function useWorkspaceData({
   const [lastSyncAt, setLastSyncAt] = useState(null);
 
   const refreshCurrentUserSummaryRef = useRef(null);
+  const fetchTaskCategoriesRef = useRef(null);
+  const fetchTasksRef = useRef(null);
   const refreshWalletDataRef = useRef(null);
 
   const handleUnauthorized = (error) => {
@@ -98,6 +101,22 @@ export default function useWorkspaceData({
     }
   };
 
+  const fetchTaskCategories = async () => {
+    try {
+      const response = await apiGet('/api/categories');
+      const categories = Array.isArray(response.data?.data)
+        ? response.data.data.map((category) => category.name).filter(Boolean)
+        : [];
+      setTaskCategories(categories);
+      return true;
+    } catch (error) {
+      if (handleUnauthorized(error)) {
+        return false;
+      }
+      return false;
+    }
+  };
+
   const refreshWorkspaceState = async ({
     includeWallet = profileSection === 'wallet',
     silent = false,
@@ -115,6 +134,7 @@ export default function useWorkspaceData({
 
     const refreshers = [
       fetchTasks(),
+      fetchTaskCategories(),
       refreshCurrentUserSummary(),
     ];
 
@@ -137,6 +157,8 @@ export default function useWorkspaceData({
     return hasAnySuccess;
   };
 
+  fetchTasksRef.current = fetchTasks;
+  fetchTaskCategoriesRef.current = fetchTaskCategories;
   refreshCurrentUserSummaryRef.current = refreshCurrentUserSummary;
   refreshWalletDataRef.current = refreshWalletData;
 
@@ -150,7 +172,8 @@ export default function useWorkspaceData({
 
     const syncWorkspaceSilently = async () => {
       const refreshers = [
-        fetchTasks(),
+        fetchTasksRef.current?.(),
+        fetchTaskCategoriesRef.current?.(),
         refreshCurrentUserSummaryRef.current?.(),
       ];
 
@@ -178,6 +201,7 @@ export default function useWorkspaceData({
 
   return {
     fetchTasks,
+    fetchTaskCategories,
     isRefreshingProfile,
     isWalletLoading,
     lastSyncAt,
@@ -188,9 +212,11 @@ export default function useWorkspaceData({
     setLastSyncAt,
     setTaskError,
     setTasks,
+    setTaskCategories,
     setWalletError,
     setWalletRecords,
     taskError,
+    taskCategories,
     tasks,
     walletError,
     walletRecords,

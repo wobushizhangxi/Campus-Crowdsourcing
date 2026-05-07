@@ -5,6 +5,7 @@ import com.example.campusbackend.dto.AuthResponse;
 import com.example.campusbackend.entity.User;
 import com.example.campusbackend.entity.UserRole;
 import com.example.campusbackend.repository.TaskRepository;
+import com.example.campusbackend.repository.TaskReviewRepository;
 import com.example.campusbackend.repository.UserRepository;
 import com.example.campusbackend.security.AppUserPrincipal;
 import com.example.campusbackend.security.JwtTokenService;
@@ -29,6 +30,7 @@ public class AuthController {
 
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
+    private final TaskReviewRepository taskReviewRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenService jwtTokenService;
     private final LegacyPasswordMigrationService legacyPasswordMigrationService;
@@ -37,6 +39,7 @@ public class AuthController {
     public AuthController(
             UserRepository userRepository,
             TaskRepository taskRepository,
+            TaskReviewRepository taskReviewRepository,
             PasswordEncoder passwordEncoder,
             JwtTokenService jwtTokenService,
             LegacyPasswordMigrationService legacyPasswordMigrationService,
@@ -44,6 +47,7 @@ public class AuthController {
     ) {
         this.userRepository = userRepository;
         this.taskRepository = taskRepository;
+        this.taskReviewRepository = taskReviewRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenService = jwtTokenService;
         this.legacyPasswordMigrationService = legacyPasswordMigrationService;
@@ -124,11 +128,23 @@ public class AuthController {
         data.put("campus", user.getCampus());
         data.put("address", user.getAddress());
         data.put("bio", user.getBio());
+        data.put("avatarUrl", user.getAvatarUrl());
         data.put("balance", user.getBalance());
         data.put("banned", user.isBanned());
         data.put("role", user.getRole().name());
         data.put("permissions", adminPermissionService.toPermissionNames(user));
         data.put("completedCount", taskRepository.countCompletedTasksForUser(user.getUsername(), user.getName()));
+        data.put("completedAsPublisherCount", taskRepository.countByStatusAndAuthorUsername("completed", user.getUsername()));
+        data.put("completedAsAssigneeCount", taskRepository.countByStatusAndAssignee("completed", user.getUsername()));
+        data.put("averageRating", taskReviewRepository.averageRatingForUser(user.getUsername()));
+        data.put("reviewCount", taskReviewRepository.countByRevieweeUsername(user.getUsername()));
+        data.put("verificationStatus", user.getVerificationStatus().name());
+        data.put("verificationCampus", user.getVerificationCampus());
+        data.put("verificationStudentId", user.getVerificationStudentId());
+        data.put("verificationNote", user.getVerificationNote());
+        data.put("verificationSubmittedAt", user.getVerificationSubmittedAt());
+        data.put("verificationReviewedAt", user.getVerificationReviewedAt());
+        data.put("verificationReviewer", user.getVerificationReviewer());
         return data;
     }
 

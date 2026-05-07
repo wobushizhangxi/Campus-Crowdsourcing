@@ -2,15 +2,21 @@ package com.example.campusbackend.controller;
 
 import com.example.campusbackend.dto.BalanceAdjustmentRequest;
 import com.example.campusbackend.dto.PermissionUpdateRequest;
+import com.example.campusbackend.dto.TaskActionRequest;
+import com.example.campusbackend.dto.VerificationRequest;
 import com.example.campusbackend.entity.BalanceRecord;
+import com.example.campusbackend.entity.Task;
 import com.example.campusbackend.entity.User;
 import com.example.campusbackend.entity.UserRole;
+import com.example.campusbackend.entity.VerificationStatus;
 import com.example.campusbackend.repository.BalanceRecordRepository;
-import com.example.campusbackend.repository.MessageRepository;
 import com.example.campusbackend.repository.TaskRepository;
+import com.example.campusbackend.repository.TaskReviewRepository;
 import com.example.campusbackend.repository.UserRepository;
 import com.example.campusbackend.service.AdminPermissionService;
 import com.example.campusbackend.service.CurrentUserService;
+import com.example.campusbackend.service.TaskLifecycleService;
+import com.example.campusbackend.service.UserDeletionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -40,24 +46,30 @@ public class AdminController {
     private final UserRepository userRepository;
     private final BalanceRecordRepository balanceRecordRepository;
     private final TaskRepository taskRepository;
-    private final MessageRepository messageRepository;
+    private final TaskReviewRepository taskReviewRepository;
     private final CurrentUserService currentUserService;
     private final AdminPermissionService adminPermissionService;
+    private final TaskLifecycleService taskLifecycleService;
+    private final UserDeletionService userDeletionService;
 
     public AdminController(
             UserRepository userRepository,
             BalanceRecordRepository balanceRecordRepository,
             TaskRepository taskRepository,
-            MessageRepository messageRepository,
+            TaskReviewRepository taskReviewRepository,
             CurrentUserService currentUserService,
-            AdminPermissionService adminPermissionService
+            AdminPermissionService adminPermissionService,
+            TaskLifecycleService taskLifecycleService,
+            UserDeletionService userDeletionService
     ) {
         this.userRepository = userRepository;
         this.balanceRecordRepository = balanceRecordRepository;
         this.taskRepository = taskRepository;
-        this.messageRepository = messageRepository;
+        this.taskReviewRepository = taskReviewRepository;
         this.currentUserService = currentUserService;
         this.adminPermissionService = adminPermissionService;
+        this.taskLifecycleService = taskLifecycleService;
+        this.userDeletionService = userDeletionService;
     }
 
     @GetMapping("/users")
@@ -213,14 +225,91 @@ public class AdminController {
             return buildResponse(HttpStatus.FORBIDDEN, "Admin account cannot be deleted", null);
         }
 
-        String placeholder = "deleted-user-" + target.getId();
-        taskRepository.anonymizeAuthor(target.getUsername(), placeholder, "已注销用户");
-        taskRepository.anonymizeAssignee(target.getUsername(), placeholder);
-        messageRepository.anonymizeSender(target.getUsername(), placeholder);
-        balanceRecordRepository.anonymizeUsername(target.getUsername(), placeholder);
-        userRepository.delete(target);
+        String placeholder = userDeletionService.deleteRegularUser(target);
 
         return buildResponse(HttpStatus.OK, "User deleted", Map.of("id", id, "placeholder", placeholder));
+    }
+
+    @PostMapping("/tasks/{id}/resolve")
+    public ResponseEntity<Map<String, Object>> resolveDisputedTask(
+            @PathVariable Long id,
+            @RequestBody(required = false) TaskActionRequest request,
+            Authentication authentication
+    ) {
+        User actor = requireAdminAccessActor(authentication);
+        try {
+            Task task = taskLifecycleService.resolve(
+                    id,
+                    actor,
+                    request == null ? null : request.getResolution(),
+                    request == null ? null : request.getNote()
+            );
+            return buildResponse(HttpStatus.OK, "Task dispute resolved", Map.of("task", task));
+        } catch (ResponseStatusException error) {
+            return buildResponse(
+                    HttpStatus.valueOf(error.getStatusCode().value()),
+                    error.getReason() == null ? error.getMessage() : error.getReason(),
+                    null
+            );
+        }
+    }
+
+    @GetMapping("/verifications")
+    public ResponseEntity<Map<String, Object>> listPendingVerifications(Authentication authentication) {
+        requireAdminAccessActor(authentication);
+        List<Map<String, Object>> users = userRepository
+                .findByVerificationStatusOrderByVerificationSubmittedAtAsc(VerificationStatus.PENDING)
+                .stream()
+                .map(this::buildUserSummary)
+                .toList();
+        return buildResponse(HttpStatus.OK, "Success", users);
+    }
+
+    @PostMapping("/verifications/{userId}/approve")
+    @Transactional
+    public ResponseEntity<Map<String, Object>> approveVerification(
+            @PathVariable Long userId,
+            @RequestBody(required = false) VerificationRequest request,
+            Authentication authentication
+    ) {
+        User actor = requireAdminAccessActor(authentication);
+        User target = userRepository.findById(userId).orElse(null);
+        if (target == null) {
+            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
+        }
+
+        target.setVerificationStatus(VerificationStatus.VERIFIED);
+        target.setVerificationNote(normalizeOptional(request == null ? null : request.getNote()));
+        target.setVerificationReviewedAt(LocalDateTime.now());
+        target.setVerificationReviewer(actor.getUsername());
+        User saved = userRepository.save(target);
+        return buildResponse(HttpStatus.OK, "Verification approved", buildUserSummary(saved));
+    }
+
+    @PostMapping("/verifications/{userId}/reject")
+    @Transactional
+    public ResponseEntity<Map<String, Object>> rejectVerification(
+            @PathVariable Long userId,
+            @RequestBody(required = false) VerificationRequest request,
+            Authentication authentication
+    ) {
+        User actor = requireAdminAccessActor(authentication);
+        User target = userRepository.findById(userId).orElse(null);
+        if (target == null) {
+            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
+        }
+
+        String note = normalizeOptional(request == null ? null : request.getNote());
+        if (note == null) {
+            return buildResponse(HttpStatus.BAD_REQUEST, "Rejection note is required", null);
+        }
+
+        target.setVerificationStatus(VerificationStatus.REJECTED);
+        target.setVerificationNote(note);
+        target.setVerificationReviewedAt(LocalDateTime.now());
+        target.setVerificationReviewer(actor.getUsername());
+        User saved = userRepository.save(target);
+        return buildResponse(HttpStatus.OK, "Verification rejected", buildUserSummary(saved));
     }
 
     private Map<String, Object> buildUserSummary(User user) {
@@ -234,6 +323,18 @@ public class AdminController {
         data.put("banned", user.isBanned());
         data.put("email", user.getEmail());
         data.put("phone", user.getPhone());
+        data.put("avatarUrl", user.getAvatarUrl());
+        data.put("completedAsPublisherCount", taskRepository.countByStatusAndAuthorUsername("completed", user.getUsername()));
+        data.put("completedAsAssigneeCount", taskRepository.countByStatusAndAssignee("completed", user.getUsername()));
+        data.put("averageRating", taskReviewRepository.averageRatingForUser(user.getUsername()));
+        data.put("reviewCount", taskReviewRepository.countByRevieweeUsername(user.getUsername()));
+        data.put("verificationStatus", user.getVerificationStatus().name());
+        data.put("verificationCampus", user.getVerificationCampus());
+        data.put("verificationStudentId", user.getVerificationStudentId());
+        data.put("verificationNote", user.getVerificationNote());
+        data.put("verificationSubmittedAt", user.getVerificationSubmittedAt());
+        data.put("verificationReviewedAt", user.getVerificationReviewedAt());
+        data.put("verificationReviewer", user.getVerificationReviewer());
         return data;
     }
 
@@ -263,6 +364,14 @@ public class AdminController {
         balanceRecord.setDescription("operator: " + actorUsername + "; reason: " + reason);
         balanceRecord.setCreatedAt(LocalDateTime.now());
         balanceRecordRepository.save(balanceRecord);
+    }
+
+    private String normalizeOptional(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private User requireAdminAccessActor(Authentication authentication) {

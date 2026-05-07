@@ -12,9 +12,17 @@ export default function AppHeader({ pageMeta, currentUser, onOpenProfile }) {
           onClick={onOpenProfile}
           className="flex shrink-0 items-center gap-3 rounded-2xl border border-white/70 bg-white/90 px-3 py-2 shadow-sm transition hover:border-cyan-100 hover:shadow"
         >
-          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-600 text-sm font-black text-white">
-            {(currentUser.name || currentUser.studentId || 'U').slice(0, 1).toUpperCase()}
-          </span>
+          {currentUser.avatarUrl ? (
+            <img
+              src={currentUser.avatarUrl}
+              alt=""
+              className="h-10 w-10 rounded-2xl object-cover"
+            />
+          ) : (
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-600 text-sm font-black text-white">
+              {(currentUser.name || currentUser.studentId || 'U').slice(0, 1).toUpperCase()}
+            </span>
+          )}
           <span className="text-right">
             <span className="block text-xs font-bold tracking-[0.2em] text-slate-400">账号</span>
             <span className="block max-w-[8rem] truncate text-sm font-semibold text-slate-700 sm:max-w-[11rem] lg:max-w-[14rem]">

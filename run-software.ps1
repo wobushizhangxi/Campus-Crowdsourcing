@@ -40,6 +40,7 @@ $env:Path = "$javaHome\bin;$env:Path"
 
 $openBrowser = if ($NoBrowser) { "false" } else { "true" }
 $javaArgs = @(
+    "-Dspring.profiles.active=desktop",
     "-Dapp.open-browser=$openBrowser"
 )
 

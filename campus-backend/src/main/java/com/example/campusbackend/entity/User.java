@@ -11,8 +11,10 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -48,6 +50,9 @@ public class User {
     @Column(length = 1000)
     private String bio;
 
+    @Lob
+    private String avatarUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private UserRole role = UserRole.USER;
@@ -63,6 +68,26 @@ public class User {
 
     @Column(nullable = false)
     private boolean banned = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private VerificationStatus verificationStatus = VerificationStatus.UNVERIFIED;
+
+    @Column(length = 50)
+    private String verificationCampus;
+
+    @Column(length = 50)
+    private String verificationStudentId;
+
+    @Column(length = 500)
+    private String verificationNote;
+
+    private LocalDateTime verificationSubmittedAt;
+
+    private LocalDateTime verificationReviewedAt;
+
+    @Column(length = 50)
+    private String verificationReviewer;
 
     public Long getId() {
         return id;
@@ -136,6 +161,14 @@ public class User {
         this.bio = bio;
     }
 
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
+    }
+
     public UserRole getRole() {
         return role;
     }
@@ -166,5 +199,61 @@ public class User {
 
     public void setPermissions(Set<AdminPermission> permissions) {
         this.permissions = permissions == null ? new LinkedHashSet<>() : new LinkedHashSet<>(permissions);
+    }
+
+    public VerificationStatus getVerificationStatus() {
+        return verificationStatus == null ? VerificationStatus.UNVERIFIED : verificationStatus;
+    }
+
+    public void setVerificationStatus(VerificationStatus verificationStatus) {
+        this.verificationStatus = verificationStatus == null ? VerificationStatus.UNVERIFIED : verificationStatus;
+    }
+
+    public String getVerificationCampus() {
+        return verificationCampus;
+    }
+
+    public void setVerificationCampus(String verificationCampus) {
+        this.verificationCampus = verificationCampus;
+    }
+
+    public String getVerificationStudentId() {
+        return verificationStudentId;
+    }
+
+    public void setVerificationStudentId(String verificationStudentId) {
+        this.verificationStudentId = verificationStudentId;
+    }
+
+    public String getVerificationNote() {
+        return verificationNote;
+    }
+
+    public void setVerificationNote(String verificationNote) {
+        this.verificationNote = verificationNote;
+    }
+
+    public LocalDateTime getVerificationSubmittedAt() {
+        return verificationSubmittedAt;
+    }
+
+    public void setVerificationSubmittedAt(LocalDateTime verificationSubmittedAt) {
+        this.verificationSubmittedAt = verificationSubmittedAt;
+    }
+
+    public LocalDateTime getVerificationReviewedAt() {
+        return verificationReviewedAt;
+    }
+
+    public void setVerificationReviewedAt(LocalDateTime verificationReviewedAt) {
+        this.verificationReviewedAt = verificationReviewedAt;
+    }
+
+    public String getVerificationReviewer() {
+        return verificationReviewer;
+    }
+
+    public void setVerificationReviewer(String verificationReviewer) {
+        this.verificationReviewer = verificationReviewer;
     }
 }

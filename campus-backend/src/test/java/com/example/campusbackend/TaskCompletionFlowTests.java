@@ -77,7 +77,13 @@ class TaskCompletionFlowTests {
         String publisherToken = jwtTokenService.generateToken(publisher);
         String runnerToken = jwtTokenService.generateToken(runner);
 
-        mockMvc.perform(post("/api/tasks/{id}/complete", savedTask.getId())
+        mockMvc.perform(post("/api/tasks/{id}/submit", savedTask.getId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + runnerToken)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.task.status").value("submitted"));
+
+        mockMvc.perform(post("/api/tasks/{id}/approve", savedTask.getId())
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + publisherToken)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())

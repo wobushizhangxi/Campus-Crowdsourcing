@@ -1,5 +1,7 @@
-import { useEffect } from 'react';
-import { ArrowLeft, CheckCircle, ClipboardList, MapPin, ShieldCheck } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, CheckCircle, ClipboardList, Heart, MapPin, Search, ShieldCheck, SlidersHorizontal } from 'lucide-react';
+import { filterAndSortOpenTasks, getTaskCategories } from '../../utils/taskFilters';
+import { getVerificationMeta } from '../../utils/formatters';
 
 const getTaskStatusLabel = (status) => {
   if (status === 'open') {
@@ -8,32 +10,155 @@ const getTaskStatusLabel = (status) => {
   if (status === 'accepted') {
     return '进行中';
   }
+  if (status === 'submitted') {
+    return '待验收';
+  }
   if (status === 'completed') {
     return '已完成';
+  }
+  if (status === 'cancelled') {
+    return '已取消';
+  }
+  if (status === 'disputed') {
+    return '纠纷中';
   }
   return status || '未知';
 };
 
 export default function HomeView({
   currentUser,
+  favoriteTaskIds = [],
   formatRmb,
   handleAcceptTask,
+  handleToggleFavoriteTask,
   selectedTask,
   setSelectedTask,
   taskError,
+  taskCategoriesConfig = [],
   tasks,
 }) {
-  const openTasks = tasks.filter((task) => task.status === 'open');
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('全部');
+  const [sortBy, setSortBy] = useState('latest');
+
+  const totalOpenTasks = useMemo(() => tasks.filter((task) => task.status === 'open'), [tasks]);
+  const taskCategories = useMemo(() => getTaskCategories(tasks, taskCategoriesConfig), [taskCategoriesConfig, tasks]);
+  const favoriteTaskIdSet = useMemo(() => new Set(favoriteTaskIds.map((taskId) => Number(taskId))), [favoriteTaskIds]);
+  const effectiveSelectedCategory = taskCategories.includes(selectedCategory) ? selectedCategory : '全部';
+  const openTasks = useMemo(
+    () => filterAndSortOpenTasks(tasks, { keyword: searchKeyword, category: effectiveSelectedCategory, sortBy }),
+    [effectiveSelectedCategory, searchKeyword, sortBy, tasks],
+  );
   const selectedTaskId = selectedTask?.id ?? null;
   const currentSelectedTask = selectedTaskId ? openTasks.find((task) => task.id === selectedTaskId) || null : null;
   const taskStatusLabel = getTaskStatusLabel(currentSelectedTask?.status);
   const desktopSelectedTask = currentSelectedTask;
+  const hasAnyOpenTasks = totalOpenTasks.length > 0;
+  const isTaskFavorited = (taskId) => favoriteTaskIdSet.has(Number(taskId));
+  const hasActiveFilters = Boolean(searchKeyword.trim()) || effectiveSelectedCategory !== '全部';
 
   useEffect(() => {
     if (selectedTaskId && !currentSelectedTask) {
       setSelectedTask(null);
     }
   }, [currentSelectedTask, selectedTaskId, setSelectedTask]);
+
+  const resetFilters = () => {
+    setSearchKeyword('');
+    setSelectedCategory('全部');
+    setSortBy('latest');
+  };
+
+  const renderFavoriteButton = (task, variant = 'light') => {
+    const favorited = isTaskFavorited(task.id);
+    const darkMode = variant === 'dark';
+
+    return (
+      <button
+        type="button"
+        onClick={(event) => handleToggleFavoriteTask?.(task.id, event)}
+        aria-pressed={favorited}
+        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition ${
+          favorited
+            ? darkMode
+              ? 'bg-rose-500 text-white'
+              : 'bg-rose-100 text-rose-700 hover:bg-rose-200'
+            : darkMode
+              ? 'bg-white/10 text-white hover:bg-white/15'
+              : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+        }`}
+      >
+        <Heart size={14} fill={favorited ? 'currentColor' : 'none'} />
+        {favorited ? '已收藏' : '收藏'}
+      </button>
+    );
+  };
+
+  const renderVerificationBadge = (status, variant = 'light') => {
+    const meta = getVerificationMeta(status);
+    const darkMode = variant === 'dark';
+
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${
+          darkMode ? 'bg-white/10 text-white' : meta.className
+        }`}
+      >
+        <ShieldCheck size={13} />
+        {meta.label}
+      </span>
+    );
+  };
+
+  const renderTaskFilters = () => (
+    <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <SlidersHorizontal size={16} />
+        筛选任务
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_150px_150px]">
+        <label className="relative block">
+          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="search"
+            value={searchKeyword}
+            onChange={(event) => setSearchKeyword(event.target.value)}
+            placeholder="搜索标题、描述、地点"
+            className="w-full rounded-2xl border border-slate-200 py-3 pl-10 pr-4 text-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+          />
+        </label>
+        <select
+          value={effectiveSelectedCategory}
+          onChange={(event) => setSelectedCategory(event.target.value)}
+          className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+        >
+          {taskCategories.map((category) => (
+            <option key={category} value={category}>
+              {category}
+            </option>
+          ))}
+        </select>
+        <select
+          value={sortBy}
+          onChange={(event) => setSortBy(event.target.value)}
+          className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+        >
+          <option value="latest">最新发布</option>
+          <option value="reward">赏金最高</option>
+        </select>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+        <span>
+          已显示 {openTasks.length} / {totalOpenTasks.length} 个待接任务
+        </span>
+        {hasActiveFilters ? (
+          <button type="button" onClick={resetFilters} className="font-semibold text-cyan-700 transition hover:text-cyan-800">
+            清空筛选
+          </button>
+        ) : null}
+      </div>
+    </section>
+  );
 
   return (
     <>
@@ -56,6 +181,8 @@ export default function HomeView({
                   <p className="mt-2 text-sm text-slate-300">
                     发布者：{currentSelectedTask.author || '匿名用户'} | 状态：{taskStatusLabel}
                   </p>
+                  <div className="mt-3">{renderVerificationBadge(currentSelectedTask.authorVerificationStatus, 'dark')}</div>
+                  <div className="mt-3">{renderFavoriteButton(currentSelectedTask, 'dark')}</div>
                 </div>
                 <div className="rounded-2xl bg-white/10 px-4 py-3 text-right">
                   <p className="text-xs text-slate-300">赏金</p>
@@ -83,10 +210,14 @@ export default function HomeView({
                   <span className="font-semibold text-slate-900">{currentSelectedTask.author || '匿名用户'}</span>
                 </div>
                 <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+                  <span className="text-slate-500">发布者认证</span>
+                  {renderVerificationBadge(currentSelectedTask.authorVerificationStatus)}
+                </div>
+                <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
                   <span className="text-slate-500">地点</span>
                   <span className="inline-flex items-center gap-1 font-semibold text-slate-900">
                     <MapPin size={14} />
-                    校园内
+                    {currentSelectedTask.location || currentSelectedTask.campus || '校园内'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
@@ -133,7 +264,7 @@ export default function HomeView({
                   <ClipboardList size={16} />
                   待接任务
                 </div>
-                <p className="mt-3 text-2xl font-bold text-slate-900">{openTasks.length}</p>
+                <p className="mt-3 text-2xl font-bold text-slate-900">{totalOpenTasks.length}</p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -149,6 +280,8 @@ export default function HomeView({
               <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold text-cyan-700">实时</span>
             </section>
 
+            {renderTaskFilters()}
+
             {taskError ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                 {taskError}
@@ -157,8 +290,12 @@ export default function HomeView({
 
             {openTasks.length === 0 ? (
               <div className="rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-                <p className="text-lg font-semibold text-slate-800">当前暂无待接任务。</p>
-                <p className="mt-2 text-sm text-slate-500">你可以先发布一个新任务。</p>
+                <p className="text-lg font-semibold text-slate-800">
+                  {hasAnyOpenTasks ? '没有匹配的待接任务。' : '当前暂无待接任务。'}
+                </p>
+                <p className="mt-2 text-sm text-slate-500">
+                  {hasAnyOpenTasks ? '换个关键词或分类再试试。' : '你可以先发布一个新任务。'}
+                </p>
               </div>
             ) : (
               openTasks.map((task) => (
@@ -171,13 +308,22 @@ export default function HomeView({
                     <div>
                       <h3 className="text-lg font-bold text-slate-900">{task.title}</h3>
                       <p className="mt-2 text-sm text-slate-500">{task.description || '暂无描述。'}</p>
+                      <p className="mt-2 text-xs text-slate-400">
+                        {task.category || '其他'} | {task.location || task.campus || '校园内'}
+                      </p>
                     </div>
-                    <span className="rounded-full bg-cyan-100 px-3 py-1 text-sm font-bold text-cyan-700">
-                      {formatRmb(task.reward)}
-                    </span>
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <span className="rounded-full bg-cyan-100 px-3 py-1 text-sm font-bold text-cyan-700">
+                        {formatRmb(task.reward)}
+                      </span>
+                      {renderFavoriteButton(task)}
+                    </div>
                   </div>
-                  <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-                    <span>发布者：{task.author || '匿名用户'}</span>
+                  <div className="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500">
+                    <span className="inline-flex min-w-0 items-center gap-2">
+                      <span className="truncate">发布者：{task.author || '匿名用户'}</span>
+                      {renderVerificationBadge(task.authorVerificationStatus)}
+                    </span>
                     <span>任务 #{task.id}</span>
                   </div>
                 </article>
@@ -211,7 +357,7 @@ export default function HomeView({
                 <ClipboardList size={16} />
                 待接任务
               </div>
-              <p className="mt-3 text-2xl font-bold text-slate-900">{openTasks.length}</p>
+              <p className="mt-3 text-2xl font-bold text-slate-900">{totalOpenTasks.length}</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -227,6 +373,8 @@ export default function HomeView({
             <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold text-cyan-700">实时</span>
           </section>
 
+          {renderTaskFilters()}
+
           {taskError ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
               {taskError}
@@ -235,8 +383,12 @@ export default function HomeView({
 
           {openTasks.length === 0 ? (
             <div className="rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-              <p className="text-lg font-semibold text-slate-800">当前暂无待接任务。</p>
-              <p className="mt-2 text-sm text-slate-500">你可以先发布一个新任务。</p>
+              <p className="text-lg font-semibold text-slate-800">
+                {hasAnyOpenTasks ? '没有匹配的待接任务。' : '当前暂无待接任务。'}
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                {hasAnyOpenTasks ? '换个关键词或分类再试试。' : '你可以先发布一个新任务。'}
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -257,13 +409,22 @@ export default function HomeView({
                       <div>
                         <h3 className="text-lg font-bold text-slate-900">{task.title}</h3>
                         <p className="mt-2 text-sm text-slate-500">{task.description || '暂无描述。'}</p>
+                        <p className="mt-2 text-xs text-slate-400">
+                          {task.category || '其他'} | {task.location || task.campus || '校园内'}
+                        </p>
                       </div>
-                      <span className="rounded-full bg-cyan-100 px-3 py-1 text-sm font-bold text-cyan-700">
-                        {formatRmb(task.reward)}
-                      </span>
+                      <div className="flex shrink-0 flex-col items-end gap-2">
+                        <span className="rounded-full bg-cyan-100 px-3 py-1 text-sm font-bold text-cyan-700">
+                          {formatRmb(task.reward)}
+                        </span>
+                        {renderFavoriteButton(task)}
+                      </div>
                     </div>
-                    <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-                      <span>发布者：{task.author || '匿名用户'}</span>
+                    <div className="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500">
+                      <span className="inline-flex min-w-0 items-center gap-2">
+                        <span className="truncate">发布者：{task.author || '匿名用户'}</span>
+                        {renderVerificationBadge(task.authorVerificationStatus)}
+                      </span>
                       <span>任务 #{task.id}</span>
                     </div>
                   </button>
@@ -284,6 +445,8 @@ export default function HomeView({
                     <p className="mt-2 text-sm text-slate-300">
                       发布者：{desktopSelectedTask.author || '匿名用户'} | 状态：{taskStatusLabel}
                     </p>
+                    <div className="mt-3">{renderVerificationBadge(desktopSelectedTask.authorVerificationStatus, 'dark')}</div>
+                    <div className="mt-3">{renderFavoriteButton(desktopSelectedTask, 'dark')}</div>
                   </div>
                   <div className="rounded-2xl bg-white/10 px-4 py-3 text-right">
                     <p className="text-xs text-slate-300">赏金</p>
@@ -311,10 +474,14 @@ export default function HomeView({
                     <span className="font-semibold text-slate-900">{desktopSelectedTask.author || '匿名用户'}</span>
                   </div>
                   <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+                    <span className="text-slate-500">发布者认证</span>
+                    {renderVerificationBadge(desktopSelectedTask.authorVerificationStatus)}
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
                     <span className="text-slate-500">地点</span>
                     <span className="inline-flex items-center gap-1 font-semibold text-slate-900">
                       <MapPin size={14} />
-                      校园内
+                      {desktopSelectedTask.location || desktopSelectedTask.campus || '校园内'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">

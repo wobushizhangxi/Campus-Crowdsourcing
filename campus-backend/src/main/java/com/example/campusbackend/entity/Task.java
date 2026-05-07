@@ -21,9 +21,22 @@ public class Task {
     private String description;
     private BigDecimal reward;
     private String status;
+    private String category;
+    private String campus;
+    private String location;
     private String author;
     private String authorUsername;
     private String assignee;
+    private LocalDateTime deadlineAt;
+    private LocalDateTime submittedAt;
+    private String submissionNote;
+    private LocalDateTime rejectedAt;
+    private String rejectionReason;
+    private LocalDateTime cancelledAt;
+    private String cancelReason;
+    private String disputeReason;
+    private LocalDateTime resolvedAt;
+    private String resolutionNote;
     private LocalDateTime completedAt;
 
     public Long getId() {
@@ -66,6 +79,30 @@ public class Task {
         this.status = status;
     }
 
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
+    }
+
+    public String getCampus() {
+        return campus;
+    }
+
+    public void setCampus(String campus) {
+        this.campus = campus;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
+    }
+
     public String getAuthor() {
         return author;
     }
@@ -88,6 +125,86 @@ public class Task {
 
     public void setAssignee(String assignee) {
         this.assignee = assignee;
+    }
+
+    public LocalDateTime getDeadlineAt() {
+        return deadlineAt;
+    }
+
+    public void setDeadlineAt(LocalDateTime deadlineAt) {
+        this.deadlineAt = deadlineAt;
+    }
+
+    public LocalDateTime getSubmittedAt() {
+        return submittedAt;
+    }
+
+    public void setSubmittedAt(LocalDateTime submittedAt) {
+        this.submittedAt = submittedAt;
+    }
+
+    public String getSubmissionNote() {
+        return submissionNote;
+    }
+
+    public void setSubmissionNote(String submissionNote) {
+        this.submissionNote = submissionNote;
+    }
+
+    public LocalDateTime getRejectedAt() {
+        return rejectedAt;
+    }
+
+    public void setRejectedAt(LocalDateTime rejectedAt) {
+        this.rejectedAt = rejectedAt;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
+    }
+
+    public LocalDateTime getCancelledAt() {
+        return cancelledAt;
+    }
+
+    public void setCancelledAt(LocalDateTime cancelledAt) {
+        this.cancelledAt = cancelledAt;
+    }
+
+    public String getCancelReason() {
+        return cancelReason;
+    }
+
+    public void setCancelReason(String cancelReason) {
+        this.cancelReason = cancelReason;
+    }
+
+    public String getDisputeReason() {
+        return disputeReason;
+    }
+
+    public void setDisputeReason(String disputeReason) {
+        this.disputeReason = disputeReason;
+    }
+
+    public LocalDateTime getResolvedAt() {
+        return resolvedAt;
+    }
+
+    public void setResolvedAt(LocalDateTime resolvedAt) {
+        this.resolvedAt = resolvedAt;
+    }
+
+    public String getResolutionNote() {
+        return resolutionNote;
+    }
+
+    public void setResolutionNote(String resolutionNote) {
+        this.resolutionNote = resolutionNote;
     }
 
     public LocalDateTime getCompletedAt() {

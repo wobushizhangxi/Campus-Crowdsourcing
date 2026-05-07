@@ -1,5 +1,6 @@
 import { ArrowLeft, LoaderCircle, RefreshCw, Search, ShieldCheck } from 'lucide-react';
 import { formatAdminPermissionLabel } from '../../utils/adminPermissions';
+import { getTaskStatusMeta, getVerificationMeta } from '../../utils/formatters';
 
 export default function AdminView({
   adminAdjustAmount,
@@ -10,10 +11,12 @@ export default function AdminView({
   adminPermissionDraft,
   adminSelectedUser,
   adminUsers,
+  adminVerifications = [],
   availablePermissions,
   canAdjustBalance,
   canGrantPermissions,
   canViewUsers,
+  disputedTasks = [],
   formatDateTime,
   formatRmb,
   formatSignedRmb,
@@ -26,8 +29,11 @@ export default function AdminView({
   onAdminAdjustReasonChange,
   onAdminKeywordChange,
   onAdminSearch,
+  onApproveVerification,
   onBack,
   onDeleteAdminUser,
+  onRejectVerification,
+  onResolveDispute,
   onSelectAdminUser,
   onSubmitAdminAdjustment,
   onSubmitAdminPermissions,
@@ -99,6 +105,130 @@ export default function AdminView({
             {adminMessage}
           </div>
         ) : null}
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">校园认证审核</h3>
+                <p className="mt-1 text-xs text-slate-500">处理用户提交的校区与学号认证申请。</p>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600">
+                {adminVerifications.length}
+              </span>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {adminVerifications.length === 0 ? (
+                <div className="rounded-2xl bg-white px-4 py-6 text-center text-sm text-slate-500">暂无待审核认证。</div>
+              ) : (
+                adminVerifications.map((user) => {
+                  const verificationMeta = getVerificationMeta(user.verificationStatus);
+                  return (
+                    <article key={user.id} className="rounded-2xl bg-white p-4 text-sm shadow-sm">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-bold text-slate-900">{user.name || user.username}</h4>
+                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${verificationMeta.className}`}>
+                              {verificationMeta.label}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs text-slate-500">
+                            {user.username} | {user.verificationCampus || user.campus || '未填写校区'} | {user.verificationStudentId || '未填写学号'}
+                          </p>
+                          {user.verificationNote ? (
+                            <p className="mt-2 rounded-2xl bg-slate-50 px-3 py-2 text-xs leading-6 text-slate-600">{user.verificationNote}</p>
+                          ) : null}
+                          <p className="mt-2 text-xs text-slate-400">{formatDateTime(user.verificationSubmittedAt)}</p>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onApproveVerification(user.id)}
+                            disabled={isAdminSubmitting}
+                            className="rounded-2xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                          >
+                            通过
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onRejectVerification(user.id)}
+                            disabled={isAdminSubmitting}
+                            className="rounded-2xl bg-rose-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-rose-300"
+                          >
+                            驳回
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">纠纷任务处理</h3>
+                <p className="mt-1 text-xs text-slate-500">在退款与结算之间做最终裁定。</p>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600">
+                {disputedTasks.length}
+              </span>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {disputedTasks.length === 0 ? (
+                <div className="rounded-2xl bg-white px-4 py-6 text-center text-sm text-slate-500">暂无纠纷任务。</div>
+              ) : (
+                disputedTasks.map((task) => {
+                  const taskStatusMeta = getTaskStatusMeta(task.status);
+                  return (
+                    <article key={task.id} className="rounded-2xl bg-white p-4 text-sm shadow-sm">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-bold text-slate-900">{task.title}</h4>
+                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${taskStatusMeta.className}`}>
+                              {taskStatusMeta.label}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs text-slate-500">
+                            发布者：{task.authorUsername || task.author || '-'} | 接单人：{task.assignee || '-'} | 赏金：{formatRmb(task.reward)}
+                          </p>
+                          {task.disputeReason ? (
+                            <p className="mt-2 rounded-2xl bg-rose-50 px-3 py-2 text-xs leading-6 text-rose-700">{task.disputeReason}</p>
+                          ) : null}
+                          <p className="mt-2 text-xs text-slate-400">提交时间：{formatDateTime(task.submittedAt || task.updatedAt || task.createdAt)}</p>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onResolveDispute(task.id, 'refund')}
+                            disabled={isAdminSubmitting}
+                            className="rounded-2xl bg-sky-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-sky-300"
+                          >
+                            退款
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onResolveDispute(task.id, 'complete')}
+                            disabled={isAdminSubmitting}
+                            className="rounded-2xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                          >
+                            结算
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
 
         <div className="mt-4 grid gap-4 2xl:grid-cols-[360px_minmax(0,1fr)]">
           <div className="space-y-3 2xl:max-h-[calc(100vh-20rem)] 2xl:overflow-y-auto 2xl:pr-1">

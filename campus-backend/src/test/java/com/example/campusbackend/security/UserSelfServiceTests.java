@@ -1,6 +1,7 @@
 package com.example.campusbackend.security;
 
 import com.example.campusbackend.entity.BalanceRecord;
+import com.example.campusbackend.entity.Task;
 import com.example.campusbackend.entity.User;
 import com.example.campusbackend.entity.UserRole;
 import com.example.campusbackend.repository.BalanceRecordRepository;
@@ -21,6 +22,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -162,8 +164,59 @@ class UserSelfServiceTests {
                                 {
                                   "name": "newName"
                                 }
-                                """))
+                """))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void currentUserCanUpdateAvatarAndReadItFromProfile() throws Exception {
+        User alice = createUser("aliceAvatar", "Alice Avatar", UserRole.USER, new BigDecimal("3.00"));
+        String avatarDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        String aliceToken = jwtTokenService.generateToken(alice);
+
+        mockMvc.perform(put("/api/users/avatar")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + aliceToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "avatarDataUrl": "%s"
+                                }
+                                """.formatted(avatarDataUrl)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.avatarUrl").value(avatarDataUrl));
+
+        mockMvc.perform(get("/api/users/profile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + aliceToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.avatarUrl").value(avatarDataUrl));
+    }
+
+    @Test
+    void currentUserCanDeleteOwnAccountAndAnonymizeHistory() throws Exception {
+        User alice = createUser("alice003", "Alice 3", UserRole.USER, new BigDecimal("7.00"));
+        Task task = new Task();
+        task.setTitle("Pick up package");
+        task.setDescription("Dorm gate");
+        task.setStatus("open");
+        task.setAuthor("Alice 3");
+        task.setAuthorUsername("alice003");
+        task.setReward(new BigDecimal("5.00"));
+        Task savedTask = taskRepository.save(task);
+        saveBalanceRecord("alice003", "task_publish", new BigDecimal("-5.00"), new BigDecimal("7.00"));
+
+        String aliceToken = jwtTokenService.generateToken(alice);
+
+        mockMvc.perform(delete("/api/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + aliceToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.placeholder").value("deleted-user-" + alice.getId()));
+
+        assertThat(userRepository.findByUsername("alice003")).isEmpty();
+        Task anonymizedTask = taskRepository.findById(savedTask.getId()).orElseThrow();
+        assertThat(anonymizedTask.getAuthorUsername()).isEqualTo("deleted-user-" + alice.getId());
+        assertThat(anonymizedTask.getAuthor()).isEqualTo("已注销用户");
+        assertThat(balanceRecordRepository.findTop50ByUsernameOrderByCreatedAtDesc("deleted-user-" + alice.getId()))
+                .hasSize(1);
     }
 
     private User createUser(String username, String name, UserRole role, BigDecimal balance) {

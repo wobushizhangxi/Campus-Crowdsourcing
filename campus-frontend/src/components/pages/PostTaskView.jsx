@@ -10,7 +10,13 @@ export default function PostTaskView({
   setPostFormData,
   setProfileSection,
   submitTask,
+  taskCategories = [],
 }) {
+  const primaryCategory = taskCategories[0] || postFormData.category;
+  const categoryOptions = taskCategories.includes(postFormData.category)
+    ? taskCategories
+    : [postFormData.category, ...taskCategories].filter(Boolean);
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!postFormData.title.trim() || !postFormData.reward.trim()) {
@@ -38,6 +44,10 @@ export default function PostTaskView({
       title: postFormData.title,
       description: postFormData.desc,
       reward: rewardValue.toFixed(2),
+      category: postFormData.category,
+      campus: postFormData.campus,
+      location: postFormData.location,
+      deadlineAt: postFormData.deadlineAt || null,
     });
 
     if (!wasPosted) {
@@ -45,7 +55,7 @@ export default function PostTaskView({
     }
 
     window.alert('任务发布成功。');
-    setPostFormData({ title: '', desc: '', reward: '' });
+    setPostFormData({ title: '', desc: '', reward: '', category: primaryCategory, campus: '主校区', location: '', deadlineAt: '' });
     await refreshWorkspaceState({ includeWallet: true, successMessage: '任务已发布。' });
     setActiveTab('home');
   };
@@ -93,6 +103,56 @@ export default function PostTaskView({
                 onChange={(event) => setPostFormData({ ...postFormData, desc: event.target.value })}
               />
             </label>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">分类</span>
+                <select
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                  value={postFormData.category}
+                  onChange={(event) => setPostFormData({ ...postFormData, category: event.target.value })}
+                >
+                  {categoryOptions.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">校区</span>
+                <input
+                  type="text"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                  value={postFormData.campus}
+                  onChange={(event) => setPostFormData({ ...postFormData, campus: event.target.value })}
+                />
+              </label>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">地点</span>
+                <input
+                  type="text"
+                  placeholder="例如：一号食堂门口"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                  value={postFormData.location}
+                  onChange={(event) => setPostFormData({ ...postFormData, location: event.target.value })}
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">期望完成时间</span>
+                <input
+                  type="datetime-local"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                  value={postFormData.deadlineAt}
+                  onChange={(event) => setPostFormData({ ...postFormData, deadlineAt: event.target.value })}
+                />
+              </label>
+            </div>
 
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-slate-700">赏金</span>
@@ -156,6 +216,56 @@ export default function PostTaskView({
               onChange={(event) => setPostFormData({ ...postFormData, desc: event.target.value })}
             />
           </label>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-700">分类</span>
+              <select
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                value={postFormData.category}
+                onChange={(event) => setPostFormData({ ...postFormData, category: event.target.value })}
+              >
+                {categoryOptions.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-700">校区</span>
+              <input
+                type="text"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                value={postFormData.campus}
+                onChange={(event) => setPostFormData({ ...postFormData, campus: event.target.value })}
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-700">地点</span>
+              <input
+                type="text"
+                placeholder="例如：一号食堂门口"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                value={postFormData.location}
+                onChange={(event) => setPostFormData({ ...postFormData, location: event.target.value })}
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-700">期望完成时间</span>
+              <input
+                type="datetime-local"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                value={postFormData.deadlineAt}
+                onChange={(event) => setPostFormData({ ...postFormData, deadlineAt: event.target.value })}
+              />
+            </label>
+          </div>
 
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-slate-700">赏金</span>

@@ -1,14 +1,11 @@
 import axios from 'axios';
 import { readAuthToken } from '../utils/authSession';
+import { resolveApiBaseUrlCandidates } from '../config/apiBaseUrl';
 
-const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/$/, '');
-const defaultDevApiBaseUrls = import.meta.env.DEV
-  ? ['http://127.0.0.1:8080', 'http://127.0.0.1:8081']
-  : [''];
-
-const apiBaseUrlCandidates = (configuredApiBaseUrl ? [configuredApiBaseUrl] : defaultDevApiBaseUrls)
-  .map((baseUrl) => baseUrl.replace(/\/$/, ''))
-  .filter((baseUrl, index, candidates) => candidates.indexOf(baseUrl) === index);
+const apiBaseUrlCandidates = resolveApiBaseUrlCandidates({
+  configuredApiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
+  isDev: import.meta.env.DEV,
+});
 
 const shouldRetryApiRequest = (error) => {
   const statusCode = error.response?.status;

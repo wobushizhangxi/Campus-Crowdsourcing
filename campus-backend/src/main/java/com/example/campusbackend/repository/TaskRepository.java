@@ -25,6 +25,12 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             """)
     long countCompletedTasksForUser(@Param("username") String username, @Param("displayName") String displayName);
 
+    long countByStatusAndAuthorUsername(String status, String authorUsername);
+
+    long countByStatusAndAssignee(String status, String assignee);
+
+    boolean existsByCategoryIgnoreCase(String category);
+
     @Query("""
             select coalesce(sum(t.reward), 0) from Task t
             where t.status = 'completed'

@@ -1,4 +1,7 @@
-import { ChevronRight, LoaderCircle, RefreshCw, ShieldCheck, Wallet } from 'lucide-react';
+import { useState } from 'react';
+import { Camera, ChevronRight, LoaderCircle, RefreshCw, ShieldCheck, Trash2, Upload, Wallet, X } from 'lucide-react';
+import { createCroppedAvatarDataUrl, isSupportedAvatarDataUrl, readFileAsDataUrl } from '../../utils/avatarUtils';
+import { formatRating, getVerificationMeta } from '../../utils/formatters';
 
 export default function ProfileView({
   currentUser,
@@ -18,14 +21,72 @@ export default function ProfileView({
   onOpenAdmin,
   onOpenHistory,
   onOpenWallet,
+  onDeleteAccount,
   onPhoneChange,
+  onSaveAvatar,
   onSaveProfile,
+  onSubmitVerification,
   profileMessage,
   profileMessageTone,
   profileForm,
   showAdminEntry,
 }) {
   const roleLabel = currentUser.role === 'ADMIN' ? '管理员' : '普通用户';
+  const verificationMeta = getVerificationMeta(currentUser.verificationStatus);
+  const [verificationForm, setVerificationForm] = useState({
+    campus: currentUser.verificationCampus || currentUser.campus || '主校区',
+    studentId: currentUser.verificationStudentId || '',
+    note: currentUser.verificationNote || '',
+  });
+
+  const [avatarEditor, setAvatarEditor] = useState({
+    sourceDataUrl: '',
+    zoom: 1,
+    isUploading: false,
+    error: '',
+  });
+
+  const handleAvatarFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) {
+      return;
+    }
+
+    try {
+      const sourceDataUrl = await readFileAsDataUrl(file);
+      if (!isSupportedAvatarDataUrl(sourceDataUrl)) {
+        throw new Error('请选择 PNG、JPG 或 WebP 图片。');
+      }
+      setAvatarEditor({ sourceDataUrl, zoom: 1, isUploading: false, error: '' });
+    } catch (error) {
+      setAvatarEditor((prev) => ({
+        ...prev,
+        sourceDataUrl: '',
+        isUploading: false,
+        error: error.message || '头像读取失败。',
+      }));
+    }
+  };
+
+  const handleSaveAvatar = async () => {
+    if (!avatarEditor.sourceDataUrl || !onSaveAvatar) {
+      return;
+    }
+
+    try {
+      setAvatarEditor((prev) => ({ ...prev, isUploading: true, error: '' }));
+      const avatarDataUrl = await createCroppedAvatarDataUrl(avatarEditor.sourceDataUrl, avatarEditor.zoom);
+      await onSaveAvatar(avatarDataUrl);
+      setAvatarEditor({ sourceDataUrl: '', zoom: 1, isUploading: false, error: '' });
+    } catch (error) {
+      setAvatarEditor((prev) => ({
+        ...prev,
+        isUploading: false,
+        error: error.message || '头像保存失败。',
+      }));
+    }
+  };
 
   return (
     <div className="space-y-4 p-5 xl:grid xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start xl:gap-4 xl:space-y-0">
@@ -59,6 +120,72 @@ export default function ProfileView({
             </div>
           </div>
 
+          <div className="mt-5 rounded-2xl bg-white/10 p-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/15">
+                {avatarEditor.sourceDataUrl || currentUser.avatarUrl ? (
+                  <img
+                    src={avatarEditor.sourceDataUrl || currentUser.avatarUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    style={avatarEditor.sourceDataUrl ? { transform: `scale(${avatarEditor.zoom})` } : undefined}
+                  />
+                ) : (
+                  <Camera size={28} className="text-cyan-100" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white">头像</p>
+                <p className="mt-1 text-xs text-slate-300">上传图片后可缩放裁剪，保存后同步到全局账户信息。</p>
+                {avatarEditor.error ? <p className="mt-2 text-xs text-rose-200">{avatarEditor.error}</p> : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15">
+                    <Upload size={14} />
+                    选择图片
+                    <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleAvatarFileChange} />
+                  </label>
+                  {avatarEditor.sourceDataUrl ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleSaveAvatar}
+                        disabled={avatarEditor.isUploading}
+                        className="inline-flex items-center gap-2 rounded-full bg-cyan-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:bg-cyan-500/60"
+                      >
+                        {avatarEditor.isUploading ? <LoaderCircle size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                        保存头像
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAvatarEditor({ sourceDataUrl: '', zoom: 1, isUploading: false, error: '' })}
+                        className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
+                      >
+                        <X size={14} />
+                        取消
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+            {avatarEditor.sourceDataUrl ? (
+              <label className="mt-4 block text-xs text-slate-200">
+                缩放
+                <input
+                  type="range"
+                  min="1"
+                  max="3"
+                  step="0.05"
+                  value={avatarEditor.zoom}
+                  onChange={(event) =>
+                    setAvatarEditor((prev) => ({ ...prev, zoom: Number(event.target.value) }))
+                  }
+                  className="mt-2 w-full accent-cyan-300"
+                />
+              </label>
+            ) : null}
+          </div>
+
           <div className="mt-5 grid grid-cols-2 gap-3">
             <button
               type="button"
@@ -73,6 +200,16 @@ export default function ProfileView({
               <p className="text-xs text-slate-300">已完成任务</p>
               <p className="mt-1 text-xl font-bold">{currentUser.completedCount}</p>
               <p className="mt-2 text-[11px] text-cyan-100">根据已结束任务统计</p>
+            </div>
+            <div className="rounded-2xl bg-white/10 px-4 py-3">
+              <p className="text-xs text-slate-300">信用评分</p>
+              <p className="mt-1 text-xl font-bold">{formatRating(currentUser.averageRating)}</p>
+              <p className="mt-2 text-[11px] text-cyan-100">{currentUser.reviewCount || 0} 条评价</p>
+            </div>
+            <div className="rounded-2xl bg-white/10 px-4 py-3">
+              <p className="text-xs text-slate-300">校园认证</p>
+              <p className="mt-1 text-xl font-bold">{verificationMeta.label}</p>
+              <p className="mt-2 text-[11px] text-cyan-100">{currentUser.verificationCampus || '未提交校区'}</p>
             </div>
           </div>
 
@@ -117,6 +254,23 @@ export default function ProfileView({
               <ChevronRight size={18} className="text-slate-400" />
             </button>
           ) : null}
+
+          <button
+            type="button"
+            onClick={onDeleteAccount}
+            className="flex w-full items-center justify-between rounded-2xl bg-rose-50 px-4 py-4 text-left transition hover:bg-rose-100"
+          >
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-rose-100 p-3 text-rose-700">
+                <Trash2 size={18} />
+              </div>
+              <div>
+                <p className="font-semibold text-rose-700">注销账号</p>
+                <p className="mt-1 text-sm text-rose-500">删除账号并匿名保留历史记录。</p>
+              </div>
+            </div>
+            <ChevronRight size={18} className="text-rose-300" />
+          </button>
 
           <button
             type="button"
@@ -250,6 +404,50 @@ export default function ProfileView({
             <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-700">
               {currentUser.bio || '这个人很低调，还没有填写个人简介。'}
             </p>
+          </div>
+        ) : null}
+
+        {!isEditingProfile ? (
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-slate-900">校园认证</p>
+                <p className="mt-1 text-xs text-slate-500">认证状态会展示在任务和订单信任信息中。</p>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-bold ${verificationMeta.className}`}>
+                {verificationMeta.label}
+              </span>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <input
+                type="text"
+                value={verificationForm.campus}
+                onChange={(event) => setVerificationForm({ ...verificationForm, campus: event.target.value })}
+                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                placeholder="校区"
+              />
+              <input
+                type="text"
+                value={verificationForm.studentId}
+                onChange={(event) => setVerificationForm({ ...verificationForm, studentId: event.target.value })}
+                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                placeholder="学号"
+              />
+            </div>
+            <textarea
+              rows="3"
+              value={verificationForm.note}
+              onChange={(event) => setVerificationForm({ ...verificationForm, note: event.target.value })}
+              className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+              placeholder="补充说明"
+            />
+            <button
+              type="button"
+              onClick={() => onSubmitVerification(verificationForm)}
+              className="mt-3 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              提交认证申请
+            </button>
           </div>
         ) : null}
       </section>

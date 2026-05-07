@@ -1,18 +1,24 @@
 package com.example.campusbackend.controller;
 
 import com.example.campusbackend.dto.AuthRequest;
+import com.example.campusbackend.dto.AvatarRequest;
+import com.example.campusbackend.dto.VerificationRequest;
 import com.example.campusbackend.entity.BalanceRecord;
 import com.example.campusbackend.entity.User;
 import com.example.campusbackend.entity.UserRole;
+import com.example.campusbackend.entity.VerificationStatus;
 import com.example.campusbackend.repository.BalanceRecordRepository;
+import com.example.campusbackend.repository.TaskReviewRepository;
 import com.example.campusbackend.repository.TaskRepository;
 import com.example.campusbackend.repository.UserRepository;
 import com.example.campusbackend.service.CurrentUserService;
 import com.example.campusbackend.service.AdminPermissionService;
+import com.example.campusbackend.service.UserDeletionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +26,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -38,22 +45,28 @@ public class UserController {
 
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
+    private final TaskReviewRepository taskReviewRepository;
     private final BalanceRecordRepository balanceRecordRepository;
     private final CurrentUserService currentUserService;
     private final AdminPermissionService adminPermissionService;
+    private final UserDeletionService userDeletionService;
 
     public UserController(
             UserRepository userRepository,
             TaskRepository taskRepository,
+            TaskReviewRepository taskReviewRepository,
             BalanceRecordRepository balanceRecordRepository,
             CurrentUserService currentUserService,
-            AdminPermissionService adminPermissionService
+            AdminPermissionService adminPermissionService,
+            UserDeletionService userDeletionService
     ) {
         this.userRepository = userRepository;
         this.taskRepository = taskRepository;
+        this.taskReviewRepository = taskReviewRepository;
         this.balanceRecordRepository = balanceRecordRepository;
         this.currentUserService = currentUserService;
         this.adminPermissionService = adminPermissionService;
+        this.userDeletionService = userDeletionService;
     }
 
     @GetMapping("/profile")
@@ -74,6 +87,22 @@ public class UserController {
         }
 
         return buildResponse(HttpStatus.OK, "成功", buildUserData(target));
+    }
+
+    @GetMapping("/{username}/reviews")
+    public ResponseEntity<Map<String, Object>> getUserReviews(@PathVariable String username, Authentication authentication) {
+        User actor = currentUserService.requireCurrentUser(authentication);
+        User target = userRepository.findByUsername(normalizeRequired(username)).orElse(null);
+        if (target == null) {
+            return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
+        }
+        if (!canAccessUser(actor, target)) {
+            return buildResponse(HttpStatus.FORBIDDEN, "无权限", null);
+        }
+
+        return buildResponse(HttpStatus.OK, "成功", Map.of(
+                "reviews", taskReviewRepository.findByRevieweeUsernameOrderByCreatedAtDesc(target.getUsername())
+        ));
     }
 
     @GetMapping("/balance/me")
@@ -99,6 +128,39 @@ public class UserController {
     @PostMapping("/balance/recharge")
     public ResponseEntity<Map<String, Object>> rechargeBalance() {
         return buildResponse(HttpStatus.FORBIDDEN, "公开充值已关闭", null);
+    }
+
+    @GetMapping("/verification/me")
+    public ResponseEntity<Map<String, Object>> getOwnVerification(Authentication authentication) {
+        User actor = currentUserService.requireCurrentUser(authentication);
+        return buildResponse(HttpStatus.OK, "成功", buildUserData(actor));
+    }
+
+    @PostMapping("/verification/me")
+    public ResponseEntity<Map<String, Object>> submitOwnVerification(
+            Authentication authentication,
+            @RequestBody VerificationRequest request
+    ) {
+        User actor = currentUserService.requireCurrentUser(authentication);
+        if (actor.isBanned()) {
+            return buildResponse(HttpStatus.FORBIDDEN, "Account is banned", null);
+        }
+        String campus = normalizeRequired(request == null ? null : request.getCampus());
+        String studentId = normalizeRequired(request == null ? null : request.getStudentId());
+        if (campus == null || studentId == null) {
+            return buildResponse(HttpStatus.BAD_REQUEST, "校区和学号不能为空", null);
+        }
+
+        actor.setVerificationStatus(VerificationStatus.PENDING);
+        actor.setVerificationCampus(campus);
+        actor.setVerificationStudentId(studentId);
+        actor.setVerificationNote(normalizeOptional(request.getNote()));
+        actor.setVerificationSubmittedAt(LocalDateTime.now());
+        actor.setVerificationReviewedAt(null);
+        actor.setVerificationReviewer(null);
+
+        User savedUser = userRepository.save(actor);
+        return buildResponse(HttpStatus.OK, "认证申请已提交", buildUserData(savedUser));
     }
 
     @PutMapping("/{id}/profile")
@@ -129,6 +191,41 @@ public class UserController {
             return buildResponse(HttpStatus.FORBIDDEN, "Account is banned", null);
         }
         return updateUserProfile(actor, request);
+    }
+
+    @PutMapping("/avatar")
+    public ResponseEntity<Map<String, Object>> updateAvatar(
+            Authentication authentication,
+            @RequestBody AvatarRequest request
+    ) {
+        User actor = currentUserService.requireCurrentUser(authentication);
+        if (actor.isBanned()) {
+            return buildResponse(HttpStatus.FORBIDDEN, "Account is banned", null);
+        }
+
+        String avatarDataUrl = normalizeAvatarDataUrl(request == null ? null : request.getAvatarDataUrl());
+        if (avatarDataUrl == null) {
+            return buildResponse(HttpStatus.BAD_REQUEST, "Invalid avatar image", null);
+        }
+
+        actor.setAvatarUrl(avatarDataUrl);
+        User savedUser = userRepository.save(actor);
+        return buildResponse(HttpStatus.OK, "Avatar updated", buildUserData(savedUser));
+    }
+
+    @DeleteMapping("/me")
+    public ResponseEntity<Map<String, Object>> deleteOwnAccount(Authentication authentication) {
+        User actor = currentUserService.requireCurrentUser(authentication);
+        try {
+            String placeholder = userDeletionService.deleteRegularUser(actor);
+            return buildResponse(HttpStatus.OK, "账号已注销", Map.of("id", actor.getId(), "placeholder", placeholder));
+        } catch (ResponseStatusException error) {
+            return buildResponse(
+                    HttpStatus.valueOf(error.getStatusCode().value()),
+                    error.getReason() == null ? error.getMessage() : error.getReason(),
+                    null
+            );
+        }
     }
 
     private ResponseEntity<Map<String, Object>> updateUserProfile(User user, AuthRequest request) {
@@ -169,6 +266,17 @@ public class UserController {
         return normalized == null ? fallback : normalized;
     }
 
+    private String normalizeAvatarDataUrl(String value) {
+        String normalized = normalizeOptional(value);
+        if (normalized == null || normalized.length() > 500_000) {
+            return null;
+        }
+        if (!normalized.matches("^data:image/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=\\r\\n]+$")) {
+            return null;
+        }
+        return normalized;
+    }
+
     private Map<String, Object> buildBalanceData(User user) {
         User normalizedUser = reconcileLegacyBalanceIfNeeded(user);
         Map<String, Object> data = buildUserData(normalizedUser);
@@ -189,10 +297,22 @@ public class UserController {
         data.put("campus", normalizedUser.getCampus());
         data.put("address", normalizedUser.getAddress());
         data.put("bio", normalizedUser.getBio());
+        data.put("avatarUrl", normalizedUser.getAvatarUrl());
         data.put("balance", normalizedUser.getBalance());
         data.put("role", normalizedUser.getRole().name());
         data.put("permissions", adminPermissionService.toPermissionNames(normalizedUser));
         data.put("completedCount", taskRepository.countCompletedTasksForUser(normalizedUser.getUsername(), normalizedUser.getName()));
+        data.put("completedAsPublisherCount", taskRepository.countByStatusAndAuthorUsername("completed", normalizedUser.getUsername()));
+        data.put("completedAsAssigneeCount", taskRepository.countByStatusAndAssignee("completed", normalizedUser.getUsername()));
+        data.put("averageRating", taskReviewRepository.averageRatingForUser(normalizedUser.getUsername()));
+        data.put("reviewCount", taskReviewRepository.countByRevieweeUsername(normalizedUser.getUsername()));
+        data.put("verificationStatus", normalizedUser.getVerificationStatus().name());
+        data.put("verificationCampus", normalizedUser.getVerificationCampus());
+        data.put("verificationStudentId", normalizedUser.getVerificationStudentId());
+        data.put("verificationNote", normalizedUser.getVerificationNote());
+        data.put("verificationSubmittedAt", normalizedUser.getVerificationSubmittedAt());
+        data.put("verificationReviewedAt", normalizedUser.getVerificationReviewedAt());
+        data.put("verificationReviewer", normalizedUser.getVerificationReviewer());
         return data;
     }
 
