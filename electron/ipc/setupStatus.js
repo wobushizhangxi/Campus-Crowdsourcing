@@ -53,12 +53,11 @@ async function computeSetupStatus({ storeRef = store, bootstraps = {} } = {}) {
     deps,
     tiers,
     helpLinks: {
-      deepseekKey: 'https://platform.deepseek.com',
-      qwenKey: 'https://dashscope.console.aliyun.com',
-      doubaoKey: 'https://console.volcengine.com/ark',
-      midsceneExtension: 'https://midscenejs.com/docs/extension',
-      pythonOpenInterpreter: 'https://docs.openinterpreter.com/getting-started/setup',
-      screenAuthorized: 'aionui://settings#screen-authorization'
+      deepseekKey: 'https://platform.deepseek.com/api_keys',
+      qwenKey: 'https://bailian.console.aliyun.com/?apiKey=1#/api-key',
+      doubaoKey: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
+      midsceneExtension: 'https://chromewebstore.google.com/detail/midscene/gbldofcpkknbggpkmbdaefngejllnief',
+      pythonOpenInterpreter: 'https://docs.openinterpreter.com/getting-started/setup'
     }
   }
 }

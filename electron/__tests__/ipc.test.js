@@ -43,7 +43,8 @@ test('registerAll registers core IPC channels', () => {
     'dialog:selectFile',
     'dialog:selectDirectory',
     'shell:openPath',
-    'app:getPaths'
+    'app:getPaths',
+    'app:open-external'
   ]))
 })
 

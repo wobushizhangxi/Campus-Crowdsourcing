@@ -25,6 +25,23 @@ describe('setup-status', () => {
     expect(status.deps.midsceneExtension).toBe(false)
   })
 
+  it('returns verified help links and omits screen authorization URL', async () => {
+    const fakeStore = { getConfig: () => ({ deepseekApiKey: '', qwenVisionApiKey: '', doubaoVisionApiKey: '', uiTarsScreenAuthorized: false }) }
+    const fakeBootstraps = {
+      midscene: { detect: async () => ({ extensionConnected: false }) },
+      openInterpreter: { detect: async () => ({ state: 'not-installed', oiReady: false }) },
+      uiTars: { detect: async () => ({ screenAuthorized: false }) }
+    }
+    const status = await computeSetupStatus({ storeRef: fakeStore, bootstraps: fakeBootstraps })
+    expect(status.helpLinks).toEqual({
+      deepseekKey: 'https://platform.deepseek.com/api_keys',
+      qwenKey: 'https://bailian.console.aliyun.com/?apiKey=1#/api-key',
+      doubaoKey: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
+      midsceneExtension: 'https://chromewebstore.google.com/detail/midscene/gbldofcpkknbggpkmbdaefngejllnief',
+      pythonOpenInterpreter: 'https://docs.openinterpreter.com/getting-started/setup'
+    })
+  })
+
   it('reports browser tier ready when Qwen key and extension are connected', async () => {
     const fakeStore = { getConfig: () => ({ deepseekApiKey: 'k', qwenVisionApiKey: 'q', doubaoVisionApiKey: '', uiTarsScreenAuthorized: false }) }
     const fakeBootstraps = {

@@ -17,6 +17,10 @@ test('createElectronAPI exposes invoke and event subscription helpers', async ()
   const api = createElectronAPI(ipc)
   expect(api.isElectron).toBe(true)
   await expect(api.invoke('config:get', { a: 1 })).resolves.toEqual({ channel: 'config:get', payload: { a: 1 } })
+  await expect(api.openExternal('https://platform.deepseek.com/api_keys')).resolves.toEqual({
+    channel: 'app:open-external',
+    payload: { url: 'https://platform.deepseek.com/api_keys' }
+  })
 
   const received = []
   const off = api.on('chat:delta', (payload) => received.push(payload))

@@ -10,9 +10,10 @@ const runtime = require('./runtime')
 const actions = require('./actions')
 const audit = require('./audit')
 const outputs = require('./outputs')
+const openExternal = require('./openExternal')
 const setupStatus = require('./setupStatus')
 
-const MODULES = [config, conversations, artifacts, files, dialog, chat, skills, rules, runtime, actions, audit, outputs, setupStatus]
+const MODULES = [config, conversations, artifacts, files, dialog, chat, skills, rules, runtime, actions, audit, outputs, openExternal, setupStatus]
 
 function registerAll(ipcMain, deps = {}) {
   for (const mod of MODULES) {

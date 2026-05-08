@@ -26,12 +26,25 @@ function setupInvoke(channel, payload) {
   return invoke(channel, payload)
 }
 
+function openExternalUrl(url) {
+  if (window.electronAPI?.openExternal) return window.electronAPI.openExternal(url)
+  return setupInvoke('app:open-external', { url })
+}
+
 function actionLink({ href, label }) {
   if (!href) return null
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-[color:var(--accent)]">
+    <button
+      type="button"
+      onClick={() => {
+        openExternalUrl(href).catch((err) => {
+          console.error('Failed to open external link', err)
+        })
+      }}
+      className="link-like inline-flex shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-[color:var(--accent)] underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+    >
       {label} <ExternalLink size={12} aria-hidden="true" />
-    </a>
+    </button>
   )
 }
 

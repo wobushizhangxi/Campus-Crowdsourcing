@@ -22,6 +22,7 @@ function createElectronAPI(ipc = ipcRenderer) {
     selectFile: (options) => ipc.invoke('dialog:selectFile', options),
     selectDirectory: () => ipc.invoke('dialog:selectDirectory'),
     openPath: (filePath) => ipc.invoke('shell:openPath', filePath),
+    openExternal: (url) => ipc.invoke('app:open-external', { url }),
     getPaths: () => ipc.invoke('app:getPaths'),
     runtime: {
       status: () => ipc.invoke('runtime:status'),
