@@ -9,6 +9,8 @@ test('shows UI-TARS as a default capability before installation', async () => {
   expect(status.runtime).toBe('ui-tars')
   expect(status.state).toBe('not-installed')
   expect(status.guidance.steps.join(' ')).toContain('UI-TARS')
+  expect(status.guidance.steps.join(' ')).toContain('doubaoVisionApiKey')
+  expect(status.guidance.steps.join(' ')).toContain('Volcengine Ark')
 })
 
 test('detects configured endpoint and screen authorization state', async () => {
@@ -22,10 +24,11 @@ test('setup action is high risk and requires confirmation', () => {
   const guide = getSetupGuide({})
   expect(guide.proposedSetupActions[0].risk).toBe('high')
   expect(guide.proposedSetupActions[0].requiresConfirmation).toBe(true)
+  expect(guide.proposedSetupActions[0].payload.guide).toContain('volcengine.com')
 })
 
 test('repair gives guidance instead of failing', async () => {
   const result = await repair({})
   expect(result.repaired).toBe(false)
-  expect(result.message).toContain('外部运行时')
+  expect(result.message).toContain('Volcengine Ark')
 })

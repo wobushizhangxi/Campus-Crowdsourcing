@@ -8,19 +8,20 @@ function getSetupGuide(config = store.getConfig()) {
   return {
     runtime: 'ui-tars',
     status: config.uiTarsEndpoint || config.uiTarsCommand ? 'needs-verification' : 'not-installed',
-    title: '配置 UI-TARS Desktop 或适配服务',
+    title: 'Configure UI-TARS with Doubao vision on Volcengine Ark',
     steps: [
-      '安装 UI-TARS Desktop、SDK 或维护中的分支版本。',
-      '暴露一个兼容 AionUi 的适配器端点，或配置用于启动适配器的本地命令。',
-      '确保屏幕授权在 AionUi 中可见且可随时撤销。',
-      '在演示模式或受控屏幕上运行观察、点击、输入冒烟测试。'
+      'AionUi launches the in-app UI-TARS uitars-bridge automatically.',
+      'Create or reuse a Volcengine Ark endpoint for doubao-1-5-thinking-vision-pro-250428.',
+      'Set doubaoVisionApiKey in Settings; keep doubaoVisionEndpoint at https://ark.cn-beijing.volces.com/api/v3 unless your Ark deployment differs.',
+      'Enable screen authorization in AionUi before running observe, click, or type actions.',
+      'Run a dry-run observe/click/type smoke test on a controlled desktop before real automation.'
     ],
     proposedSetupActions: [{
       runtime: 'ui-tars',
       type: 'runtime.setup',
-      title: '打开 UI-TARS 设置指引',
-      summary: '显示 UI-TARS Desktop 或适配服务的设置说明。',
-      payload: { guide: 'https://github.com/bytedance/UI-TARS-desktop', license: 'Apache-2.0' },
+      title: 'Open Doubao / Volcengine UI-TARS setup guide',
+      summary: 'Shows how to configure the Volcengine Ark Doubao vision endpoint used by uitars-bridge.',
+      payload: { guide: 'https://www.volcengine.com/docs/82379', license: 'Apache-2.0' },
       risk: 'high',
       requiresConfirmation: true
     }]
@@ -45,7 +46,7 @@ async function detect(config = store.getConfig()) {
 
 async function repair(config = store.getConfig()) {
   const status = await detect(config)
-  return { ...status, repaired: false, message: 'UI-TARS 是外部运行时。请配置 Desktop、SDK、分支版本或适配服务，然后授权屏幕访问。' }
+  return { ...status, repaired: false, message: 'UI-TARS uses the managed uitars-bridge. Configure Doubao on Volcengine Ark and enable screen authorization.' }
 }
 
 module.exports = { detect, repair, getSetupGuide }
