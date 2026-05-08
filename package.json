@@ -2,7 +2,10 @@
   "name": "agentdev-lite",
   "version": "0.1.0",
   "private": true,
-  "workspaces": ["server/oi-bridge", "server/uitars-bridge"],
+  "workspaces": [
+    "server/oi-bridge",
+    "server/uitars-bridge"
+  ],
   "description": "AionUi V2 control-plane agent desktop app",
   "main": "electron/main.js",
   "scripts": {
@@ -10,6 +13,7 @@
     "build:client": "npm --prefix client run build",
     "electron:dev": "concurrently -n client,electron -c magenta,yellow \"npm --prefix client run dev\" \"node -e \\\"setTimeout(function(){require('child_process').execSync('electron .',{stdio:'inherit'});},3000)\\\"\"",
     "electron:build": "npm run build:client && electron-builder --win",
+    "postinstall": "electron-rebuild",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -18,6 +22,7 @@
     "concurrently": "^8.2.2",
     "electron": "33.2.1",
     "electron-builder": "^25.1.8",
+    "electron-rebuild": "^3.2.9",
     "vitest": "^4.1.4"
   },
   "build": {
@@ -41,9 +46,18 @@
       {
         "from": "client/dist",
         "to": "client/dist"
+      },
+      {
+        "from": "server/oi-bridge",
+        "to": "server/oi-bridge"
+      },
+      {
+        "from": "server/uitars-bridge",
+        "to": "server/uitars-bridge"
       }
     ],
     "win": {
+      "signAndEditExecutable": false,
       "target": [
         {
           "target": "nsis",
