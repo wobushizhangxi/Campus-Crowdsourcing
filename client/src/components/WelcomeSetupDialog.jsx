@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
-import { AlertTriangle, CheckCircle2, ExternalLink, X } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { AlertTriangle, CheckCircle2, ExternalLink, Eye, EyeOff, X } from 'lucide-react'
 
 const TIER_KEYS = ['lite', 'browser', 'full']
+const KEY_DEPS = new Set(['deepseekKey', 'qwenKey', 'doubaoKey'])
+const TOGGLE_DEPS = new Set(['screenAuthorized'])
 
 const DEP_LABELS = {
   deepseekKey: 'DeepSeek API Key',
@@ -18,17 +20,167 @@ function StatusIcon({ ready }) {
     : <AlertTriangle size={16} className="text-amber-500" aria-hidden="true" />
 }
 
+function setupInvoke(channel, payload) {
+  const invoke = window.electronAPI?.invoke
+  if (!invoke) throw new Error('Electron bridge is unavailable')
+  return invoke(channel, payload)
+}
+
+function actionLink({ href, label }) {
+  if (!href) return null
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-[color:var(--accent)]">
+      {label} <ExternalLink size={12} aria-hidden="true" />
+    </a>
+  )
+}
+
+function ExternalLinkRow({ ok, helpUrl, label }) {
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-md border border-[color:var(--border)] bg-white/75 px-3 py-2 text-sm">
+      <span className="flex min-w-0 items-center gap-2">
+        <StatusIcon ready={ok} />
+        <span className="min-w-0 break-words">{label}</span>
+      </span>
+      {!ok && actionLink({ href: helpUrl, label: 'Setup' })}
+    </li>
+  )
+}
+
+function KeyRow({ dep, ok, helpUrl, label, onSaved }) {
+  const [value, setValue] = useState('')
+  const [show, setShow] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function save() {
+    if (!value.trim() || saving) return
+    setSaving(true)
+    setError('')
+    try {
+      await setupInvoke('setup:set-key', { dep, value })
+      setValue('')
+      await onSaved?.()
+    } catch (err) {
+      setError(err?.message || 'Failed to save key')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <li className={`rounded-md border px-3 py-2 text-sm ${ok ? 'border-emerald-100 bg-white/80' : 'border-amber-100 bg-white'}`}>
+      <div className="flex items-start justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-2">
+          <StatusIcon ready={ok} />
+          <span className="min-w-0 break-words">{label}</span>
+        </span>
+        {actionLink({ href: helpUrl, label: 'Get key' })}
+      </div>
+      {!ok && (
+        <div className="mt-2 flex w-full items-center gap-2">
+          <input
+            type={show ? 'text' : 'password'}
+            placeholder="paste key here"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter') save() }}
+            className="min-w-0 flex-1 rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]"
+          />
+          <button type="button" onClick={() => setShow((current) => !current)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[color:var(--border)] hover:bg-[color:var(--bg-tertiary)]" aria-label={show ? 'Hide key' : 'Show key'} title={show ? 'Hide key' : 'Show key'}>
+            {show ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+          <button type="button" onClick={save} disabled={!value.trim() || saving} className="h-9 shrink-0 rounded-md bg-[color:var(--accent)] px-3 text-sm font-medium text-white disabled:opacity-50">
+            {saving ? 'Saving' : 'Save'}
+          </button>
+        </div>
+      )}
+      {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
+    </li>
+  )
+}
+
+function ToggleRow({ ok, label, onSaved }) {
+  const [checked, setChecked] = useState(ok)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    setChecked(ok)
+  }, [ok])
+
+  async function toggle(event) {
+    const next = event.target.checked
+    setChecked(next)
+    setSaving(true)
+    setError('')
+    try {
+      await setupInvoke('setup:set-screen-authorized', { value: next })
+      await onSaved?.()
+    } catch (err) {
+      setChecked(ok)
+      setError(err?.message || 'Failed to update authorization')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <li className={`rounded-md border px-3 py-2 text-sm ${ok ? 'border-emerald-100 bg-white/80' : 'border-amber-100 bg-white'}`}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-2">
+          <StatusIcon ready={ok} />
+          <span className="min-w-0 break-words">{label}</span>
+        </span>
+        <label className="inline-flex shrink-0 items-center gap-2 text-xs font-medium text-[color:var(--text-primary)]">
+          <input type="checkbox" checked={checked} disabled={saving} onChange={toggle} />
+          {checked ? 'Enabled' : 'Enable'}
+        </label>
+      </div>
+      {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
+    </li>
+  )
+}
+
+function DepRow({ dep, ok, helpUrl, label, onSaved }) {
+  if (KEY_DEPS.has(dep)) return <KeyRow dep={dep} ok={ok} helpUrl={helpUrl} label={label} onSaved={onSaved} />
+  if (TOGGLE_DEPS.has(dep)) return <ToggleRow ok={ok} label={label} onSaved={onSaved} />
+  return <ExternalLinkRow ok={ok} helpUrl={helpUrl} label={label} />
+}
+
+function tierClassName(tier) {
+  if (tier.ready) return 'border-emerald-200 border-l-[color:var(--success)] bg-emerald-50/70'
+  if (tier.recommended) return 'border-amber-300 border-l-[color:var(--accent)] bg-[color:var(--accent)]/5'
+  return 'border-amber-200 border-l-amber-400 bg-amber-50/60'
+}
+
 export default function WelcomeSetupDialog({ open, onClose, onMarkSeen }) {
   const [status, setStatus] = useState(null)
   const [error, setError] = useState('')
+
+  const refreshStatus = useCallback(async () => {
+    try {
+      setError('')
+      const next = await setupInvoke('setup:status')
+      setStatus(next)
+    } catch (err) {
+      setError(err?.message || 'Failed to read setup status')
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return
     let ignored = false
     setError('')
-    window.electronAPI?.invoke?.('setup:status')
-      .then((next) => { if (!ignored) setStatus(next) })
-      .catch((err) => { if (!ignored) setError(err?.message || 'Failed to read setup status') })
+    async function loadStatus() {
+      try {
+        const next = await setupInvoke('setup:status')
+        if (!ignored) setStatus(next)
+      } catch (err) {
+        if (!ignored) setError(err?.message || 'Failed to read setup status')
+      }
+    }
+    loadStatus()
     return () => { ignored = true }
   }, [open])
 
@@ -54,7 +206,7 @@ export default function WelcomeSetupDialog({ open, onClose, onMarkSeen }) {
           {status && TIER_KEYS.map((key) => {
             const tier = status.tiers[key]
             return (
-              <section key={key} className={`rounded-lg border p-4 ${tier.ready ? 'border-emerald-200 bg-emerald-50/70' : 'border-amber-200 bg-amber-50/60'}`}>
+              <section key={key} className={`rounded-lg border border-l-4 p-4 ${tierClassName(tier)}`}>
                 <header className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -72,17 +224,7 @@ export default function WelcomeSetupDialog({ open, onClose, onMarkSeen }) {
                     const ready = Boolean(status.deps[dep])
                     const href = status.helpLinks?.[dep]
                     return (
-                      <li key={dep} className="flex items-center justify-between gap-3 rounded-md bg-white/70 px-3 py-2 text-sm">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <StatusIcon ready={ready} />
-                          <span className="truncate">{DEP_LABELS[dep] || dep}</span>
-                        </span>
-                        {!ready && href && (
-                          <a href={href} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-[color:var(--accent)]">
-                            Setup <ExternalLink size={12} aria-hidden="true" />
-                          </a>
-                        )}
-                      </li>
+                      <DepRow key={dep} dep={dep} ok={ready} helpUrl={href} label={DEP_LABELS[dep] || dep} onSaved={refreshStatus} />
                     )
                   })}
                 </ul>

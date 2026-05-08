@@ -3,6 +3,12 @@ const midsceneBootstrap = require('../services/midscene/bootstrap')
 const oiBootstrap = require('../services/openInterpreter/bootstrap')
 const uiTarsBootstrap = require('../services/uiTars/bootstrap')
 
+const KEY_FIELD_MAP = {
+  deepseekKey: 'deepseekApiKey',
+  qwenKey: 'qwenVisionApiKey',
+  doubaoKey: 'doubaoVisionApiKey'
+}
+
 async function computeSetupStatus({ storeRef = store, bootstraps = {} } = {}) {
   const cfg = storeRef.getConfig()
   const ms = bootstraps.midscene || midsceneBootstrap
@@ -63,6 +69,17 @@ function register(ipcMain) {
   ipcMain.handle('setup:mark-welcome-shown', () => {
     store.setConfig({ welcomeShown: true })
     return true
+  })
+  ipcMain.handle('setup:set-key', (_evt, { dep, value } = {}) => {
+    const field = KEY_FIELD_MAP[dep]
+    if (!field) throw new Error(`Unknown dep ${dep}`)
+    if (typeof value !== 'string' || value.length > 4096) throw new Error('invalid key')
+    store.setConfig({ [field]: value.trim() })
+    return { ok: true }
+  })
+  ipcMain.handle('setup:set-screen-authorized', (_evt, { value } = {}) => {
+    store.setConfig({ uiTarsScreenAuthorized: Boolean(value) })
+    return { ok: true }
   })
 }
 
