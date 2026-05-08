@@ -7,16 +7,17 @@ Model output is never executed directly.
 The required path is:
 
 ```text
-Qwen planner -> actionPlanner -> actionPolicy -> actionBroker -> approved adapter -> auditLog -> runOutputs
+DeepSeek planner -> actionPlanner -> actionPolicy -> actionBroker -> approved adapter -> auditLog -> runOutputs
 ```
 
 Any runtime adapter that is not called by the broker is outside the supported product path.
 
 ## Model Roles
 
-- Qwen is required for task planning, action intent, and coding reasoning.
-- DeepSeek is allowed only as a plain-chat fallback.
-- Dry-run mode can simulate planning and execution for demos when Qwen or external runtimes are unavailable.
+- DeepSeek is required for chat, task planning, action intent, and coding reasoning.
+- Qwen3-VL is restricted to browser vision through Midscene.
+- Doubao 1.5 vision is restricted to desktop screen control through UI-TARS.
+- Dry-run mode can simulate planning and execution for demos when external runtimes are unavailable.
 
 ## Risk Levels
 
@@ -26,6 +27,15 @@ Any runtime adapter that is not called by the broker is outside the supported pr
 - Blocked: credential exfiltration, disk formatting, hidden background execution, disabling security tooling, and unbounded recursive delete.
 
 High-risk actions always require explicit confirmation. Blocked actions never reach runtime adapters.
+
+## Action Risk Classification
+
+- `web.observe`: low.
+- `web.query`: low.
+- `web.click`: medium.
+- `web.type`: medium.
+
+Web actions are still brokered through Control Center, audit logging, and run outputs. The model never auto-runs browser actions.
 
 ## Runtime Boundaries
 
@@ -37,9 +47,17 @@ Open Interpreter:
 
 UI-TARS:
 
-- External Desktop, SDK, fork, or adapter service.
+- Managed `server/uitars-bridge` sidecar on `127.0.0.1:8765`.
+- Uses Doubao vision on Volcengine Ark.
 - Mouse and keyboard actions require active screen authorization.
 - Visual/input requests stay behind `sourceBridge`.
+
+Midscene:
+
+- Managed `server/midscene-bridge` sidecar on `127.0.0.1:8770`.
+- Uses `@midscene/web` from npm; no source vendoring.
+- Requires the user to manually install and connect the Chrome Midscene extension.
+- Browser actions use Qwen3-VL on DashScope and stay behind the Midscene adapter.
 
 ## Audit And Export
 
