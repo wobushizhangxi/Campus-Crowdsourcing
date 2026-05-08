@@ -18,6 +18,9 @@ const action = {
   createdAt: '2026-05-08T00:00:00.000Z'
 }
 
+const stubStore = (config) => ({ getConfig: () => config })
+const approvedAction = (overrides = {}) => ({ ...action, status: 'approved', ...overrides })
+
 test('builds UI-TARS protocol requests for visual/input actions', () => {
   const request = toUiTarsRequest(action)
   expect(request.protocol).toBe('aionui.ui-tars.v1')
@@ -46,4 +49,39 @@ test('posts authorized actions to source bridge endpoint', async () => {
   expect(result.ok).toBe(true)
   expect(result.stdout).toBe('clicked')
   expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8765/execute', expect.objectContaining({ method: 'POST' }))
+})
+
+test('returns success when bridge responds 200 with normalized result', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ ok: true, exitCode: 0, stdout: 'ok' })
+  })))
+  const adapter = createUiTarsAdapter({ storeRef: stubStore({ uiTarsEndpoint: 'http://127.0.0.1:8765', uiTarsScreenAuthorized: true }) })
+  const result = await adapter.execute(approvedAction({ type: 'screen.observe', payload: {} }))
+  expect(result.ok).toBe(true)
+  expect(result.stdout).toBe('ok')
+})
+
+test('returns recoverable when bridge is offline', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => {
+    throw Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })
+  }))
+  const adapter = createUiTarsAdapter({ storeRef: stubStore({ uiTarsEndpoint: 'http://127.0.0.1:8765', uiTarsScreenAuthorized: true }) })
+  const result = await adapter.execute(approvedAction({ type: 'screen.observe', payload: {} }))
+  expect(result.ok).toBe(false)
+  expect(result.metadata?.recoverable).toBe(true)
+})
+
+test('returns recoverable when bridge returns 5xx', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({
+    ok: false,
+    status: 503,
+    text: async () => 'unavailable'
+  })))
+  const adapter = createUiTarsAdapter({ storeRef: stubStore({ uiTarsEndpoint: 'http://127.0.0.1:8765', uiTarsScreenAuthorized: true }) })
+  const result = await adapter.execute(approvedAction({ type: 'screen.observe', payload: {} }))
+  expect(result.ok).toBe(false)
+  expect(result.metadata?.recoverable).toBe(true)
+  expect(result.metadata?.status).toBe(503)
 })

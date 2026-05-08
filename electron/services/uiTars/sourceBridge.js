@@ -7,17 +7,32 @@ function getFetch() {
 
 async function executeThroughBridge(endpoint, action, context = {}) {
   const fetchImpl = getFetch()
-  if (!fetchImpl) throw new Error('当前运行时无法调用 UI-TARS 桥接服务：fetch 不可用。')
+  if (!fetchImpl) throw new Error('fetch is not available for the UI-TARS bridge service')
   const request = toUiTarsRequest(action)
-  const resp = await fetchImpl(endpoint.replace(/\/+$/, '') + '/execute', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-    signal: context.signal
-  })
+  let resp
+  try {
+    resp = await fetchImpl(endpoint.replace(/\/+$/, '') + '/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+      signal: context.signal
+    })
+  } catch (error) {
+    return normalizeUiTarsResult(action, {
+      ok: false,
+      exitCode: 1,
+      stderr: `UI-TARS bridge unavailable: ${error.message || error}`,
+      metadata: { recoverable: true, code: error.code || 'FETCH_FAILED' }
+    })
+  }
   if (!resp.ok) {
     const text = await resp.text().catch(() => '')
-    return normalizeUiTarsResult(action, { ok: false, stderr: `UI-TARS 桥接服务返回 ${resp.status}：${text.slice(0, 200)}` })
+    return normalizeUiTarsResult(action, {
+      ok: false,
+      exitCode: 1,
+      stderr: `UI-TARS bridge returned ${resp.status}: ${text.slice(0, 200)}`,
+      metadata: { recoverable: true, status: resp.status }
+    })
   }
   return normalizeUiTarsResult(action, await resp.json())
 }
