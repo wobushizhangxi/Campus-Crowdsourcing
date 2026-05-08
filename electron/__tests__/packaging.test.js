@@ -12,11 +12,11 @@ test('desktop scripts no longer start the legacy server', () => {
   expect(pkg.scripts['electron:dev']).toContain('npm --prefix client run dev')
   expect(pkg.scripts['electron:dev']).not.toContain('server')
 
-  const packagedInputs = JSON.stringify({
-    files: pkg.build.files,
-    extraResources: pkg.build.extraResources
-  })
-  expect(packagedInputs).not.toContain('server')
+  expect(JSON.stringify(pkg.build.files)).not.toContain('server')
+  expect(pkg.build.extraResources).toEqual(expect.arrayContaining([
+    expect.objectContaining({ from: 'server/oi-bridge', to: 'server/oi-bridge' }),
+    expect.objectContaining({ from: 'server/uitars-bridge', to: 'server/uitars-bridge' })
+  ]))
 })
 
 test('desktop build bundles renderer and skills resources', () => {
