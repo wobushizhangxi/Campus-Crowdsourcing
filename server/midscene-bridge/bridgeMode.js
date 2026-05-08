@@ -5,7 +5,7 @@ function createBridgeMode(opts = {}) {
   let probeTimer = null
   let probeInFlight = null
   const probeIntervalMs = opts.probeIntervalMs ?? 3000
-  const probeTimeoutMs = opts.probeTimeoutMs ?? 1500
+  const probeTimeoutMs = opts.probeTimeoutMs ?? 5000
 
   const factory = opts.factory || (() => {
     const { AgentOverChromeBridge, overrideAIConfig } = require('@midscene/web/bridge-mode')
