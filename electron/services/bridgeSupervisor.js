@@ -4,7 +4,8 @@ const fetchImpl = global.fetch || ((...a) => import('node-fetch').then(({ defaul
 
 const DEFAULTS = {
   oi: { name: 'oi-bridge', port: 8756, dir: 'server/oi-bridge' },
-  uitars: { name: 'uitars-bridge', port: 8765, dir: 'server/uitars-bridge' }
+  uitars: { name: 'uitars-bridge', port: 8765, dir: 'server/uitars-bridge' },
+  midscene: { name: 'midscene-bridge', port: 8770, dir: 'server/midscene-bridge' }
 }
 
 function resolveDefaultRootDir() {
@@ -24,24 +25,34 @@ function createSupervisor(opts = {}) {
   })
   const rootDir = opts.rootDir || resolveDefaultRootDir()
 
-  const state = {
-    oi: { ready: false, state: 'pending', child: null, restarts: 0 },
-    uitars: { ready: false, state: 'pending', child: null, restarts: 0 }
+  const state = Object.fromEntries(
+    Object.keys(DEFAULTS).map((key) => [key, { ready: false, state: 'pending', child: null, restarts: 0 }])
+  )
+
+  function buildEnv(key) {
+    const config = require('../store').store.getConfig()
+    const env = { ...process.env }
+    if (key === 'uitars') {
+      env.UITARS_MODEL_PROVIDER = 'volcengine'
+      env.UITARS_MODEL_ENDPOINT = config.doubaoVisionEndpoint || ''
+      env.UITARS_MODEL_API_KEY = config.doubaoVisionApiKey || ''
+      env.UITARS_MODEL_NAME = config.doubaoVisionModel || ''
+    }
+    if (key === 'midscene') {
+      env.MIDSCENE_QWEN_ENDPOINT = config.qwenVisionEndpoint || ''
+      env.MIDSCENE_QWEN_API_KEY = config.qwenVisionApiKey || ''
+      env.MIDSCENE_QWEN_MODEL = config.qwenVisionModel || ''
+    }
+    return env
+  }
+
+  function snapshot() {
+    return Object.fromEntries(Object.keys(state).map((key) => [key, { ...state[key] }]))
   }
 
   async function startOne(key, { healthTimeoutMs = 5000, maxRestarts = 3 } = {}) {
     const cfg = DEFAULTS[key]
-    const spawnOptions = { stdio: 'ignore' }
-    if (key === 'uitars') {
-      const config = require('../store').store.getConfig()
-      spawnOptions.env = {
-        ...process.env,
-        UITARS_MODEL_PROVIDER: 'volcengine',
-        UITARS_MODEL_ENDPOINT: config.doubaoVisionEndpoint || '',
-        UITARS_MODEL_API_KEY: config.doubaoVisionApiKey || '',
-        UITARS_MODEL_NAME: config.doubaoVisionModel || ''
-      }
-    }
+    const spawnOptions = { stdio: 'ignore', env: buildEnv(key) }
     state[key].state = 'starting'
     state[key].child = spawnImpl('node', [path.join(rootDir, cfg.dir, 'index.js'), '--port', String(cfg.port)], spawnOptions)
     const deadline = Date.now() + healthTimeoutMs
@@ -64,8 +75,8 @@ function createSupervisor(opts = {}) {
   }
 
   async function start(options = {}) {
-    await Promise.all([startOne('oi', options), startOne('uitars', options)])
-    return { oi: { ...state.oi }, uitars: { ...state.uitars } }
+    await Promise.all(Object.keys(DEFAULTS).map((key) => startOne(key, options)))
+    return snapshot()
   }
 
   function stop() {
@@ -78,7 +89,7 @@ function createSupervisor(opts = {}) {
     }
   }
 
-  return { start, stop, getState: () => ({ oi: { ...state.oi }, uitars: { ...state.uitars } }) }
+  return { start, stop, getState: snapshot }
 }
 
 module.exports = { createSupervisor }

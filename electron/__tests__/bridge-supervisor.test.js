@@ -5,17 +5,24 @@ const require = createRequire(import.meta.url)
 const { createSupervisor } = require('../services/bridgeSupervisor')
 
 describe('bridgeSupervisor', () => {
-  it('starts both bridges and waits for /health', async () => {
+  it('starts all three bridges and waits for /health', async () => {
     const calls = []
     const fakeChild = () => ({ on() {}, kill() { this.killed = true }, killed: false })
     const sup = createSupervisor({
-      spawnImpl: (cmd, args) => { calls.push({ cmd, args }); return fakeChild() },
+      spawnImpl: (cmd, args, opts) => { calls.push({ cmd, args, env: opts.env }); return fakeChild() },
       healthImpl: async (port) => ({ ok: true, port })
     })
     const result = await sup.start()
     expect(result.oi.ready).toBe(true)
     expect(result.uitars.ready).toBe(true)
-    expect(calls).toHaveLength(2)
+    expect(result.midscene.ready).toBe(true)
+    expect(calls).toHaveLength(3)
+    const uitars = calls.find((c) => c.args.some((arg) => arg.includes('uitars-bridge')))
+    expect(uitars.env.UITARS_MODEL_PROVIDER).toBe('volcengine')
+    expect(uitars.env.UITARS_MODEL_ENDPOINT).toContain('volces.com')
+    const midscene = calls.find((c) => c.args.some((arg) => arg.includes('midscene-bridge')))
+    expect(midscene.env.MIDSCENE_QWEN_ENDPOINT).toContain('dashscope.aliyuncs.com')
+    expect(midscene.env.MIDSCENE_QWEN_MODEL).toBeDefined()
   })
 
   it('restarts a crashed bridge up to 3 times then marks failed', async () => {
@@ -29,7 +36,7 @@ describe('bridgeSupervisor', () => {
     expect(result.oi.state).toBe('failed')
   })
 
-  it('stop() kills both children', async () => {
+  it('stop() kills all children', async () => {
     const children = []
     const sup = createSupervisor({
       spawnImpl: () => {
@@ -42,5 +49,6 @@ describe('bridgeSupervisor', () => {
     await sup.start()
     sup.stop()
     expect(children.every((c) => c.killed)).toBe(true)
+    expect(children).toHaveLength(3)
   })
 })
