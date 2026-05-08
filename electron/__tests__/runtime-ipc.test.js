@@ -15,7 +15,7 @@ test('registers runtime status and bootstrap handlers', async () => {
   expect([...ipcMain.handlers.keys()]).toEqual(expect.arrayContaining(['runtime:status', 'runtime:bootstrap', 'runtime:start', 'runtime:stop']))
   const status = await ipcMain.handlers.get('runtime:status')()
   expect(status.ok).toBe(true)
-  expect(status.runtimes.map((item) => item.runtime)).toEqual(expect.arrayContaining(['qwen', 'open-interpreter', 'ui-tars', 'aionui-dry-run']))
+  expect(status.runtimes.map((item) => item.runtime)).toEqual(expect.arrayContaining(['qwen', 'open-interpreter', 'ui-tars', 'midscene', 'aionui-dry-run']))
 })
 
 test('runtime bootstrap returns expected failure wrapper for unknown runtime', async () => {
