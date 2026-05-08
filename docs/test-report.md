@@ -45,3 +45,7 @@ Manual in-app smoke test still recommended on the release machine:
 - Outputs panel.
 - Runtime setup cards.
 - Emergency stop.
+
+## 2026-05-09 Tri-Model + Midscene Acceptance
+
+(filled at Task 5.6)
