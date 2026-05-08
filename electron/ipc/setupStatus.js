@@ -59,6 +59,11 @@ async function computeSetupStatus({ storeRef = store, bootstraps = {} } = {}) {
 
 function register(ipcMain) {
   ipcMain.handle('setup:status', async () => computeSetupStatus())
+  ipcMain.handle('setup:get-welcome-shown', () => Boolean(store.getConfig().welcomeShown))
+  ipcMain.handle('setup:mark-welcome-shown', () => {
+    store.setConfig({ welcomeShown: true })
+    return true
+  })
 }
 
 module.exports = { register, computeSetupStatus }

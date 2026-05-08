@@ -55,7 +55,8 @@ const DEFAULT_CONFIG = {
   workspace_root: os.homedir(),
   shell_whitelist_extra: [],
   shell_blacklist_extra: [],
-  session_confirm_cache_enabled: true
+  session_confirm_cache_enabled: true,
+  welcomeShown: false
 }
 
 const DEFAULT_DATA = {

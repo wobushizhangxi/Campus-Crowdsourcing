@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { createRequire } from 'module'
 
 const require = createRequire(import.meta.url)
-const { computeSetupStatus } = require('../ipc/setupStatus')
+const { computeSetupStatus, register } = require('../ipc/setupStatus')
 
 describe('setup-status', () => {
   it('reports lite tier ready when only DeepSeek key set', async () => {
@@ -41,5 +41,15 @@ describe('setup-status', () => {
     }
     const status = await computeSetupStatus({ storeRef: fakeStore, bootstraps: fakeBootstraps })
     expect(status.tiers.full.ready).toBe(true)
+  })
+
+  it('registers status and welcome visibility handlers', () => {
+    const handlers = new Map()
+    register({ handle: (channel, handler) => handlers.set(channel, handler) })
+    expect([...handlers.keys()]).toEqual(expect.arrayContaining([
+      'setup:status',
+      'setup:get-welcome-shown',
+      'setup:mark-welcome-shown'
+    ]))
   })
 })

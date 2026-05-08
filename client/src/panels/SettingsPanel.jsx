@@ -107,6 +107,11 @@ export default function SettingsPanel() {
         ))}
       </div>
 
+      <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('aionui:open-welcome'))} className="inline-flex h-8 items-center gap-2 rounded-md border border-[color:var(--border)] px-3 text-sm hover:bg-[color:var(--bg-tertiary)]">
+        <ShieldCheck size={14} />
+        View first-time setup guide
+      </button>
+
       {tab === 'models' && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Qwen 配置</h2>
