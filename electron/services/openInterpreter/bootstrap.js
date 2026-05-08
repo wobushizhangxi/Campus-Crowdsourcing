@@ -1,6 +1,9 @@
 const fs = require('fs')
 const { store } = require('../../store')
 const manifest = require('./patchManifest')
+const fetchImpl = global.fetch || ((...a) => import('node-fetch').then(({ default: f }) => f(...a)))
+
+const BRIDGE_ENDPOINT = 'http://127.0.0.1:8756'
 
 function getInstallGuidance(config = store.getConfig()) {
   return {
@@ -29,6 +32,12 @@ async function detect(config = store.getConfig()) {
   if (config.openInterpreterEndpoint) {
     return { runtime: 'open-interpreter', state: 'needs-configuration', endpoint: config.openInterpreterEndpoint, guidance: getInstallGuidance(config) }
   }
+  try {
+    const r = await fetchImpl(`${BRIDGE_ENDPOINT}/health`)
+    if (r.ok) {
+      return { runtime: 'open-interpreter', state: 'configured', endpoint: BRIDGE_ENDPOINT, source: 'bridge', guidance: getInstallGuidance(config) }
+    }
+  } catch {}
   if (config.openInterpreterCommand) {
     const firstToken = String(config.openInterpreterCommand).trim().split(/\s+/)[0].replace(/^"|"$/g, '')
     const commandLooksLocal = fs.existsSync(firstToken) || !/[\\/]/.test(firstToken)

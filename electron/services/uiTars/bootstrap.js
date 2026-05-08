@@ -1,5 +1,8 @@
 const fs = require('fs')
 const { store } = require('../../store')
+const fetchImpl = global.fetch || ((...a) => import('node-fetch').then(({ default: f }) => f(...a)))
+
+const BRIDGE_ENDPOINT = 'http://127.0.0.1:8765'
 
 function getSetupGuide(config = store.getConfig()) {
   return {
@@ -26,6 +29,12 @@ function getSetupGuide(config = store.getConfig()) {
 
 async function detect(config = store.getConfig()) {
   if (config.uiTarsEndpoint) return { runtime: 'ui-tars', state: 'needs-configuration', endpoint: config.uiTarsEndpoint, screenAuthorized: Boolean(config.uiTarsScreenAuthorized), guidance: getSetupGuide(config) }
+  try {
+    const r = await fetchImpl(`${BRIDGE_ENDPOINT}/health`)
+    if (r.ok) {
+      return { runtime: 'ui-tars', state: 'configured', endpoint: BRIDGE_ENDPOINT, source: 'bridge', screenAuthorized: Boolean(config.uiTarsScreenAuthorized), guidance: getSetupGuide(config) }
+    }
+  } catch {}
   if (config.uiTarsCommand) {
     const firstToken = String(config.uiTarsCommand).trim().split(/\s+/)[0].replace(/^"|"$/g, '')
     const commandLooksLocal = fs.existsSync(firstToken) || !/[\\/]/.test(firstToken)
