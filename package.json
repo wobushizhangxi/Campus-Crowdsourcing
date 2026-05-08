@@ -4,7 +4,8 @@
   "private": true,
   "workspaces": [
     "server/oi-bridge",
-    "server/uitars-bridge"
+    "server/uitars-bridge",
+    "server/midscene-bridge"
   ],
   "description": "AionUi V2 control-plane agent desktop app",
   "main": "electron/main.js",
