@@ -1656,6 +1656,161 @@ git add client/src/components/WelcomeSetupDialog.jsx electron/ipc/setupStatus.js
 git commit -m "feat(welcome): inline API-key paste fields and screen-auth toggle"
 ```
 
+## Task 5.5c: External links — open in OS browser, fix bad URLs
+
+**Why:** Two real bugs reported in 5.5/5.5b output:
+
+1. **Wrong URL** — the Midscene help link in `computeSetupStatus.helpLinks`
+   (`https://midscenejs.com/docs/extension`) was a guess. It 404s. Audit
+   confirmed: only DeepSeek / DashScope / Volcengine / OI URLs were correct;
+   Midscene was wrong; the screen-authorization "URL" was a fake
+   `aionui://...` scheme that nothing handles.
+2. **Electron link target** — clicking any external link inside
+   `WelcomeSetupDialog` opens it in a borderless in-app `BrowserWindow`
+   (no address bar, File/Edit/View/Window/Help menu) instead of the user's
+   real Chrome. Affects all six external links, not just Midscene. Cause:
+   default Electron behaviour for `<a target="_blank">` is to open a new
+   in-app window; the system browser is reached only via `shell.openExternal`.
+
+**Files:**
+- Modify: `electron/ipc/setupStatus.js` (correct `helpLinks` map; remove `screenAuthorized` entry — handled inline in 5.5b)
+- Modify: `electron/ipc/index.js` (register `app:open-external` handler)
+- Create: `electron/ipc/openExternal.js`
+- Modify: `electron/preload.js` (allowlist `app:open-external` if allowlisted)
+- Modify: `client/src/components/WelcomeSetupDialog.jsx` (replace `<a target="_blank">` with click handler calling the IPC)
+- Modify: `electron/__tests__/setup-status-ipc.test.js` (update expected URLs)
+
+### Verified URLs (use these, do not invent others)
+
+```js
+helpLinks: {
+  deepseekKey:           'https://platform.deepseek.com/api_keys',
+  qwenKey:               'https://bailian.console.aliyun.com/?apiKey=1#/api-key',
+  doubaoKey:             'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
+  midsceneExtension:     'https://chromewebstore.google.com/detail/midscene/gbldofcpkknbggpkmbdaefngejllnief',
+  pythonOpenInterpreter: 'https://docs.openinterpreter.com/getting-started/setup'
+}
+```
+
+`screenAuthorized` is removed from `helpLinks` because 5.5b handles it as an
+inline toggle. Do not add a placeholder URL.
+
+> If any of these URLs are unreachable at implementation time (vendor moved
+> them), pin to the **canonical product page** (e.g. `https://platform.deepseek.com`)
+> and surface the change in the PR description. Do **not** keep a known-broken
+> URL "for now".
+
+### Step 1: Add `electron/ipc/openExternal.js`
+
+```js
+const { shell } = require('electron')
+
+const ALLOWED = [
+  'https://platform.deepseek.com',
+  'https://bailian.console.aliyun.com',
+  'https://console.volcengine.com',
+  'https://chromewebstore.google.com',
+  'https://docs.openinterpreter.com',
+  'https://midscenejs.com'
+]
+
+function isAllowed(url) {
+  try {
+    const u = new URL(url)
+    if (u.protocol !== 'https:') return false
+    return ALLOWED.some((prefix) => url.startsWith(prefix))
+  } catch { return false }
+}
+
+function register(ipcMain) {
+  ipcMain.handle('app:open-external', async (_evt, { url }) => {
+    if (!isAllowed(url)) throw new Error(`URL not in allowlist: ${url}`)
+    await shell.openExternal(url)
+    return { ok: true }
+  })
+}
+
+module.exports = { register, isAllowed }
+```
+
+The allowlist matters: without it, a renderer compromise could
+`shell.openExternal('file:///C:/Windows/System32/cmd.exe')` and execute
+arbitrary local programs. Restrict to https + known prefixes.
+
+- [ ] **Step 2: Wire it in `electron/ipc/index.js`**:
+
+```js
+require('./openExternal').register(ipcMain)
+```
+
+- [ ] **Step 3: Update `electron/preload.js`** if it uses an allowlist:
+
+Add `'app:open-external'` to the invoke channels list.
+
+- [ ] **Step 4: Test isAllowed**
+
+Add to `electron/__tests__/openExternal-ipc.test.js`:
+
+```js
+const { describe, it, expect } = require('vitest')
+const { isAllowed } = require('../ipc/openExternal')
+
+describe('openExternal allowlist', () => {
+  it('allows known https prefixes', () => {
+    expect(isAllowed('https://platform.deepseek.com/api_keys')).toBe(true)
+    expect(isAllowed('https://chromewebstore.google.com/detail/midscene/abc')).toBe(true)
+  })
+  it('rejects http', () => expect(isAllowed('http://platform.deepseek.com')).toBe(false))
+  it('rejects file://', () => expect(isAllowed('file:///etc/passwd')).toBe(false))
+  it('rejects unknown hosts', () => expect(isAllowed('https://evil.example')).toBe(false))
+  it('rejects malformed input', () => expect(isAllowed('not a url')).toBe(false))
+})
+```
+
+- [ ] **Step 5: Refactor link clicks in `WelcomeSetupDialog.jsx`**
+
+Replace every `<a href={url} target="_blank" rel="noreferrer">label</a>` with:
+
+```jsx
+<button
+  type="button"
+  className="link-like"
+  onClick={() => window.aionui.invoke('app:open-external', { url })}
+>
+  {label}
+</button>
+```
+
+CSS for `.link-like`: same color/underline as a normal link, no button chrome.
+Don't keep both the `<a>` AND the IPC fallback — pick one (the IPC).
+
+- [ ] **Step 6: Update helpLinks in `setupStatus.js`**
+
+Replace the existing `helpLinks` block with the verified URLs above. Remove
+the `screenAuthorized` entry. Update the existing setup-status IPC test that
+asserts `helpLinks.midsceneExtension` to expect the chrome web store URL.
+
+- [ ] **Step 7: Smoke test**
+
+```bash
+npm run electron:dev
+```
+
+Manual checks:
+- Open dialog. Click each external link in turn.
+- **Expected:** the user's real default browser opens with the verified URL.
+  No in-app borderless window appears.
+- Click the Midscene "Setup" link → lands on the Chrome Web Store listing
+  (extension card with "Add to Chrome" button), not a 404.
+- DevTools console shows no errors.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add electron/ipc/openExternal.js electron/ipc/setupStatus.js electron/ipc/index.js electron/preload.js client/src/components/WelcomeSetupDialog.jsx electron/__tests__/openExternal-ipc.test.js electron/__tests__/setup-status-ipc.test.js
+git commit -m "fix(welcome): open external links in OS browser via shell.openExternal; correct verified URLs"
+```
+
 ## Task 5.6: Acceptance run + test-report
 
 **Files:**
