@@ -3,6 +3,7 @@ const RUNTIME_NAMES = Object.freeze({
   DEEPSEEK: 'deepseek',
   OPEN_INTERPRETER: 'open-interpreter',
   UI_TARS: 'ui-tars',
+  MIDSCENE: 'midscene',
   DRY_RUN: 'aionui-dry-run'
 })
 
@@ -22,6 +23,10 @@ const ACTION_TYPES = Object.freeze({
   MOUSE_CLICK: 'mouse.click',
   KEYBOARD_TYPE: 'keyboard.type',
   KEYBOARD_SHORTCUT: 'keyboard.shortcut',
+  WEB_OBSERVE: 'web.observe',
+  WEB_CLICK: 'web.click',
+  WEB_TYPE: 'web.type',
+  WEB_QUERY: 'web.query',
   OUTPUT_OPEN: 'output.open',
   AUDIT_EXPORT: 'audit.export'
 })
