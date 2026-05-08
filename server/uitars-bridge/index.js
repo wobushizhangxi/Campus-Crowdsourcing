@@ -57,8 +57,10 @@ function wireDefaultRunner() {
   const { createAgentRunner } = require('./agentRunner')
   return {
     agentRunner: createAgentRunner({
+      modelProvider: process.env.UITARS_MODEL_PROVIDER || '',
       modelEndpoint: process.env.UITARS_MODEL_ENDPOINT || '',
-      modelApiKey: process.env.UITARS_MODEL_API_KEY || ''
+      modelApiKey: process.env.UITARS_MODEL_API_KEY || '',
+      modelName: process.env.UITARS_MODEL_NAME || ''
     })
   }
 }

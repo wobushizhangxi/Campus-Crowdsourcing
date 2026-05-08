@@ -36,8 +36,10 @@ function createSupervisor(opts = {}) {
       const config = require('../store').store.getConfig()
       spawnOptions.env = {
         ...process.env,
-        UITARS_MODEL_ENDPOINT: config.uiTarsModelEndpoint || '',
-        UITARS_MODEL_API_KEY: config.uiTarsModelApiKey || ''
+        UITARS_MODEL_PROVIDER: 'volcengine',
+        UITARS_MODEL_ENDPOINT: config.doubaoVisionEndpoint || '',
+        UITARS_MODEL_API_KEY: config.doubaoVisionApiKey || '',
+        UITARS_MODEL_NAME: config.doubaoVisionModel || ''
       }
     }
     state[key].state = 'starting'

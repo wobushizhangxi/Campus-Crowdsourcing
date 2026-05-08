@@ -3,20 +3,32 @@ function createAgentRunner(opts = {}) {
     const screenshot = require('screenshot-desktop')
     return await screenshot()
   })
-  const guiAgentFactory = opts.guiAgentFactory || (() => {
+  const modelConfig = {
+    modelProvider: opts.modelProvider,
+    modelEndpoint: opts.modelEndpoint,
+    modelApiKey: opts.modelApiKey,
+    modelName: opts.modelName,
+    provider: opts.modelProvider,
+    endpoint: opts.modelEndpoint,
+    name: opts.modelName,
+    baseURL: opts.modelEndpoint,
+    apiKey: opts.modelApiKey,
+    model: opts.modelName
+  }
+  const guiAgentFactory = opts.guiAgentFactory || ((cfg) => {
     const { GUIAgent } = require('@ui-tars/sdk')
-    return new GUIAgent({ model: { endpoint: opts.modelEndpoint, apiKey: opts.modelApiKey } })
+    return new GUIAgent({ model: cfg })
   })
   const nutjs = opts.nutjs || require('@nut-tree-fork/nut-js')
 
   let agent = null
   function getAgent() {
-    if (!agent) agent = guiAgentFactory()
+    if (!agent) agent = guiAgentFactory(modelConfig)
     return agent
   }
 
   return {
-    ready: () => Boolean(opts.modelEndpoint || opts.guiAgentFactory),
+    ready: () => Boolean((opts.modelEndpoint && opts.modelName) || opts.guiAgentFactory),
     async screenshot() {
       return await screenshotImpl()
     },
