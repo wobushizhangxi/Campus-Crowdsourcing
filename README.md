@@ -2,12 +2,12 @@
 
 AionUi is a Windows desktop control plane for agentic work. It keeps the model, local execution, screen control, confirmations, audit logs, and runtime setup in one visible Electron app.
 
-The V2 product direction is deliberately narrow:
+The V2 product direction is deliberately narrow and tri-model by design:
 
-- Qwen is the primary planner for task execution, action intent, and coding reasoning.
-- DeepSeek remains available as an optional plain-chat fallback only.
-- Open Interpreter is integrated as a managed external runtime for command, file, and code work.
-- UI-TARS is integrated as a managed runtime for screen observation, mouse, and keyboard actions.
+- DeepSeek-V4 owns chat, planning, intent classification, and coding reasoning.
+- Qwen3-VL is vision-only and drives browser automation through the Midscene bridge.
+- Doubao 1.5 vision runs desktop screen control through UI-TARS on Volcengine Ark.
+- Open Interpreter remains the managed local runtime for command, file, and code work.
 - AionUi owns policy, confirmations, audit logging, emergency stop, setup guidance, and run outputs.
 
 The model proposes actions. AionUi validates and classifies them. The user approves risky work. Adapters execute only approved actions. Every meaningful event is recorded in the audit log.
@@ -17,7 +17,7 @@ Security review details live in `docs/security-policy.md`. The short version is:
 ## Features
 
 - Chat and Execute modes in the main conversation surface.
-- Models and Runtimes setup for Qwen, optional DeepSeek, Open Interpreter, UI-TARS, and dry-run demos.
+- Models and Runtimes setup for DeepSeek, Qwen3-VL, Doubao vision, Open Interpreter, Midscene, UI-TARS, and dry-run demos.
 - Control Center for pending, running, completed, failed, denied, blocked, and cancelled actions.
 - Structured confirmation UI for medium and high risk actions.
 - Sanitized append-only audit logs with filters and export.
@@ -28,21 +28,40 @@ Security review details live in `docs/security-policy.md`. The short version is:
 ## Architecture
 
 ```text
-React UI -> Electron IPC -> Model Router -> Qwen Planner
-                                      -> Action Planner
-                                      -> Action Broker
-                                      -> Policy + Confirmation + Audit
-                                      -> Open Interpreter / UI-TARS / Dry Run adapters
-                                      -> Run Outputs
+React UI
+  -> Electron IPC
+  -> Model Router -> DeepSeek-V4 (chat / plan / intent / code)
+  -> Action Planner
+  -> Action Broker
+  -> Policy + Confirmation + Audit
+  -> Runtime Adapters
+       -> Open Interpreter adapter -> 127.0.0.1:8756 -> server/oi-bridge -> external Open Interpreter
+       -> UI-TARS adapter          -> 127.0.0.1:8765 -> server/uitars-bridge -> Doubao vision on Volcengine Ark
+       -> Midscene adapter         -> 127.0.0.1:8770 -> server/midscene-bridge -> Chrome extension + Qwen3-VL
+       -> Dry Run adapter
+  -> Run Outputs
 ```
 
 Hard boundaries:
 
 - Open Interpreter source is not vendored in this repository.
+- Midscene is consumed from npm; the Chrome extension is installed manually by the user.
 - UI-TARS input actions require active screen authorization.
 - Model output never executes commands directly.
 - High-risk actions always require explicit confirmation.
 - Legacy Office, diagnostics, and workflow surfaces are compatibility helpers, not the product center.
+
+## Prerequisites
+
+- Windows 10/11 x64
+- Python 3.10+ with `pip install open-interpreter`
+- Google Chrome with the Midscene browser extension installed and connected
+- API keys for three Chinese-cloud endpoints:
+  - DeepSeek (https://platform.deepseek.com)
+  - Alibaba DashScope (Qwen3-VL)
+  - Volcengine Ark (Doubao 1.5 vision)
+
+All three default endpoints are mainland-China reachable. No cross-border egress required.
 
 ## Install
 
@@ -77,24 +96,30 @@ The Windows installer is written to `dist-electron/`.
 
 Open Settings inside the app:
 
-- Add a Qwen API key, base URL, primary model, and coding model.
-- Optionally configure DeepSeek as a plain-chat fallback.
-- Configure Open Interpreter as an external sidecar command or endpoint.
-- Configure UI-TARS Desktop, SDK, fork endpoint, or adapter service.
+- Add a DeepSeek API key and keep the default mainland endpoint unless your deployment differs.
+- Add a DashScope Qwen3-VL key for browser vision through Midscene.
+- Add a Volcengine Ark Doubao vision key for UI-TARS desktop automation.
+- Configure Open Interpreter if you want shell, file, and code actions.
 - Pick a workspace root for command/file context.
 - Keep dry-run enabled when external runtimes are not installed.
 
 ## Open Interpreter Runtime
 
-AionUi treats Open Interpreter as an external default capability. Install and run Open Interpreter outside this repository, then expose an AionUi-compatible sidecar endpoint such as `http://127.0.0.1:8756`. The adapter posts approved protocol requests to `/execute`.
+AionUi launches the managed `server/oi-bridge` sidecar on `127.0.0.1:8756`. Install Open Interpreter outside this repository with Python, then let the sidecar call the external runtime for approved shell, file, and code actions.
 
 Open Interpreter's AGPL source is not vendored here. Setup commands are high risk and must be confirmed through AionUi before running.
 
 ## UI-TARS Runtime
 
-UI-TARS is the default screen-control capability. Configure UI-TARS Desktop, SDK, a maintained fork, or an adapter service endpoint such as `http://127.0.0.1:8765`. Screen authorization must be active before observe, mouse, or keyboard actions run.
+UI-TARS is the desktop screen-control capability. AionUi launches `server/uitars-bridge` on `127.0.0.1:8765` and injects the Doubao 1.5 vision endpoint from Settings. Screen authorization must be active before observe, mouse, or keyboard actions run.
 
 Mouse and keyboard proposals are high risk by default and appear in Control Center. Emergency stop cancels queued UI actions and notifies the adapter.
+
+## Midscene Runtime
+
+Midscene is the browser automation capability. AionUi launches `server/midscene-bridge` on `127.0.0.1:8770`; the bridge uses `@midscene/web` Bridge Mode, Qwen3-VL on DashScope, and the manually installed Chrome Midscene extension.
+
+Browser actions such as `web.observe`, `web.click`, `web.type`, and `web.query` still pass through policy, confirmation, audit logging, and run outputs. AionUi never auto-installs the Chrome extension.
 
 ## Safety Model
 
