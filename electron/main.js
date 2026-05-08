@@ -2,9 +2,11 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { registerAll } = require('./ipc')
+const { createSupervisor } = require('./services/bridgeSupervisor')
 
 const isDev = !app.isPackaged
 let mainWindow = null
+let supervisor = null
 
 const rootDir = isDev ? path.join(__dirname, '..') : process.resourcesPath
 const devUrl = process.env.AGENTDEV_DEV_SERVER_URL || 'http://localhost:5173'
@@ -74,13 +76,19 @@ function createWindow() {
   if (isDev) mainWindow.webContents.openDevTools()
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   registerAll(ipcMain)
+  supervisor = createSupervisor()
+  supervisor.start().catch((err) => console.error('[bridges] start failed', err))
   createWindow()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('before-quit', () => {
+  if (supervisor) try { supervisor.stop() } catch {}
 })
 
 app.on('window-all-closed', () => {

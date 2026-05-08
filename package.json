@@ -8,7 +8,7 @@
   "scripts": {
     "setup": "npm install && npm --prefix client install",
     "build:client": "npm --prefix client run build",
-    "electron:dev": "concurrently -n client,electron -c magenta,yellow \"npm --prefix client run dev\" \"node -e \\\"setTimeout(()=>require('child_process').execSync('electron .', {stdio:'inherit'}),3000)\\\"\"",
+    "electron:dev": "concurrently -n client,electron -c magenta,yellow \"npm --prefix client run dev\" \"node -e \\\"setTimeout(function(){require('child_process').execSync('electron .',{stdio:'inherit'});},3000)\\\"\"",
     "electron:build": "npm run build:client && electron-builder --win",
     "test": "vitest run",
     "test:watch": "vitest"

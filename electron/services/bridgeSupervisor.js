@@ -7,6 +7,11 @@ const DEFAULTS = {
   uitars: { name: 'uitars-bridge', port: 8765, dir: 'server/uitars-bridge' }
 }
 
+function resolveDefaultRootDir() {
+  const devRoot = path.join(__dirname, '..', '..')
+  return process.defaultApp ? devRoot : (process.resourcesPath || devRoot)
+}
+
 function createSupervisor(opts = {}) {
   const spawnImpl = opts.spawnImpl || realSpawn
   const healthImpl = opts.healthImpl || (async (port) => {
@@ -17,7 +22,7 @@ function createSupervisor(opts = {}) {
       return { ok: false }
     }
   })
-  const rootDir = opts.rootDir || (process.resourcesPath || path.join(__dirname, '..', '..'))
+  const rootDir = opts.rootDir || resolveDefaultRootDir()
 
   const state = {
     oi: { ready: false, state: 'pending', child: null, restarts: 0 },
