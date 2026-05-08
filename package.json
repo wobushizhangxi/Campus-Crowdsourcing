@@ -55,6 +55,10 @@
       {
         "from": "server/uitars-bridge",
         "to": "server/uitars-bridge"
+      },
+      {
+        "from": "server/midscene-bridge",
+        "to": "server/midscene-bridge"
       }
     ],
     "win": {
