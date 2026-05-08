@@ -76,21 +76,26 @@ function createApp(deps = {}) {
 }
 
 function start({ port = 8770, host = '127.0.0.1' } = {}) {
-  const app = createApp(wireDefaultBridge())
+  const deps = wireDefaultBridge()
+  const app = createApp(deps)
   return new Promise((resolve) => {
     const server = app.listen(port, host, () => resolve(server))
+    server.on('close', () => {
+      const cleanup = deps.bridge?.destroy?.() || deps.bridge?.stop?.()
+      if (cleanup && typeof cleanup.catch === 'function') cleanup.catch(() => {})
+    })
   })
 }
 
 function wireDefaultBridge() {
   const { createBridgeMode } = require('./bridgeMode')
-  return {
-    bridge: createBridgeMode({
-      endpoint: process.env.MIDSCENE_QWEN_ENDPOINT,
-      apiKey: process.env.MIDSCENE_QWEN_API_KEY,
-      model: process.env.MIDSCENE_QWEN_MODEL || 'qwen3-vl-plus'
-    })
-  }
+  const bridge = createBridgeMode({
+    endpoint: process.env.MIDSCENE_QWEN_ENDPOINT,
+    apiKey: process.env.MIDSCENE_QWEN_API_KEY,
+    model: process.env.MIDSCENE_QWEN_MODEL || 'qwen3-vl-plus'
+  })
+  bridge.start()
+  return { bridge }
 }
 
 if (require.main === module) {
@@ -98,6 +103,9 @@ if (require.main === module) {
   const port = portArg >= 0 ? Number(process.argv[portArg + 1]) : 8770
   start({ port }).then((server) => {
     process.stdout.write(`midscene-bridge listening on 127.0.0.1:${server.address().port}\n`)
+    const shutdown = () => server.close(() => process.exit(0))
+    process.once('SIGINT', shutdown)
+    process.once('SIGTERM', shutdown)
   })
 }
 

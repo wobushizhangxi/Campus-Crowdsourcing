@@ -156,19 +156,6 @@ function ToggleRow({ ok, label, onSaved }) {
 }
 
 function MidsceneBridgeRow({ ok, helpUrl, label }) {
-  const localBridgeUrl = 'http://localhost:8770'
-  const [copied, setCopied] = useState(false)
-
-  async function copyBridgeUrl() {
-    try {
-      await navigator.clipboard.writeText(localBridgeUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch (err) {
-      console.error('Failed to copy Midscene bridge URL', err)
-    }
-  }
-
   if (ok) {
     return (
       <li className="flex items-center justify-between gap-3 rounded-md border border-emerald-100 bg-white/80 px-3 py-2 text-sm">
@@ -190,21 +177,15 @@ function MidsceneBridgeRow({ ok, helpUrl, label }) {
       </div>
 
       <div className="mt-3 space-y-3 text-[color:var(--text-primary)]">
-        <p className="text-xs text-[color:var(--text-muted)]">扩展已装但还需要建立 Bridge 连接：</p>
+        <p className="text-xs text-[color:var(--text-muted)]">扩展已装但还需要打开 Bridge Mode：</p>
         <ol className="list-decimal space-y-2 pl-5 text-xs leading-5">
           <li>在 Chrome 工具栏点 Midscene 扩展图标</li>
-          <li>切到「Bridge Mode」标签（扩展左侧菜单）</li>
+          <li>切到「Bridge Mode」标签（扩展左侧 ☰ 菜单）</li>
           <li>
-            点 Allow connection，URL 填：
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <code className="min-w-0 rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-2 py-1 font-mono text-xs text-[color:var(--text-primary)]">{localBridgeUrl}</code>
-              <button type="button" onClick={copyBridgeUrl} className="h-7 rounded-md border border-[color:var(--border)] px-2 text-xs hover:bg-[color:var(--bg-tertiary)]">
-                {copied ? '已复制' : '复制'}
-              </button>
-            </div>
+            看到底部出现「Listening for connection」即可，<strong>不需要</strong>展开「Use remote server」也不需要填 URL
           </li>
+          <li>回到这里，状态会自动变绿</li>
         </ol>
-        <p className="text-xs text-[color:var(--text-muted)]">回到这里，状态会在 5 秒内自动变绿。</p>
 
         <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-900">
           ⓘ 扩展自带的 Playground 显示的 “Please set up environment variables” 警告与本应用无关，可忽略。AionUi 走 Bridge Mode，模型配置在 AionUi 这一侧。
