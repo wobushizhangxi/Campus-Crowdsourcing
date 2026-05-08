@@ -1445,6 +1445,68 @@ turns the dialog from a read-only status report into a one-stop setup flow.
 - Modify: `electron/preload.js` (allowlist new IPC channels if it allowlists)
 - Modify: `electron/__tests__/setup-status-ipc.test.js` (cover new mutators)
 
+### Target visual (ASCII mockup — implement to match this)
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│  AionUi 初始设置                                                    ✕   │
+│  按你想要解锁的能力档位完成对应配置。                                    │
+├──────────────────────────────────────────────────────────────────────────┤
+│ ┌──────────────────────────────────────────────────────────────────────┐ │
+│ │  轻量：仅聊天                                       ⚠ 未就绪          │ │
+│ │ ┌──────────────────────────────────────────────────────────────────┐ │ │
+│ │ │ ⚠ DeepSeek API Key                              Get key ↗       │ │ │
+│ │ │ ┌──────────────────────────────────────┐ ┌─┐  ┌──────┐           │ │ │
+│ │ │ │ ••••••••••••••••••••                 │ │👁│  │ Save │           │ │ │
+│ │ │ └──────────────────────────────────────┘ └─┘  └──────┘           │ │ │
+│ │ └──────────────────────────────────────────────────────────────────┘ │ │
+│ └──────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│ ┌──────────────────────────────────────────────────────────────────────┐ │
+│ │  中等：+浏览器自动化     [推荐]                     ⚠ 未就绪          │ │
+│ │ ┌──────────────────────────────────────────────────────────────────┐ │ │
+│ │ │ ✓ DeepSeek API Key                              Get key ↗       │ │ │
+│ │ ├──────────────────────────────────────────────────────────────────┤ │ │
+│ │ │ ⚠ Qwen3-VL（DashScope）API Key                  Get key ↗       │ │ │
+│ │ │ ┌──────────────────────────────────────┐ ┌─┐  ┌──────┐           │ │ │
+│ │ │ │ paste key here                       │ │👁│  │ Save │           │ │ │
+│ │ │ └──────────────────────────────────────┘ └─┘  └──────┘           │ │ │
+│ │ ├──────────────────────────────────────────────────────────────────┤ │ │
+│ │ │ ⚠ Chrome Midscene 扩展已连接                    Setup ↗         │ │ │
+│ │ └──────────────────────────────────────────────────────────────────┘ │ │
+│ └──────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│ ┌──────────────────────────────────────────────────────────────────────┐ │
+│ │  完整：+桌面 + 本地执行                             ⚠ 未就绪          │ │
+│ │ ┌──────────────────────────────────────────────────────────────────┐ │ │
+│ │ │ ✓ DeepSeek API Key                              Get key ↗       │ │ │
+│ │ │ ⚠ Qwen3-VL（DashScope）API Key                  Get key ↗       │ │ │
+│ │ │ ⚠ Chrome Midscene 扩展已连接                    Setup ↗         │ │ │
+│ │ │ ⚠ 豆包（Volcengine Ark）API Key                 Get key ↗       │ │ │
+│ │ │ ┌──────────────────────────────────────┐ ┌─┐  ┌──────┐           │ │ │
+│ │ │ │ paste key here                       │ │👁│  │ Save │           │ │ │
+│ │ │ └──────────────────────────────────────┘ └─┘  └──────┘           │ │ │
+│ │ │ ⚠ Python + Open Interpreter                     安装指引 ↗      │ │ │
+│ │ │ ⚠ 屏幕控制授权                                  [□ 启用]        │ │ │
+│ │ └──────────────────────────────────────────────────────────────────┘ │ │
+│ └──────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│  [ ] 不再自动显示                                       [ 开始使用 ]    │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**Rendering rules**
+
+- Card states: `ready` (green left-bar), `pending` (amber), `recommended` (highlighted background, "推荐" badge inline)
+- Row icons: `✓` green when satisfied, `⚠` amber when missing
+- Right-aligned action per row:
+  - **Key deps** → `Get key ↗` link (external) + the inline `[input][👁][Save]` row appears ONLY when row is missing
+  - **Install deps** → `Setup ↗` link (external) only
+  - **Screen auth** → `[□ 启用]` checkbox toggle only (no external link)
+- After Save / toggle: row icon flips to ✓, parent re-fetches `setup:status` so any tier whose dependencies are now all met turns green at the card level.
+- Input is always full-width on its own line under the dep label (don't try to fit it on the same row as the label — keys are long).
+- `type=password` by default; the eye toggle reveals plaintext.
+
 - [ ] **Step 1: Add IPC mutators** — register two new handlers in `setupStatus.js`:
 
 ```js
