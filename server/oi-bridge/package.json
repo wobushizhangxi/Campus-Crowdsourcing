@@ -1,0 +1,15 @@
+{
+  "name": "@aionui/oi-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": { "start": "node index.js" },
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "nock": "^13.5.4",
+    "supertest": "^7.0.0"
+  }
+}
