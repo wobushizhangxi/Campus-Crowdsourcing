@@ -1,12 +1,53 @@
 const express = require('express')
+const { classify } = require('./translator')
+
+function normalize(raw = {}) {
+  const ok = raw.ok !== false
+  return {
+    ok,
+    exitCode: ok ? 0 : 1,
+    stdout: String(raw.stdout || ''),
+    stderr: String(raw.stderr || ''),
+    filesChanged: [],
+    durationMs: Number(raw.durationMs) || 0,
+    completedAt: new Date().toISOString(),
+    metadata: raw.metadata || {}
+  }
+}
 
 function createApp(deps = {}) {
-  const agentRunner = deps.agentRunner || { ready: () => false }
+  const runner = deps.agentRunner || { ready: () => false }
   const app = express()
   app.use(express.json({ limit: '20mb' }))
 
   app.get('/health', (_req, res) => {
-    res.json({ ok: true, runtime: 'ui-tars', agentReady: Boolean(agentRunner.ready()) })
+    res.json({ ok: true, runtime: 'ui-tars', agentReady: Boolean(runner.ready()) })
+  })
+
+  app.post('/execute', async (req, res) => {
+    const action = req.body || {}
+    if (!action.approved) return res.status(403).json(normalize({ ok: false, stderr: 'action not approved' }))
+    const plan = classify(action)
+    try {
+      if (plan.backend === 'not-implemented') {
+        return res.json(normalize({ ok: false, stderr: plan.reason, metadata: { notImplemented: true, reason: plan.reason } }))
+      }
+      if (plan.backend === 'screenshot') {
+        const buf = await runner.screenshot()
+        return res.json(normalize({ ok: true, metadata: { screenshotBase64: Buffer.from(buf).toString('base64'), mime: 'image/png' } }))
+      }
+      if (plan.backend === 'semantic-click') {
+        const r = await runner.semanticClick(plan.instruction)
+        return res.json(normalize({ ok: r.ok, stderr: r.reason, metadata: r }))
+      }
+      if (plan.backend === 'direct-type') {
+        const r = await runner.type(plan.text)
+        return res.json(normalize({ ok: r.ok, metadata: r }))
+      }
+      return res.json(normalize({ ok: false, stderr: plan.reason || 'unknown' }))
+    } catch (err) {
+      return res.json(normalize({ ok: false, stderr: String(err.message || err) }))
+    }
   })
 
   return app
