@@ -4,41 +4,64 @@ This manual covers the AionUi V2 desktop app: chat, execution tasks, model setup
 
 ## What AionUi Does
 
-AionUi is the visible control plane for agentic desktop work. Qwen plans tasks and proposes actions. AionUi validates those actions, applies safety policy, asks for confirmation when risk is medium or high, dispatches approved actions to managed runtimes, and records the full timeline.
+AionUi is the visible control plane for agentic desktop work. DeepSeek plans text work and proposes actions. AionUi validates those actions, applies safety policy, asks for confirmation when risk is medium or high, dispatches approved actions to managed runtimes, and records the full timeline.
 
 Default runtimes:
 
-- Qwen: required for task planning, action intent, and coding reasoning.
-- DeepSeek: optional plain-chat fallback only.
-- Open Interpreter: external sidecar for command, file, and code execution.
-- UI-TARS: external screen-control runtime for observe, mouse, and keyboard actions.
+- DeepSeek: required for chat, planning, action intent, and coding reasoning.
+- Midscene + Qwen3-VL: browser observation and web actions through the Chrome extension.
+- UI-TARS + Doubao vision: desktop screen observation, mouse, and keyboard actions.
+- Open Interpreter: managed sidecar for command, file, and code execution.
 - AionUi dry-run: deterministic demo runtime when external runtimes are missing.
+
+## First-Time Setup / 首次设置
+
+1. Install Open Interpreter with Python 3.10+:
+
+```powershell
+pip install open-interpreter
+```
+
+2. Install Google Chrome, then install the Midscene browser extension manually. Open the extension and click `Allow Bridge Connection`.
+3. Open Settings and fill in the three API groups:
+   - DeepSeek API Key and endpoint. The default endpoint is `https://api.deepseek.com`.
+   - Qwen3-VL on Alibaba DashScope: set `qwenVisionApiKey`.
+   - Doubao on Volcengine Ark: set `doubaoVisionApiKey`.
+4. Open Models/Runtimes and wait until Open Interpreter, UI-TARS, and Midscene show ready or show actionable setup guidance.
+5. Run one dry-run task before real automation, then run a small `web.observe` browser smoke test.
+
+### Troubleshooting
+
+- Browser ready is not green: check that Chrome is open, the Midscene extension is installed, and `Allow Bridge Connection` has been clicked.
+- Midscene bridge ready but extension not connected: reload the extension page, reopen Chrome, and try `web.observe` again.
+- UI-TARS is not ready: confirm the Doubao Volcengine Ark API key is set and screen authorization is enabled only when the visible desktop is safe.
+- Open Interpreter is not ready: confirm Python can run `interpreter` from a terminal and then restart AionUi.
 
 ## First Run
 
 1. Open Settings.
-2. Configure Qwen API key, base URL, primary model, and coding model.
-3. Optionally configure DeepSeek fallback for plain chat.
-4. Open Models/Runtimes and check Open Interpreter and UI-TARS status.
+2. Configure DeepSeek, Qwen3-VL, and Doubao API keys.
+3. Install and connect the Midscene Chrome extension.
+4. Open Models/Runtimes and check Open Interpreter, UI-TARS, and Midscene status.
 5. Keep dry-run enabled if the external runtimes are not installed yet.
 6. Use Chat mode for normal conversation, or Execute mode for brokered task execution.
 
 ## Chat Mode
 
-Chat mode is for normal assistant replies. It can use Qwen by default and DeepSeek only when configured as the plain-chat fallback.
+Chat mode is for normal assistant replies. It uses DeepSeek through the text model router.
 
 Chat mode does not treat the model as an execution brain. It is safe for regular questions, coding discussion, and planning before running anything locally.
 
 ## Execute Mode
 
-Execute mode routes the user task to Qwen planning. Qwen must return structured action proposals. AionUi then:
+Execute mode routes the user task to DeepSeek planning. The model must return structured action proposals. AionUi then:
 
 1. Parses and validates the action plan.
 2. Rejects unknown runtimes or action types.
 3. Classifies risk.
 4. Blocks unsafe actions.
 5. Shows pending confirmations for medium and high risk actions.
-6. Dispatches approved actions to Open Interpreter, UI-TARS, or dry-run adapters.
+6. Dispatches approved actions to Open Interpreter, UI-TARS, Midscene, or dry-run adapters.
 7. Saves results to Run Outputs.
 8. Appends sanitized audit events.
 
@@ -50,7 +73,7 @@ Emergency stop cancels queued actions and asks active runtimes to stop where pos
 
 ## Models And Runtimes
 
-The Models/Runtimes panel shows readiness for Qwen, DeepSeek fallback, Open Interpreter, UI-TARS, and dry-run runtime.
+The Models/Runtimes panel shows readiness for DeepSeek, Qwen3-VL, Doubao vision, Open Interpreter, UI-TARS, Midscene, and dry-run runtime.
 
 Each runtime card can show ready, not installed, needs configuration, disabled, or error states. Setup and repair buttons call runtime bootstrap IPC and return guidance instead of crashing the app.
 
@@ -84,7 +107,7 @@ Every proposed command, file write, or code execution appears in Control Center 
 
 ## UI-TARS
 
-UI-TARS is a default screen-control capability. Configure UI-TARS Desktop, SDK, fork endpoint, or adapter service in Settings.
+UI-TARS is the desktop screen-control capability. AionUi launches the managed `uitars-bridge` automatically and injects the Doubao Volcengine Ark endpoint from Settings.
 
 Supported actions include `screen.observe`, `screen.region.select`, `mouse.move`, `mouse.click`, `keyboard.type`, and `keyboard.shortcut`.
 
@@ -92,18 +115,34 @@ Mouse and keyboard actions require active screen authorization and normally requ
 
 ### Setup
 
-1. Install UI-TARS Desktop, SDK, or a maintained fork.
-2. Start an AionUi-compatible adapter endpoint, for example `http://127.0.0.1:8765`.
-3. Set `UI-TARS endpoint` in Settings.
+1. Create or reuse a Volcengine Ark endpoint for `doubao-1-5-thinking-vision-pro-250428`.
+2. Set `doubaoVisionApiKey` in Settings.
+3. Keep the default endpoint `https://ark.cn-beijing.volces.com/api/v3` unless your Ark deployment differs.
 4. Turn on `Screen authorization active` only when the visible screen is safe for automation.
 5. Test `screen.observe`, then a mouse click proposal, then a keyboard type proposal.
 6. Use emergency stop before further UI action when testing interruption behavior.
 
 All UI-TARS actions appear in Control Center and Audit Logs. Mouse and keyboard actions are denied or blocked unless screen authorization is active and the broker approves the action.
 
+## Midscene
+
+Midscene is the browser automation capability. AionUi launches the managed `midscene-bridge` automatically, but Chrome and the Midscene extension are installed manually by the user.
+
+Supported actions include `web.observe`, `web.click`, `web.type`, and `web.query`.
+
+### Setup
+
+1. Install Google Chrome.
+2. Install the Midscene browser extension manually.
+3. Click `Allow Bridge Connection` in the extension.
+4. Set `qwenVisionApiKey` in Settings for Qwen3-VL on DashScope.
+5. Run `web.observe` before any click or type action.
+
+All Midscene actions appear in Control Center and Audit Logs. AionUi never auto-installs the browser extension.
+
 ## Dry-Run Demo
 
-Dry-run mode simulates Qwen planning, Open Interpreter execution, UI-TARS screen control, and run outputs. It is clearly labelled as dry-run and is intended for demos, tests, and first-run validation without external installs.
+Dry-run mode simulates DeepSeek planning, Open Interpreter execution, UI-TARS screen control, Midscene browser actions, and run outputs. It is clearly labelled as dry-run and is intended for demos, tests, and first-run validation without external installs.
 
 Try:
 
