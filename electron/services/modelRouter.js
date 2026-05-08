@@ -1,13 +1,14 @@
-const qwenProvider = require('./models/qwenProvider')
 const deepseekProvider = require('./models/deepseekProvider')
 const {
   MODEL_PROVIDERS,
   MODEL_ROLES,
   ROLE_REQUIREMENTS,
-  DEFAULT_QWEN_PRIMARY_MODEL,
-  DEFAULT_QWEN_CODING_MODEL,
-  DEFAULT_DEEPSEEK_MODEL
+  DEFAULT_DEEPSEEK_BASE_URL,
+  DEFAULT_DEEPSEEK_MODEL,
+  normalizeBaseUrl
 } = require('./models/modelTypes')
+
+const DEFAULT_DEEPSEEK_CODING_MODEL = 'deepseek-coder'
 
 class ModelRouterError extends Error {
   constructor(code, message) {
@@ -17,11 +18,7 @@ class ModelRouterError extends Error {
 }
 
 function assertKnownRole(role) {
-  if (!ROLE_REQUIREMENTS[role]) throw new ModelRouterError('MODEL_ROLE_UNKNOWN', `未知模型角色：${role}`)
-}
-
-function qwenReady(config) {
-  return Boolean(config.qwenApiKey)
+  if (!ROLE_REQUIREMENTS[role]) throw new ModelRouterError('MODEL_ROLE_UNKNOWN', `Unknown model role: ${role}`)
 }
 
 function deepseekReady(config) {
@@ -30,42 +27,28 @@ function deepseekReady(config) {
 
 function selectModelForRole(role, config = {}) {
   assertKnownRole(role)
-  if (role === MODEL_ROLES.PLAIN_CHAT) {
-    if (qwenReady(config)) {
-      return {
-        provider: MODEL_PROVIDERS.QWEN,
-        role,
-        model: config.qwenPrimaryModel || DEFAULT_QWEN_PRIMARY_MODEL
-      }
-    }
-    if (config.fallbackProvider === MODEL_PROVIDERS.DEEPSEEK && deepseekReady(config)) {
-      return {
-        provider: MODEL_PROVIDERS.DEEPSEEK,
-        role,
-        model: config.fallbackModel || config.model || DEFAULT_DEEPSEEK_MODEL
-      }
-    }
-    throw new ModelRouterError('MODEL_NOT_CONFIGURED', '尚未配置 Qwen，也没有可用的普通聊天备用模型。')
+  if (!deepseekReady(config)) {
+    throw new ModelRouterError('DEEPSEEK_REQUIRED', `${role} requires DeepSeek configuration.`)
   }
-
-  if (!qwenReady(config)) {
-    throw new ModelRouterError('QWEN_REQUIRED', `${role} 需要配置 Qwen。`)
-  }
-
+  const endpoint = normalizeBaseUrl(
+    config.deepseekChatEndpoint || config.deepseekBaseUrl || config.baseUrl,
+    DEFAULT_DEEPSEEK_BASE_URL
+  )
   return {
-    provider: MODEL_PROVIDERS.QWEN,
+    provider: MODEL_PROVIDERS.DEEPSEEK,
     role,
+    endpoint,
+    apiKey: config.deepseekApiKey || config.apiKey || '',
     model: role === MODEL_ROLES.CODING_REASONING
-      ? (config.qwenCodingModel || DEFAULT_QWEN_CODING_MODEL)
-      : (config.qwenPrimaryModel || DEFAULT_QWEN_PRIMARY_MODEL)
+      ? (config.deepseekCodingModel || DEFAULT_DEEPSEEK_CODING_MODEL)
+      : (config.deepseekPlannerModel || config.fallbackModel || config.model || DEFAULT_DEEPSEEK_MODEL)
   }
 }
 
 function getProviderForRole(role, config = {}) {
   const selected = selectModelForRole(role, config)
-  if (selected.provider === MODEL_PROVIDERS.QWEN) return { selected, provider: qwenProvider }
   if (selected.provider === MODEL_PROVIDERS.DEEPSEEK) return { selected, provider: deepseekProvider }
-  throw new ModelRouterError('MODEL_PROVIDER_UNKNOWN', `未知模型提供方：${selected.provider}`)
+  throw new ModelRouterError('MODEL_PROVIDER_UNKNOWN', `Unknown model provider: ${selected.provider}`)
 }
 
 function verifyProviderReadiness(role, config = {}) {
