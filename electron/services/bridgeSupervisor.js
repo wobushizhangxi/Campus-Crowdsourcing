@@ -31,8 +31,17 @@ function createSupervisor(opts = {}) {
 
   async function startOne(key, { healthTimeoutMs = 5000, maxRestarts = 3 } = {}) {
     const cfg = DEFAULTS[key]
+    const spawnOptions = { stdio: 'ignore' }
+    if (key === 'uitars') {
+      const config = require('../store').store.getConfig()
+      spawnOptions.env = {
+        ...process.env,
+        UITARS_MODEL_ENDPOINT: config.uiTarsModelEndpoint || '',
+        UITARS_MODEL_API_KEY: config.uiTarsModelApiKey || ''
+      }
+    }
     state[key].state = 'starting'
-    state[key].child = spawnImpl('node', [path.join(rootDir, cfg.dir, 'index.js'), '--port', String(cfg.port)], { stdio: 'ignore' })
+    state[key].child = spawnImpl('node', [path.join(rootDir, cfg.dir, 'index.js'), '--port', String(cfg.port)], spawnOptions)
     const deadline = Date.now() + healthTimeoutMs
     while (Date.now() < deadline) {
       const h = await healthImpl(cfg.port)

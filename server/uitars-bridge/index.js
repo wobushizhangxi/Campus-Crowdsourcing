@@ -53,8 +53,18 @@ function createApp(deps = {}) {
   return app
 }
 
-function start({ port = 8765, host = '127.0.0.1' } = {}) {
-  const app = createApp()
+function wireDefaultRunner() {
+  const { createAgentRunner } = require('./agentRunner')
+  return {
+    agentRunner: createAgentRunner({
+      modelEndpoint: process.env.UITARS_MODEL_ENDPOINT || '',
+      modelApiKey: process.env.UITARS_MODEL_API_KEY || ''
+    })
+  }
+}
+
+function start({ port = 8765, host = '127.0.0.1', deps = {} } = {}) {
+  const app = createApp(deps)
   return new Promise((resolve) => {
     const server = app.listen(port, host, () => resolve(server))
   })
@@ -63,7 +73,7 @@ function start({ port = 8765, host = '127.0.0.1' } = {}) {
 if (require.main === module) {
   const portArg = process.argv.indexOf('--port')
   const port = portArg >= 0 ? Number(process.argv[portArg + 1]) : 8765
-  start({ port }).then((s) => process.stdout.write(`uitars-bridge listening on 127.0.0.1:${s.address().port}\n`))
+  start({ port, deps: wireDefaultRunner() }).then((s) => process.stdout.write(`uitars-bridge listening on 127.0.0.1:${s.address().port}\n`))
 }
 
-module.exports = { createApp, start }
+module.exports = { createApp, start, wireDefaultRunner }

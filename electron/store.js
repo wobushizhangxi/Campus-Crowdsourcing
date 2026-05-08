@@ -35,6 +35,7 @@ const DEFAULT_CONFIG = {
   openInterpreterCommand: '',
   openInterpreterEndpoint: '',
   uiTarsEndpoint: '',
+  uiTarsModelEndpoint: '',
   uiTarsCommand: '',
   uiTarsScreenAuthorized: false,
   dryRunEnabled: true,
