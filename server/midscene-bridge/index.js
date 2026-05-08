@@ -1,4 +1,19 @@
 const express = require('express')
+const { classify } = require('./translator')
+
+function normalize(raw = {}) {
+  const ok = raw.ok !== false
+  return {
+    ok,
+    exitCode: ok ? 0 : 1,
+    stdout: String(raw.stdout || ''),
+    stderr: String(raw.stderr || ''),
+    filesChanged: [],
+    durationMs: Number(raw.durationMs) || 0,
+    completedAt: new Date().toISOString(),
+    metadata: raw.metadata || {}
+  }
+}
 
 function createApp(deps = {}) {
   const bridge = deps.bridge || { ready: () => false, extensionConnected: () => false }
@@ -14,14 +29,68 @@ function createApp(deps = {}) {
     })
   })
 
+  app.post('/execute', async (req, res) => {
+    const action = req.body || {}
+    if (!action.approved) {
+      return res.status(403).json(normalize({ ok: false, stderr: 'action not approved' }))
+    }
+    const plan = classify(action)
+    try {
+      if (plan.backend === 'not-implemented') {
+        return res.json(normalize({
+          ok: false,
+          stderr: plan.reason,
+          metadata: { notImplemented: true, reason: plan.reason }
+        }))
+      }
+      if (plan.backend === 'screenshot-page') {
+        const buf = await bridge.screenshotPage()
+        return res.json(normalize({
+          ok: true,
+          metadata: { screenshotBase64: Buffer.from(buf).toString('base64'), mime: 'image/png' }
+        }))
+      }
+      if (plan.backend === 'ai-action') {
+        const result = await bridge.aiAction(plan.instruction)
+        return res.json(normalize({ ok: result.ok !== false, stderr: result.reason, metadata: result }))
+      }
+      if (plan.backend === 'ai-input') {
+        const result = await bridge.aiInput(plan.text)
+        return res.json(normalize({ ok: result.ok !== false, metadata: result }))
+      }
+      if (plan.backend === 'ai-query') {
+        const result = await bridge.aiQuery(plan.question)
+        return res.json(normalize({
+          ok: result.ok !== false,
+          stdout: String(result.answer || ''),
+          metadata: result
+        }))
+      }
+      return res.json(normalize({ ok: false, stderr: plan.reason || 'unknown' }))
+    } catch (err) {
+      return res.json(normalize({ ok: false, stderr: String(err.message || err) }))
+    }
+  })
+
   return app
 }
 
 function start({ port = 8770, host = '127.0.0.1' } = {}) {
-  const app = createApp()
+  const app = createApp(wireDefaultBridge())
   return new Promise((resolve) => {
     const server = app.listen(port, host, () => resolve(server))
   })
+}
+
+function wireDefaultBridge() {
+  const { createBridgeMode } = require('./bridgeMode')
+  return {
+    bridge: createBridgeMode({
+      endpoint: process.env.MIDSCENE_QWEN_ENDPOINT,
+      apiKey: process.env.MIDSCENE_QWEN_API_KEY,
+      model: process.env.MIDSCENE_QWEN_MODEL || 'qwen3-vl-plus'
+    })
+  }
 }
 
 if (require.main === module) {
@@ -32,4 +101,4 @@ if (require.main === module) {
   })
 }
 
-module.exports = { createApp, start }
+module.exports = { createApp, start, wireDefaultBridge }
