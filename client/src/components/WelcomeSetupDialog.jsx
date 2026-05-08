@@ -9,7 +9,7 @@ const DEP_LABELS = {
   deepseekKey: 'DeepSeek API Key',
   qwenKey: 'Qwen3-VL DashScope API Key',
   doubaoKey: 'Doubao Volcengine Ark API Key',
-  midsceneExtension: 'Chrome Midscene extension connected',
+  midsceneExtension: 'Chrome Midscene Bridge 已连接',
   pythonOpenInterpreter: 'Python + Open Interpreter',
   screenAuthorized: 'Screen authorization enabled'
 }
@@ -155,7 +155,73 @@ function ToggleRow({ ok, label, onSaved }) {
   )
 }
 
+function MidsceneBridgeRow({ ok, helpUrl, label }) {
+  const localBridgeUrl = 'http://localhost:8770'
+  const [copied, setCopied] = useState(false)
+
+  async function copyBridgeUrl() {
+    try {
+      await navigator.clipboard.writeText(localBridgeUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch (err) {
+      console.error('Failed to copy Midscene bridge URL', err)
+    }
+  }
+
+  if (ok) {
+    return (
+      <li className="flex items-center justify-between gap-3 rounded-md border border-emerald-100 bg-white/80 px-3 py-2 text-sm">
+        <span className="flex min-w-0 items-center gap-2">
+          <StatusIcon ready={ok} />
+          <span className="min-w-0 break-words">{label}</span>
+        </span>
+      </li>
+    )
+  }
+
+  return (
+    <li className="rounded-md border border-amber-100 bg-white px-3 py-3 text-sm">
+      <div className="flex items-start justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-2">
+          <StatusIcon ready={ok} />
+          <span className="min-w-0 break-words">{label}</span>
+        </span>
+      </div>
+
+      <div className="mt-3 space-y-3 text-[color:var(--text-primary)]">
+        <p className="text-xs text-[color:var(--text-muted)]">扩展已装但还需要建立 Bridge 连接：</p>
+        <ol className="list-decimal space-y-2 pl-5 text-xs leading-5">
+          <li>在 Chrome 工具栏点 Midscene 扩展图标</li>
+          <li>切到「Bridge Mode」标签（扩展左侧菜单）</li>
+          <li>
+            点 Allow connection，URL 填：
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <code className="min-w-0 rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-2 py-1 font-mono text-xs text-[color:var(--text-primary)]">{localBridgeUrl}</code>
+              <button type="button" onClick={copyBridgeUrl} className="h-7 rounded-md border border-[color:var(--border)] px-2 text-xs hover:bg-[color:var(--bg-tertiary)]">
+                {copied ? '已复制' : '复制'}
+              </button>
+            </div>
+          </li>
+        </ol>
+        <p className="text-xs text-[color:var(--text-muted)]">回到这里，状态会在 5 秒内自动变绿。</p>
+
+        <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-900">
+          ⓘ 扩展自带的 Playground 显示的 “Please set up environment variables” 警告与本应用无关，可忽略。AionUi 走 Bridge Mode，模型配置在 AionUi 这一侧。
+        </div>
+
+        {helpUrl && (
+          <p className="text-xs text-[color:var(--text-muted)]">
+            还没装扩展？ {actionLink({ href: helpUrl, label: '前往 Chrome Web Store' })}
+          </p>
+        )}
+      </div>
+    </li>
+  )
+}
+
 function DepRow({ dep, ok, helpUrl, label, onSaved }) {
+  if (dep === 'midsceneExtension') return <MidsceneBridgeRow ok={ok} helpUrl={helpUrl} label={label} />
   if (KEY_DEPS.has(dep)) return <KeyRow dep={dep} ok={ok} helpUrl={helpUrl} label={label} onSaved={onSaved} />
   if (TOGGLE_DEPS.has(dep)) return <ToggleRow ok={ok} label={label} onSaved={onSaved} />
   return <ExternalLinkRow ok={ok} helpUrl={helpUrl} label={label} />
@@ -196,6 +262,25 @@ export default function WelcomeSetupDialog({ open, onClose, onMarkSeen }) {
     loadStatus()
     return () => { ignored = true }
   }, [open])
+
+  useEffect(() => {
+    if (!open) return undefined
+    const allReady = status && Object.values(status.deps || {}).every(Boolean)
+    if (allReady) return undefined
+    let ignored = false
+    const id = setInterval(async () => {
+      try {
+        const next = await setupInvoke('setup:status')
+        if (!ignored) setStatus(next)
+      } catch (err) {
+        if (!ignored) setError(err?.message || 'Failed to read setup status')
+      }
+    }, 5000)
+    return () => {
+      ignored = true
+      clearInterval(id)
+    }
+  }, [open, status])
 
   if (!open) return null
 
