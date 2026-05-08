@@ -1,10 +1,12 @@
 function createBridgeMode(opts = {}) {
   let agent = null
-  let connected = false
+  let bridgeReady = false
+  let tabAttached = false
   let probeTimer = null
   let probeInFlight = null
   const probeIntervalMs = opts.probeIntervalMs ?? 3000
   const probeTimeoutMs = opts.probeTimeoutMs ?? 1500
+
   const factory = opts.factory || (() => {
     const { AgentOverChromeBridge, overrideAIConfig } = require('@midscene/web/bridge-mode')
     if (typeof overrideAIConfig === 'function') {
@@ -47,48 +49,42 @@ function createBridgeMode(opts = {}) {
     return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId))
   }
 
-  async function resetAgent() {
+  async function recreateAgent() {
     const current = agent
     agent = null
+    bridgeReady = false
+    tabAttached = false
     if (current && typeof current.destroy === 'function') {
-      try {
-        await current.destroy()
-      } catch {
-        // Best effort cleanup after failed probe.
-      }
+      try { await current.destroy() } catch { /* best effort */ }
     }
   }
 
   async function runProbe() {
-    if (!ready()) {
-      connected = false
-      return false
-    }
-
-    let current = null
+    if (!ready()) { bridgeReady = false; return false }
+    let usedAgent = null
     try {
-      current = ensure()
-      if (typeof current.connectCurrentTab !== 'function') throw new Error('Midscene bridge connectCurrentTab unavailable')
-      const connect = Promise.resolve().then(() => current.connectCurrentTab({
-        forceSameTabNavigation: true,
-        timeoutMs: probeTimeoutMs
-      }))
-      connect.catch(() => {})
-      await withTimeout(connect, probeTimeoutMs)
-      connected = true
+      usedAgent = ensure()
+      if (typeof usedAgent.getBrowserTabList !== 'function') {
+        bridgeReady = false
+        return false
+      }
+      await withTimeout(usedAgent.getBrowserTabList(), probeTimeoutMs)
+      bridgeReady = true
       return true
     } catch {
-      connected = false
-      if (current) await resetAgent()
+      const wasReady = bridgeReady
+      bridgeReady = false
+      tabAttached = false
+      if (wasReady) {
+        await recreateAgent()
+      }
       return false
     }
   }
 
   function probeOnce() {
     if (!probeInFlight) {
-      probeInFlight = runProbe().finally(() => {
-        probeInFlight = null
-      })
+      probeInFlight = runProbe().finally(() => { probeInFlight = null })
     }
     return probeInFlight
   }
@@ -96,9 +92,7 @@ function createBridgeMode(opts = {}) {
   function startProbeLoop() {
     if (probeTimer) return
     probeOnce()
-    probeTimer = setInterval(() => {
-      probeOnce()
-    }, probeIntervalMs)
+    probeTimer = setInterval(() => { probeOnce() }, probeIntervalMs)
   }
 
   function stopProbeLoop() {
@@ -108,16 +102,21 @@ function createBridgeMode(opts = {}) {
   }
 
   async function ensureConnected() {
-    if (!connected) await probeOnce()
-    if (!connected) throw new Error('Midscene extension not connected')
-    return ensure()
+    if (!bridgeReady) await probeOnce()
+    if (!bridgeReady) throw new Error('Midscene extension not connected — open the extension and switch to Bridge Mode')
+    const current = ensure()
+    if (!tabAttached) {
+      await current.connectCurrentTab({ forceSameTabNavigation: true })
+      tabAttached = true
+    }
+    return current
   }
 
   return {
     start: startProbeLoop,
     stop: stopProbeLoop,
     ready,
-    extensionConnected: () => connected,
+    extensionConnected: () => bridgeReady,
     probeOnce,
     ensureConnected,
     async screenshotPage() {
@@ -142,8 +141,7 @@ function createBridgeMode(opts = {}) {
     },
     async destroy() {
       stopProbeLoop()
-      await resetAgent()
-      connected = false
+      await recreateAgent()
     }
   }
 }

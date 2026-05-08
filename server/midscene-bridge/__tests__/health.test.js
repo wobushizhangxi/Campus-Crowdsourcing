@@ -34,12 +34,9 @@ describe('midscene-bridge /health', () => {
 
   it('reports extensionConnected=true after probe succeeds', async () => {
     let probeCalled = 0
-    let optionsSeen = null
     const fakeAgent = {
-      connectCurrentTab: async (options) => {
-        probeCalled += 1
-        optionsSeen = options
-      }
+      getBrowserTabList: async () => { probeCalled += 1; return [] },
+      connectCurrentTab: async () => {}
     }
     const bridge = createBridgeMode({
       endpoint: 'http://x',
@@ -52,17 +49,14 @@ describe('midscene-bridge /health', () => {
     bridge.start()
     await new Promise((resolve) => setTimeout(resolve, 50))
 
-    expect(probeCalled).toBe(1)
-    expect(optionsSeen).toEqual({ forceSameTabNavigation: true, timeoutMs: 25 })
+    expect(probeCalled).toBeGreaterThanOrEqual(1)
     expect(bridge.extensionConnected()).toBe(true)
     await bridge.destroy()
   })
 
   it('reports extensionConnected=false when probe rejects', async () => {
     const fakeAgent = {
-      connectCurrentTab: async () => {
-        throw new Error('not listening')
-      }
+      getBrowserTabList: async () => { throw new Error('not listening') }
     }
     const bridge = createBridgeMode({
       endpoint: 'http://x',
@@ -78,13 +72,11 @@ describe('midscene-bridge /health', () => {
     await bridge.destroy()
   })
 
-  it('probe times out quickly when connectCurrentTab hangs', async () => {
+  it('probe times out quickly when getBrowserTabList hangs and does NOT destroy on initial failure', async () => {
     let destroyCalled = 0
     const fakeAgent = {
-      connectCurrentTab: () => new Promise(() => {}),
-      destroy: async () => {
-        destroyCalled += 1
-      }
+      getBrowserTabList: () => new Promise(() => {}),
+      destroy: async () => { destroyCalled += 1 }
     }
     const bridge = createBridgeMode({
       endpoint: 'http://x',
@@ -97,6 +89,37 @@ describe('midscene-bridge /health', () => {
 
     bridge.start()
     await new Promise((resolve) => setTimeout(resolve, 60))
+
+    expect(bridge.extensionConnected()).toBe(false)
+    // Initial-failure path must NOT destroy the agent — that would close the
+    // BridgeServer and kick a (possibly imminent) extension connection.
+    expect(destroyCalled).toBe(0)
+    await bridge.destroy()
+  })
+
+  it('recreates agent only when probe fails AFTER previously being connected (disconnect detection)', async () => {
+    let probeCount = 0
+    let destroyCalled = 0
+    const factory = () => ({
+      getBrowserTabList: async () => {
+        probeCount += 1
+        if (probeCount === 1) return []         // first probe: success → bridgeReady=true
+        throw new Error('extension stopped')     // second probe: failure → must recreate
+      },
+      destroy: async () => { destroyCalled += 1 }
+    })
+
+    const bridge = createBridgeMode({
+      endpoint: 'http://x',
+      apiKey: 'k',
+      model: 'qwen3-vl-plus',
+      probeTimeoutMs: 20,
+      probeIntervalMs: 30,
+      factory
+    })
+
+    bridge.start()
+    await new Promise((resolve) => setTimeout(resolve, 100))
 
     expect(bridge.extensionConnected()).toBe(false)
     expect(destroyCalled).toBeGreaterThanOrEqual(1)
