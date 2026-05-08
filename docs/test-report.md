@@ -48,4 +48,29 @@ Manual in-app smoke test still recommended on the release machine:
 
 ## 2026-05-09 Tri-Model + Midscene Acceptance
 
-(filled at Task 5.6)
+Environment: Windows 11 x64 dev machine, Node.js/npm workspace, Electron Builder win target.
+
+### Automated Verification
+
+| Command | Result | Notes |
+|---|---|---|
+| `npm test` | PASS | 40 test files, 160 tests |
+| `npm run build:client` | PASS | Vite production build completed |
+| `npm run electron:build` | PASS | Generated `dist-electron\AionUi Setup 0.1.0.exe` |
+
+Packaged resource verification: PASS. `dist-electron\win-unpacked\resources\server\` contains `oi-bridge`, `uitars-bridge`, and `midscene-bridge`.
+
+### Manual Clean-VM Acceptance
+
+Not run in this development environment. The clean Windows VM, Chrome Midscene extension connection, and live DeepSeek / Qwen3-VL / Doubao API keys are required before marking these items PASS.
+
+| # | Action | Runtime | Result | Audit | Output panel | Notes |
+|---|---|---|---|---|---|---|
+| 1 | shell echo hi | OI | NOT RUN | NOT RUN | NOT RUN | Requires clean VM acceptance |
+| 2 | code python 1+1 | OI | NOT RUN | NOT RUN | NOT RUN | Requires clean VM acceptance |
+| 3 | file.write tmp | OI | NOT RUN | NOT RUN | NOT RUN | Requires clean VM acceptance |
+| 4 | mouse.click controlled target | UI-TARS | NOT RUN | NOT RUN | NOT RUN | Requires screen authorization and Doubao Ark key |
+| 5 | web.click search | Midscene | NOT RUN | NOT RUN | NOT RUN | Requires Chrome extension bridge and Qwen3-VL key |
+| 6 | web.query title | Midscene | NOT RUN | NOT RUN | NOT RUN | Requires Chrome extension bridge and Qwen3-VL key |
+
+Emergency Stop on #5: NOT RUN. Requires live Midscene browser action on the clean VM.
