@@ -7,7 +7,8 @@ const fetchImpl = global.fetch || ((...a) => import('node-fetch').then(({ defaul
 const DEFAULTS = {
   oi: { name: 'oi-bridge', port: 8756, dir: 'server/oi-bridge' },
   uitars: { name: 'uitars-bridge', port: 8765, dir: 'server/uitars-bridge' },
-  midscene: { name: 'midscene-bridge', port: 8770, dir: 'server/midscene-bridge' }
+  midscene: { name: 'midscene-bridge', port: 8770, dir: 'server/midscene-bridge' },
+  browserUse: { name: 'browser-use-bridge', port: 8780, dir: 'server/browser-use-bridge', runtime: 'python' }
 }
 
 function resolveDefaultRootDir() {
@@ -62,6 +63,11 @@ function createSupervisor(opts = {}) {
       env.MIDSCENE_QWEN_API_KEY = config.qwenVisionApiKey || ''
       env.MIDSCENE_QWEN_MODEL = config.qwenVisionModel || ''
     }
+    if (key === 'browserUse') {
+      env.BROWSER_USE_MODEL_ENDPOINT = config.doubaoVisionEndpoint || ''
+      env.BROWSER_USE_MODEL_API_KEY = config.doubaoVisionApiKey || ''
+      env.BROWSER_USE_MODEL_NAME = config.doubaoVisionModel || 'doubao-seed-1-6-vision-250815'
+    }
     return env
   }
 
@@ -73,7 +79,11 @@ function createSupervisor(opts = {}) {
     const cfg = DEFAULTS[key]
     const spawnOptions = { stdio: buildStdio(key), env: buildEnv(key) }
     state[key].state = 'starting'
-    state[key].child = spawnImpl('node', [path.join(rootDir, cfg.dir, 'index.js'), '--port', String(cfg.port)], spawnOptions)
+    const runtime = cfg.runtime || 'node'
+    const child = runtime === 'python'
+      ? spawnImpl('python', ['-u', path.join(rootDir, cfg.dir, 'main.py'), String(cfg.port)], spawnOptions)
+      : spawnImpl('node', [path.join(rootDir, cfg.dir, 'index.js'), '--port', String(cfg.port)], spawnOptions)
+    state[key].child = child
     const deadline = Date.now() + healthTimeoutMs
     while (Date.now() < deadline) {
       const h = await healthImpl(cfg.port)
