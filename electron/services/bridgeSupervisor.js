@@ -49,6 +49,15 @@ function createSupervisor(opts = {}) {
       env.UITARS_MODEL_NAME = config.doubaoVisionModel || ''
     }
     if (key === 'midscene') {
+      // Switched from Qwen3-VL to Doubao 1.5 vision (Volcengine Ark) for
+      // better GUI grounding on web pages. Reuses the Doubao key/endpoint
+      // already configured for uitars-bridge — user configures Volcengine
+      // Ark once.
+      env.MIDSCENE_VISION_PROVIDER = 'doubao'
+      env.MIDSCENE_VISION_ENDPOINT = config.doubaoVisionEndpoint || ''
+      env.MIDSCENE_VISION_API_KEY = config.doubaoVisionApiKey || ''
+      env.MIDSCENE_VISION_MODEL = config.doubaoVisionModel || ''
+      // Legacy Qwen vars left in env so bridgeMode can fall back if needed.
       env.MIDSCENE_QWEN_ENDPOINT = config.qwenVisionEndpoint || ''
       env.MIDSCENE_QWEN_API_KEY = config.qwenVisionApiKey || ''
       env.MIDSCENE_QWEN_MODEL = config.qwenVisionModel || ''

@@ -10,12 +10,13 @@ function createBridgeMode(opts = {}) {
   const factory = opts.factory || (() => {
     const { AgentOverChromeBridge, overrideAIConfig } = require('@midscene/web/bridge-mode')
     if (typeof overrideAIConfig === 'function') {
+      const useDoubao = opts.visionProvider === 'doubao'
       overrideAIConfig({
         OPENAI_BASE_URL: opts.endpoint,
         OPENAI_API_KEY: opts.apiKey,
         MIDSCENE_MODEL_NAME: opts.model,
-        MIDSCENE_USE_QWEN_VL: 'true',
-        MIDSCENE_USE_DOUBAO_VISION: '',
+        MIDSCENE_USE_QWEN_VL: useDoubao ? '' : 'true',
+        MIDSCENE_USE_DOUBAO_VISION: useDoubao ? 'true' : '',
         MIDSCENE_USE_GEMINI: '',
         MIDSCENE_USE_VLM_UI_TARS: '',
         MIDSCENE_USE_VL_MODEL: ''

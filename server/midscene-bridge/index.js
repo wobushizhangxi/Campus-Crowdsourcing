@@ -93,10 +93,22 @@ function start({ port = 8770, host = '127.0.0.1' } = {}) {
 
 function wireDefaultBridge() {
   const { createBridgeMode } = require('./bridgeMode')
+  const provider = process.env.MIDSCENE_VISION_PROVIDER || 'qwen'
+  const useDoubao = provider === 'doubao'
+  const endpoint = useDoubao
+    ? (process.env.MIDSCENE_VISION_ENDPOINT || process.env.MIDSCENE_QWEN_ENDPOINT)
+    : (process.env.MIDSCENE_QWEN_ENDPOINT || process.env.MIDSCENE_VISION_ENDPOINT)
+  const apiKey = useDoubao
+    ? (process.env.MIDSCENE_VISION_API_KEY || process.env.MIDSCENE_QWEN_API_KEY)
+    : (process.env.MIDSCENE_QWEN_API_KEY || process.env.MIDSCENE_VISION_API_KEY)
+  const model = useDoubao
+    ? (process.env.MIDSCENE_VISION_MODEL || 'doubao-1-5-thinking-vision-pro-250428')
+    : (process.env.MIDSCENE_QWEN_MODEL || 'qwen3-vl-plus')
   const bridge = createBridgeMode({
-    endpoint: process.env.MIDSCENE_QWEN_ENDPOINT,
-    apiKey: process.env.MIDSCENE_QWEN_API_KEY,
-    model: process.env.MIDSCENE_QWEN_MODEL || 'qwen3-vl-plus'
+    visionProvider: provider,
+    endpoint,
+    apiKey,
+    model
   })
   bridge.start()
   return { bridge }
