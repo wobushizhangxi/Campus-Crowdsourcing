@@ -133,3 +133,41 @@ export async function openFile(filePath) {
 
 export function listFiles(dir) { return invoke('files:list', { dir }) }
 export function searchFiles(query, dir) { return invoke('files:search', { query, dir }) }
+
+// Agent-native API
+
+export function runAgentTurn({ convId, messages, onEvent, onDone, onError }) {
+  const electron = electronAPI()
+  if (!electron?.agent) throw new ApiError('NOT_SUPPORTED', 'Agent API 不可用。')
+
+  const cleanup = electron.agent.onEvent((data) => {
+    if (data.convId !== convId) return
+    onEvent?.(data.type, data)
+  })
+
+  electron.agent.runTurn({ convId, messages }).then((result) => {
+    cleanup()
+    if (result.ok || result.error === undefined) onDone?.(result)
+    else onError?.(new ApiError(result.error?.code || 'AGENT_ERROR', result.error?.message || 'Agent 执行失败。'))
+  }).catch((error) => {
+    cleanup()
+    onError?.(error)
+  })
+
+  return () => {
+    cleanup()
+    electron.agent.abort({ convId })
+  }
+}
+
+export function approveTool(convId, callId) {
+  return window.electronAPI.agent.approveTool({ convId, callId, approved: true })
+}
+
+export function denyTool(convId, callId) {
+  return window.electronAPI.agent.approveTool({ convId, callId, approved: false })
+}
+
+export function abortAgent(convId) {
+  return window.electronAPI.agent.abort({ convId })
+}
