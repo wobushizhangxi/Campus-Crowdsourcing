@@ -148,7 +148,7 @@ function createBridgeMode(opts = {}) {
       const current = await ensureConnected()
       if (typeof current.screenshotPage === 'function') return current.screenshotPage()
       if (current.page && typeof current.page.screenshotBase64 === 'function') {
-        return Buffer.from(await current.page.screenshotBase64(), 'base64')
+        return current.page.screenshotBase64()
       }
       throw new Error('Midscene bridge does not expose screenshotBase64')
     },

@@ -63,7 +63,7 @@ async function planNext({ goal, history = [], screenshotBase64, config = {}, fet
         role: 'user',
         content: [
           { type: 'text', text: userText },
-          { type: 'image_url', image_url: { url: `data:image/png;base64,${screenshotBase64}` } }
+          { type: 'image_url', image_url: { url: screenshotBase64.startsWith('data:') ? screenshotBase64 : `data:image/jpeg;base64,${screenshotBase64}` } }
         ]
       }
     ],

@@ -49,9 +49,30 @@ function createApp(deps = {}) {
       }
       if (plan.backend === 'screenshot-page') {
         const buf = await bridge.screenshotPage()
+        // Midscene's screenshotPage may return either:
+        //   - a Buffer of raw image bytes (PNG/JPEG)
+        //   - a string already in "data:image/<type>;base64,<data>" form
+        //   - a raw base64 string with no prefix
+        // The previous Buffer.from(buf).toString('base64') chain corrupted
+        // the data URL form (Buffer.from(str, 'base64') silently drops
+        // ':' ';' ',' separators when the encoding hint slips in elsewhere).
+        // Detect each shape and emit clean base64 + accurate mime.
+        let base64
+        let mime = 'image/jpeg'
+        if (Buffer.isBuffer(buf)) {
+          base64 = buf.toString('base64')
+          // PNG signature 89 50 4E 47 -> base64 starts with "iVBOR"
+          if (base64.startsWith('iVBOR')) mime = 'image/png'
+        } else if (typeof buf === 'string') {
+          const dataUrl = buf.match(/^data:(image\/[^;,]+);base64,(.*)$/i)
+          if (dataUrl) { mime = dataUrl[1]; base64 = dataUrl[2] }
+          else { base64 = buf }
+        } else {
+          throw new Error('screenshotPage returned unsupported type: ' + typeof buf)
+        }
         return res.json(normalize({
           ok: true,
-          metadata: { screenshotBase64: Buffer.from(buf).toString('base64'), mime: 'image/png' }
+          metadata: { screenshotBase64: base64, mime }
         }))
       }
       if (plan.backend === 'ai-action') {

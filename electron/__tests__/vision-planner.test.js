@@ -33,7 +33,7 @@ describe('visionPlanner.planNext', () => {
     expect(callArgs[0]).toContain('chat/completions')
     const body = JSON.parse(callArgs[1].body)
     expect(body.model).toBe('doubao-vision-pro')
-    expect(body.messages[1].content[1].image_url.url).toMatch(/^data:image\/png;base64,AAAA/)
+    expect(body.messages[1].content[1].image_url.url).toMatch(/^data:image\/jpeg;base64,AAAA/)
   })
 
   it('throws VisionPlannerError on malformed JSON', async () => {
