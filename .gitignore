@@ -11,3 +11,9 @@ generated/
 
 # Staging dir for self-contained sidecar packaging (Task 5.5f)
 dist-bridges/
+
+# Midscene.js dump files
+midscene_run/dump
+midscene_run/report
+midscene_run/tmp
+midscene_run/log
