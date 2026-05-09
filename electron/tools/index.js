@@ -32,6 +32,7 @@ function loadBuiltins() {
   require('./docs')
   require('./remember')
   require('../skills/loader')
+  require('./browserTask')
 }
 
 function getExecutionToolSchemas() {

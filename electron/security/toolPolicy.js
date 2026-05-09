@@ -112,6 +112,9 @@ function evaluateToolCall(name, args = {}, ctx = {}) {
     case 'generate_pptx':
       return { risk: RISK_LEVELS.MEDIUM, reason: '文档生成会写入文件。' }
 
+    case 'browser_task':
+      return { risk: RISK_LEVELS.MEDIUM, reason: '浏览器自动化任务会操作真实网页。' }
+
     default:
       return { risk: RISK_LEVELS.BLOCKED, reason: `未知工具：${name}` }
   }
