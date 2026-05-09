@@ -59,9 +59,9 @@ function createTaskOrchestrator(overrides = {}) {
     ...overrides
   }
 
-  async function planWithModel(task, config, sessionId) {
-    const messages = buildPlannerPrompt(task)
-    const raw = await deps.modelRouter.jsonForRole(MODEL_ROLES.TASK_PLANNING, messages, { temperature: 0.1 }, config)
+  async function planWithModel(historyOrTask, config, sessionId) {
+    const promptMessages = buildPlannerPrompt(historyOrTask)
+    const raw = await deps.modelRouter.jsonForRole(MODEL_ROLES.TASK_PLANNING, promptMessages, { temperature: 0.1 }, config)
     return normalizeActionPlan(raw, { sessionId, now: deps.now() })
   }
 
@@ -77,7 +77,9 @@ function createTaskOrchestrator(overrides = {}) {
       proposals = plan.actions
       usedDryRun = true
     } else {
-      proposals = await planWithModel(task, config, sessionId)
+      // Pass full conversation history to the planner so multi-turn cues
+      // ("继续", "再来一次", "登录好了") resolve against prior turns.
+      proposals = await planWithModel(messages, config, sessionId)
     }
 
     onEvent?.('chat:action-plan', { actions: proposals, dryRun: usedDryRun })

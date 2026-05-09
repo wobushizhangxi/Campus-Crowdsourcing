@@ -106,7 +106,13 @@ function normalizeActionPlan(raw, options = {}) {
   })
 }
 
-function buildPlannerPrompt(userTask) {
+function buildPlannerPrompt(taskOrMessages) {
+  // Accept either a string (single task) or an array of {role, content} messages
+  // (full conversation history). Multi-turn history lets the model resolve
+  // references like "继续" or "再来一次" in the user's last message.
+  const history = Array.isArray(taskOrMessages)
+    ? taskOrMessages.filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    : [{ role: 'user', content: String(taskOrMessages || '') }]
   return [
     {
       role: 'system',
@@ -131,13 +137,21 @@ function buildPlannerPrompt(userTask) {
         '  - User mentions clicking on a desktop app, Notepad, Office, system dialog -> ui-tars + mouse.*/keyboard.*',
         '  - User asks to write code -> open-interpreter + code.execute',
         'Risk levels: "low" (read-only/observe), "medium" (mutations bounded to workspace/page), "high" (install, delete, submit forms with credentials, send messages).',
-        'Login-style tasks: produce ONLY web.navigate (to the login URL) followed by web.observe. Do NOT generate web.type for username or password and do NOT generate web.click for the submit button. The user fills credentials and clicks submit themselves on the page that AionUi opens. Treat credentials as the user\'s private input, never fabricate placeholders like your_username/your_password.',
+        'Login-style tasks (the request only asks to log in, OR clearly says "登录后做X" with steps that require post-login state):',
+        '  - Generate exactly TWO actions: (1) web.navigate to the login URL, (2) web.observe of the login page.',
+        '  - Do NOT generate web.type for username/password; do NOT generate web.click for submit. The user fills credentials and submits manually in the browser tab AionUi opened.',
+        '  - Never fabricate placeholders like your_username/your_password.',
+        '  - When the task implies post-login work (e.g. "登录后看视频", "登录后打开课程X"), assume the user will say "继续" / "好了" / "登录完了" once they have logged in. Do NOT plan the post-login steps in this turn — you cannot see the post-login page state yet.',
+        'Multi-turn rules:',
+        '  - You receive the full conversation history. Resolve references like "继续", "下一步", "再来一次", "登录好了" against the previous turns.',
+        '  - When the latest user message is a continuation cue and history shows a prior login plan, your next plan should: (1) start with web.observe so the model can see what page the user actually landed on, then propose actions toward the original goal (e.g. click a course, click the first unwatched video). Use web.click with concrete target descriptions ("形势与政策课程卡片", "第一个未学完视频") so Midscene can locate them visually.',
+        '  - If the user says "继续" but you cannot infer the goal from history, return { "actions": [] } and let the user clarify.',
         'Common login URLs you may rely on: 学习通=https://passport2.chaoxing.com/login, 淘宝=https://login.taobao.com, GitHub=https://github.com/login, Gmail=https://accounts.google.com. If you are uncertain of a site\'s exact login URL, prefer the site\'s root domain (e.g. https://www.example.com) and let the site redirect to its login page.',
         'Never fabricate runtimes or action types outside the lists above. Never include hidden background work.',
         'If the task is unclear or impossible with these tools, return { "actions": [] }.'
       ].join('\n')
     },
-    { role: 'user', content: userTask }
+    ...history
   ]
 }
 
