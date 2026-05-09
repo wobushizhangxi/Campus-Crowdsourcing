@@ -76,6 +76,26 @@ function uiRisk(action, config = {}) {
   return null
 }
 
+function webRisk(action) {
+  const type = action.type
+  if (type === ACTION_TYPES.WEB_OBSERVE || type === ACTION_TYPES.WEB_QUERY) {
+    return { risk: RISK_LEVELS.LOW, reason: '只读页面观察或查询。' }
+  }
+  if (type === ACTION_TYPES.WEB_TYPE) {
+    const text = String(action.payload?.text || '')
+    if (CREDENTIAL_PATTERN.test(text)) return { risk: RISK_LEVELS.HIGH, reason: '向网页输入疑似凭据需要确认。' }
+    return { risk: RISK_LEVELS.MEDIUM, reason: '向网页输入文本需要确认。' }
+  }
+  if (type === ACTION_TYPES.WEB_CLICK) {
+    const target = String(action.payload?.target || '')
+    if (/登录|提交|submit|sign\s*in|log\s*in|确认|delete|删除/i.test(target)) {
+      return { risk: RISK_LEVELS.HIGH, reason: '提交或破坏性的网页点击需要确认。' }
+    }
+    return { risk: RISK_LEVELS.MEDIUM, reason: '点击网页元素需要确认。' }
+  }
+  return null
+}
+
 function codeRisk(action) {
   const code = String(action?.payload?.code || '')
   const blocked = blockedShellReason(code)
@@ -91,6 +111,7 @@ function evaluateAction(action = {}, config = {}) {
   else if ([ACTION_TYPES.FILE_READ, ACTION_TYPES.FILE_WRITE, ACTION_TYPES.FILE_DELETE, ACTION_TYPES.FILE_MOVE].includes(action.type)) classification = fileRisk(action)
   else if (action.type === ACTION_TYPES.CODE_EXECUTE) classification = codeRisk(action)
   else if ([ACTION_TYPES.SCREEN_OBSERVE, ACTION_TYPES.SCREEN_REGION_SELECT, ACTION_TYPES.MOUSE_MOVE, ACTION_TYPES.MOUSE_CLICK, ACTION_TYPES.KEYBOARD_TYPE, ACTION_TYPES.KEYBOARD_SHORTCUT].includes(action.type)) classification = uiRisk(action, config)
+  else if ([ACTION_TYPES.WEB_OBSERVE, ACTION_TYPES.WEB_CLICK, ACTION_TYPES.WEB_TYPE, ACTION_TYPES.WEB_QUERY].includes(action.type)) classification = webRisk(action)
   else if (action.type === ACTION_TYPES.RUNTIME_SETUP) classification = { risk: RISK_LEVELS.HIGH, reason: '运行时设置可能安装或修改本地软件。' }
   else if ([ACTION_TYPES.RUNTIME_START, ACTION_TYPES.RUNTIME_STOP, ACTION_TYPES.OUTPUT_OPEN, ACTION_TYPES.AUDIT_EXPORT].includes(action.type)) classification = { risk: RISK_LEVELS.LOW, reason: '运行时控制或本地界面动作。' }
   else classification = { risk: RISK_LEVELS.BLOCKED, reason: `未知动作类型：${action.type}` }
