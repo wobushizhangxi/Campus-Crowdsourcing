@@ -32,6 +32,11 @@ test('getConfig returns defaults including new fields', () => {
   expect(config.doubaoVisionModel).toBe('doubao-1-5-thinking-vision-pro-250428')
 })
 
+test('config has visionLoopEnabled default true', () => {
+  const config = store.getConfig()
+  expect(config.visionLoopEnabled).toBe(true)
+})
+
 test('setConfig persists patches', () => {
   store.setConfig({ apiKey: 'sk-x', workspace_root: 'D:\\work' })
   expect(store.getConfig().apiKey).toBe('sk-x')

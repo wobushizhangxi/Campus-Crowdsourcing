@@ -2,7 +2,12 @@ import { test, expect } from 'vitest'
 import { createRequire } from 'module'
 
 const require = createRequire(import.meta.url)
-const { normalizeActionPlan, parseModelJson, buildPlannerPrompt } = require('../services/actionPlanner')
+const {
+  normalizeActionPlan,
+  parseModelJson,
+  buildPlannerPrompt,
+  getActionSchemaForVisionPrompt
+} = require('../services/actionPlanner')
 
 const NOW = new Date('2026-05-08T00:00:00.000Z')
 
@@ -65,4 +70,11 @@ test('planner prompt requires JSON proposals and lists all three runtimes', () =
   expect(messages[0].content).toContain('midscene')
   expect(messages[0].content).toContain('web.click')
   expect(messages[1].content).toBe('run tests')
+})
+
+test('getActionSchemaForVisionPrompt mentions all v1 web action types', () => {
+  const schema = getActionSchemaForVisionPrompt()
+  for (const type of ['web.navigate', 'web.observe', 'web.click', 'web.type', 'web.query']) {
+    expect(schema).toContain(type)
+  }
 })

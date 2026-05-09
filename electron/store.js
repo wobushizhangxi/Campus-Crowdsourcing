@@ -48,6 +48,7 @@ const DEFAULT_CONFIG = {
   uiTarsCommand: '',
   uiTarsScreenAuthorized: false,
   dryRunEnabled: true,
+  visionLoopEnabled: true,
   auditRetentionDays: 30,
   outputRetentionDays: 30,
   temperature: 0.7,

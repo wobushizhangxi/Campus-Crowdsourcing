@@ -106,6 +106,16 @@ function normalizeActionPlan(raw, options = {}) {
   })
 }
 
+function getActionSchemaForVisionPrompt() {
+  return [
+    'Available runtimes and their action types:',
+    '  - "midscene": "web.navigate", "web.observe", "web.click", "web.type", "web.query"',
+    '       payload examples: { url } | {} | { target: "login button" } | { text: "username" } | { question: "page title?" }',
+    'Risk levels: "low" (read-only/observe), "medium" (mutations bounded to page), "high" (submit forms with credentials, destructive).',
+    'Output JSON: { "actions": [ { runtime, type, title, summary, payload, risk } ... ] }'
+  ].join('\n')
+}
+
 function buildPlannerPrompt(taskOrMessages) {
   // Accept either a string (single task) or an array of {role, content} messages
   // (full conversation history). Multi-turn history lets the model resolve
@@ -170,6 +180,7 @@ function buildPlannerPrompt(taskOrMessages) {
 module.exports = {
   ActionPlannerError,
   buildPlannerPrompt,
+  getActionSchemaForVisionPrompt,
   normalizeActionPlan,
   parseModelJson,
   summarizePayload
