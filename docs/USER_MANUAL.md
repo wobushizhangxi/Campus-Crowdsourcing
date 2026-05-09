@@ -36,6 +36,7 @@ pip install open-interpreter
 - Midscene bridge ready but extension not connected: reload the extension page, reopen Chrome, and try `web.observe` again.
 - UI-TARS is not ready: confirm the Doubao Volcengine Ark API key is set and screen authorization is enabled only when the visible desktop is safe.
 - Open Interpreter is not ready: confirm Python can run `interpreter` from a terminal and then restart AionUi.
+- If a managed runtime will not start, check `%TEMP%\aionui-logs\<bridge>-stderr.log`, for example `%TEMP%\aionui-logs\midscene-stderr.log`.
 
 ## First Run
 

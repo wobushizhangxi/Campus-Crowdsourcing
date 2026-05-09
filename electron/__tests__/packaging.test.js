@@ -9,14 +9,24 @@ const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf
 test('desktop scripts no longer start the legacy server', () => {
   expect(pkg.scripts.dev).toBeUndefined()
   expect(pkg.scripts.setup).not.toContain('server')
+  expect(pkg.scripts['build:bridges']).toBe('node scripts/prepare-bridges.js')
   expect(pkg.scripts['electron:dev']).toContain('npm --prefix client run dev')
   expect(pkg.scripts['electron:dev']).not.toContain('server')
+  expect(pkg.scripts['electron:dev']).not.toContain('build:bridges')
+  expect(pkg.scripts['electron:build']).toContain('npm run build:client')
+  expect(pkg.scripts['electron:build']).toContain('npm run build:bridges')
+  expect(pkg.scripts['electron:build']).toMatch(/build:client.*build:bridges.*electron-builder --win/)
 
   expect(JSON.stringify(pkg.build.files)).not.toContain('server')
   expect(pkg.build.extraResources).toEqual(expect.arrayContaining([
-    expect.objectContaining({ from: 'server/oi-bridge', to: 'server/oi-bridge' }),
-    expect.objectContaining({ from: 'server/uitars-bridge', to: 'server/uitars-bridge' }),
-    expect.objectContaining({ from: 'server/midscene-bridge', to: 'server/midscene-bridge' })
+    expect.objectContaining({ from: 'dist-bridges/oi-bridge', to: 'server/oi-bridge' }),
+    expect.objectContaining({ from: 'dist-bridges/uitars-bridge', to: 'server/uitars-bridge' }),
+    expect.objectContaining({ from: 'dist-bridges/midscene-bridge', to: 'server/midscene-bridge' })
+  ]))
+  expect(pkg.build.extraResources).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ from: 'server/oi-bridge' }),
+    expect.objectContaining({ from: 'server/uitars-bridge' }),
+    expect.objectContaining({ from: 'server/midscene-bridge' })
   ]))
 })
 

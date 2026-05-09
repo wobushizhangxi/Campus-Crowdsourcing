@@ -1,4 +1,6 @@
 const { spawn: realSpawn } = require('child_process')
+const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const fetchImpl = global.fetch || ((...a) => import('node-fetch').then(({ default: f }) => f(...a)))
 
@@ -11,6 +13,14 @@ const DEFAULTS = {
 function resolveDefaultRootDir() {
   const devRoot = path.join(__dirname, '..', '..')
   return process.defaultApp ? devRoot : (process.resourcesPath || devRoot)
+}
+
+function buildStdio(key) {
+  const logDir = path.join(os.tmpdir(), 'aionui-logs')
+  fs.mkdirSync(logDir, { recursive: true })
+  const out = fs.openSync(path.join(logDir, `${key}-stdout.log`), 'a')
+  const err = fs.openSync(path.join(logDir, `${key}-stderr.log`), 'a')
+  return ['ignore', out, err]
 }
 
 function createSupervisor(opts = {}) {
@@ -52,7 +62,7 @@ function createSupervisor(opts = {}) {
 
   async function startOne(key, { healthTimeoutMs = 5000, maxRestarts = 3 } = {}) {
     const cfg = DEFAULTS[key]
-    const spawnOptions = { stdio: 'ignore', env: buildEnv(key) }
+    const spawnOptions = { stdio: buildStdio(key), env: buildEnv(key) }
     state[key].state = 'starting'
     state[key].child = spawnImpl('node', [path.join(rootDir, cfg.dir, 'index.js'), '--port', String(cfg.port)], spawnOptions)
     const deadline = Date.now() + healthTimeoutMs

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'module'
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
 
 const require = createRequire(import.meta.url)
 const { createSupervisor } = require('../services/bridgeSupervisor')
@@ -23,6 +26,29 @@ describe('bridgeSupervisor', () => {
     const midscene = calls.find((c) => c.args.some((arg) => arg.includes('midscene-bridge')))
     expect(midscene.env.MIDSCENE_QWEN_ENDPOINT).toContain('dashscope.aliyuncs.com')
     expect(midscene.env.MIDSCENE_QWEN_MODEL).toBeDefined()
+  })
+
+  it('captures child stdout and stderr in bridge-specific log files', async () => {
+    const seenStdio = []
+    const sup = createSupervisor({
+      spawnImpl: (_cmd, _args, opts) => {
+        seenStdio.push(opts.stdio)
+        if (Array.isArray(opts.stdio)) {
+          for (const fd of opts.stdio.slice(1)) fs.closeSync(fd)
+        }
+        return { on() {}, kill() {}, killed: false }
+      },
+      healthImpl: async () => ({ ok: true })
+    })
+
+    await sup.start()
+
+    expect(seenStdio).toHaveLength(3)
+    expect(seenStdio.every((stdio) => Array.isArray(stdio) && stdio[0] === 'ignore')).toBe(true)
+    for (const key of ['oi', 'uitars', 'midscene']) {
+      expect(fs.existsSync(path.join(os.tmpdir(), 'aionui-logs', `${key}-stdout.log`))).toBe(true)
+      expect(fs.existsSync(path.join(os.tmpdir(), 'aionui-logs', `${key}-stderr.log`))).toBe(true)
+    }
   })
 
   it('restarts a crashed bridge up to 3 times then marks failed', async () => {
