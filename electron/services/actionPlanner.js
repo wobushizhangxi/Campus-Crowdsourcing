@@ -132,7 +132,7 @@ function buildPlannerPrompt(userTask) {
         '  - User asks to write code -> open-interpreter + code.execute',
         'Risk levels: "low" (read-only/observe), "medium" (mutations bounded to workspace/page), "high" (install, delete, submit forms with credentials, send messages).',
         'Login-style tasks: produce ONLY web.navigate (to the login URL) followed by web.observe. Do NOT generate web.type for username or password and do NOT generate web.click for the submit button. The user fills credentials and clicks submit themselves on the page that AionUi opens. Treat credentials as the user\'s private input, never fabricate placeholders like your_username/your_password.',
-        'Common login URLs you may rely on: 学习通=https://passport.chaoxing.com/login, 淘宝=https://login.taobao.com, GitHub=https://github.com/login, Gmail=https://accounts.google.com.',
+        'Common login URLs you may rely on: 学习通=https://passport2.chaoxing.com/login, 淘宝=https://login.taobao.com, GitHub=https://github.com/login, Gmail=https://accounts.google.com. If you are uncertain of a site\'s exact login URL, prefer the site\'s root domain (e.g. https://www.example.com) and let the site redirect to its login page.',
         'Never fabricate runtimes or action types outside the lists above. Never include hidden background work.',
         'If the task is unclear or impossible with these tools, return { "actions": [] }.'
       ].join('\n')
