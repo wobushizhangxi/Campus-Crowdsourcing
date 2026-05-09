@@ -1,6 +1,7 @@
 const { createActionBroker } = require('../security/actionBroker')
 const { createOpenInterpreterAdapter } = require('../services/openInterpreter/adapter')
 const { createUiTarsAdapter } = require('../services/uiTars/adapter')
+const { createMidsceneAdapter } = require('../services/midscene/adapter')
 const { createDryRunAdapter } = require('../services/dryRunRuntime')
 
 function ok(data = {}) { return { ok: true, ...data } }
@@ -9,6 +10,7 @@ function fail(error) { return { ok: false, error: { code: error.code || 'IPC_ERR
 const broker = createActionBroker()
 broker.registerAdapter('open-interpreter', createOpenInterpreterAdapter())
 broker.registerAdapter('ui-tars', createUiTarsAdapter())
+broker.registerAdapter('midscene', createMidsceneAdapter())
 broker.registerAdapter('aionui-dry-run', createDryRunAdapter())
 
 function getBroker() {
