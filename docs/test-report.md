@@ -74,3 +74,46 @@ Not run in this development environment. The clean Windows VM, Chrome Midscene e
 | 6 | web.query title | Midscene | NOT RUN | NOT RUN | NOT RUN | Requires Chrome extension bridge and Qwen3-VL key |
 
 Emergency Stop on #5: NOT RUN. Requires live Midscene browser action on the clean VM.
+
+## 2026-05-09 UI-TARS-desktop fork spike
+
+Scratch directory: `C:\Users\g\Desktop\ui-tars-spike`
+Upstream commit: `7986f5aea500c4535c0e55dc5c5d0cda73767c45`
+
+### A — Build/run
+
+Result: **FAIL**
+
+Prerequisites:
+- `node -v`: `v24.14.0`
+- `pnpm` was initially missing; installed with `npm i -g pnpm`
+- `pnpm -v`: `9.10.0`
+
+Actual upstream scripts:
+- Root dev command: `pnpm dev:ui-tars`
+- App dev command: `pnpm --filter ui-tars-desktop dev`
+- App package command: `pnpm --filter ui-tars-desktop package`
+- App make command: `pnpm --filter ui-tars-desktop make`
+- Windows publish command: `pnpm --filter ui-tars-desktop publish:win32`
+
+Install failed:
+
+```text
+pnpm install
+ERR_PNPM_EPERM EPERM, Permission denied:
+\\?\C:\Users\g\Desktop\ui-tars-spike\packages\ui-tars\electron-ipc\node_modules\electron
+```
+
+Retried with `pnpm install --package-import-method=copy --reporter=append-only`; it failed with the same `ERR_PNPM_EPERM` on the same path.
+
+Dev mode was not run because dependency installation did not complete.
+
+### B/C/D
+
+Not run. Spike A failed, so the required discipline was to stop before B/C/D.
+
+### Summary
+
+Passed: **0/4**
+
+Recommendation: fork plan is not viable yet in this Windows environment. Return to the v3 self-build route, or run a separate targeted Windows dependency-install investigation before reconsidering UI-TARS-desktop as a fork base.
