@@ -43,6 +43,10 @@ function createApp(deps = {}) {
           metadata: { notImplemented: true, reason: plan.reason }
         }))
       }
+      if (plan.backend === 'navigate') {
+        const r = await bridge.navigate(plan.url)
+        return res.json(normalize({ ok: r.ok !== false, stdout: `已导航到 ${r.url}`, metadata: { url: r.url } }))
+      }
       if (plan.backend === 'screenshot-page') {
         const buf = await bridge.screenshotPage()
         return res.json(normalize({

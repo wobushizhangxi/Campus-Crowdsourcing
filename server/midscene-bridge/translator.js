@@ -4,6 +4,9 @@ function classify(action = {}) {
   if (NOT_IMPLEMENTED.has(action.type)) {
     return { backend: 'not-implemented', reason: `${action.type} not in v1` }
   }
+  if (action.type === 'web.navigate') {
+    return { backend: 'navigate', url: String(action.payload?.url || '') }
+  }
   if (action.type === 'web.observe') {
     return { backend: 'screenshot-page' }
   }

@@ -23,6 +23,7 @@ const ACTION_TYPES = Object.freeze({
   MOUSE_CLICK: 'mouse.click',
   KEYBOARD_TYPE: 'keyboard.type',
   KEYBOARD_SHORTCUT: 'keyboard.shortcut',
+  WEB_NAVIGATE: 'web.navigate',
   WEB_OBSERVE: 'web.observe',
   WEB_CLICK: 'web.click',
   WEB_TYPE: 'web.type',

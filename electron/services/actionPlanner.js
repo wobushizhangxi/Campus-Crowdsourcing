@@ -120,9 +120,10 @@ function buildPlannerPrompt(userTask) {
         '  - "ui-tars": "screen.observe", "mouse.click", "keyboard.type"',
         '       payload examples: {} | { target: "登录按钮" } | { text: "username" }',
         '       use ONLY for native Windows desktop apps (not browsers) and only when screen authorization is on',
-        '  - "midscene": "web.observe", "web.click", "web.type", "web.query"',
-        '       payload examples: {} | { target: "登录按钮" } | { text: "username" } | { question: "页面标题是什么？" }',
+        '  - "midscene": "web.navigate", "web.observe", "web.click", "web.type", "web.query"',
+        '       payload examples: { url: "https://example.com" } | {} | { target: "登录按钮" } | { text: "username" } | { question: "页面标题是什么？" }',
         '       use for ALL web/browser tasks (login, scrape, fill forms, click buttons on websites)',
+        '       web.navigate opens or switches the active Chrome tab to a URL — use this FIRST when the task names a website, do not assume the user is already on the right page',
         '  - "aionui-dry-run": same action types as the others; use when explicitly demo or runtime unavailable',
         'Routing rules:',
         '  - User mentions a website, browser, URL, or web service (e.g., 学习通, 淘宝, GitHub, gmail) -> midscene + web.*',
@@ -130,7 +131,8 @@ function buildPlannerPrompt(userTask) {
         '  - User mentions clicking on a desktop app, Notepad, Office, system dialog -> ui-tars + mouse.*/keyboard.*',
         '  - User asks to write code -> open-interpreter + code.execute',
         'Risk levels: "low" (read-only/observe), "medium" (mutations bounded to workspace/page), "high" (install, delete, submit forms with credentials, send messages).',
-        'Login-style tasks: usually a SEQUENCE — first web.observe, then web.type for username, web.type for password, web.click for submit. Mark them medium or high risk.',
+        'Login-style tasks: produce ONLY web.navigate (to the login URL) followed by web.observe. Do NOT generate web.type for username or password and do NOT generate web.click for the submit button. The user fills credentials and clicks submit themselves on the page that AionUi opens. Treat credentials as the user\'s private input, never fabricate placeholders like your_username/your_password.',
+        'Common login URLs you may rely on: 学习通=https://passport.chaoxing.com/login, 淘宝=https://login.taobao.com, GitHub=https://github.com/login, Gmail=https://accounts.google.com.',
         'Never fabricate runtimes or action types outside the lists above. Never include hidden background work.',
         'If the task is unclear or impossible with these tools, return { "actions": [] }.'
       ].join('\n')

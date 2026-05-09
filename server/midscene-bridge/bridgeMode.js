@@ -119,6 +119,18 @@ function createBridgeMode(opts = {}) {
     extensionConnected: () => bridgeReady,
     probeOnce,
     ensureConnected,
+    async navigate(url) {
+      if (!/^https?:\/\//i.test(String(url))) throw new Error(`Refusing to navigate non-http(s) URL: ${url}`)
+      if (!bridgeReady) await probeOnce()
+      if (!bridgeReady) throw new Error('Midscene extension not connected — open the extension and switch to Bridge Mode')
+      const current = ensure()
+      if (typeof current.connectNewTabWithUrl === 'function') {
+        await current.connectNewTabWithUrl(url, { forceSameTabNavigation: true })
+        tabAttached = true
+        return { ok: true, url }
+      }
+      throw new Error('Midscene SDK does not expose connectNewTabWithUrl')
+    },
     async screenshotPage() {
       const current = await ensureConnected()
       if (typeof current.screenshotPage === 'function') return current.screenshotPage()
