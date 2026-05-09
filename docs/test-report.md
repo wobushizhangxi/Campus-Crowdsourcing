@@ -296,3 +296,52 @@ Date: 2026-05-09
 ```
 
 Result: PASS
+
+
+## Phase D acceptance smoke
+
+Date: 2026-05-09
+
+```json
+{
+  "passed": true,
+  "tests": [
+    {
+      "test": "adapter healthCheck",
+      "passed": true
+    },
+    {
+      "test": "tool desktop_observe registered",
+      "passed": true
+    },
+    {
+      "test": "tool desktop_click registered",
+      "passed": true
+    },
+    {
+      "test": "tool desktop_type registered",
+      "passed": true
+    },
+    {
+      "test": "desktop_observe policy",
+      "passed": true
+    },
+    {
+      "test": "desktop_click policy",
+      "passed": true
+    },
+    {
+      "test": "desktop_type policy",
+      "passed": true
+    },
+    {
+      "test": "desktop_click rejects empty target",
+      "passed": true
+    }
+  ],
+  "totalTests": 8,
+  "passedCount": 8
+}
+```
+
+Result: PASS
