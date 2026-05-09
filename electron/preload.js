@@ -46,6 +46,16 @@ function createElectronAPI(ipc = ipcRenderer) {
       list: (payload) => ipc.invoke('outputs:list', payload),
       open: (payload) => ipc.invoke('outputs:open', payload),
       export: (payload) => ipc.invoke('outputs:export', payload)
+    },
+    agent: {
+      runTurn: (payload) => ipc.invoke('agent:run-turn', payload),
+      approveTool: (payload) => ipc.invoke('agent:approve-tool', payload),
+      abort: (payload) => ipc.invoke('agent:abort', payload),
+      onEvent: (handler) => {
+        const wrapped = (_evt, payload) => handler(payload)
+        ipc.on('agent:event', wrapped)
+        return () => ipc.off('agent:event', wrapped)
+      }
     }
   }
 }
