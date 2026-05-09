@@ -149,6 +149,16 @@ function buildPlannerPrompt(taskOrMessages) {
         '  - It is OK to propose a chain that may partially fail — each action runs through Control Center, the user can deny mid-flight, and a failed click stops the chain. Conservative one-action plans force the user into "继续" loops that this planner cannot escape.',
         '  - Only return { "actions": [] } if the latest message has no parsable intent in context (truly vague like a single "嗯").',
         'Common login URLs you may rely on: 学习通=https://passport2.chaoxing.com/login, 淘宝=https://login.taobao.com, GitHub=https://github.com/login, Gmail=https://accounts.google.com. If you are uncertain of a site\'s exact login URL, prefer the site\'s root domain (e.g. https://www.example.com) and let the site redirect to its login page.',
+        '',
+        'Site-specific UI flows (use these instead of guessing):',
+        '  学习通 (chaoxing.com / mooc):',
+        '    - The course page sidebar (left rail) lists: AI助教 / 任务 / 章节 / 讨论 / 作业 / 考试 / 资料 / 错题集 / 学习记录 / 课程图谱.',
+        '    - "任务" is the to-do list (often empty if no homework). It is NOT where videos live.',
+        '    - "章节" is the lecture list — videos live here. Click "章节" first.',
+        '    - In 章节 list each lecture row has a status icon: ✓ green = completed; orange "!" = unfinished; clicking a row opens that lecture and starts the video automatically (or shows a play button).',
+        '    - To "watch the next unfinished video" the chain is: web.click "左侧侧边栏的 章节 菜单" → web.click "第一个橙色未完成标记的课时" (or a specific name like "2.3 第三课时" if user named it).',
+        '    - To open a specific course from the homepage, the course cards are on https://i.chaoxing.com/ or https://mooc1.chaoxing.com/ — but if the user is already on a course\'s subpage, do NOT renavigate; just use the sidebar.',
+        '  Tip — when the user is "already logged in and on a page", DO NOT plan a fresh web.navigate. Plan one web.observe (for the audit trail) then click sidebar items to navigate within the site. Renavigation can lose page state.',
         'Never fabricate runtimes or action types outside the lists above. Never include hidden background work.',
         'If the task is unclear or impossible with these tools, return { "actions": [] }.'
       ].join('\n')
