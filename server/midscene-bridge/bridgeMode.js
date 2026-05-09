@@ -121,15 +121,27 @@ function createBridgeMode(opts = {}) {
     ensureConnected,
     async navigate(url) {
       if (!/^https?:\/\//i.test(String(url))) throw new Error(`Refusing to navigate non-http(s) URL: ${url}`)
-      if (!bridgeReady) await probeOnce()
-      if (!bridgeReady) throw new Error('Midscene extension not connected — open the extension and switch to Bridge Mode')
-      const current = ensure()
-      if (typeof current.connectNewTabWithUrl === 'function') {
-        await current.connectNewTabWithUrl(url, { forceSameTabNavigation: true })
-        tabAttached = true
-        return { ok: true, url }
+      // SDK rejects connectNewTabWithUrl if a tab is already attached
+      // ("Active tab id is already set"). Reset by recreating agent +
+      // BridgeServer; the extension's "Listening" mode reconnects within ~1s.
+      if (tabAttached) {
+        await recreateAgent()
       }
-      throw new Error('Midscene SDK does not expose connectNewTabWithUrl')
+      if (!bridgeReady) {
+        await probeOnce()
+        for (let i = 0; !bridgeReady && i < 6; i++) {
+          await new Promise((r) => setTimeout(r, 1000))
+          await probeOnce()
+        }
+      }
+      if (!bridgeReady) throw new Error('Midscene extension did not reconnect after agent reset; check Bridge Mode is still listening')
+      const current = ensure()
+      if (typeof current.connectNewTabWithUrl !== 'function') {
+        throw new Error('Midscene SDK does not expose connectNewTabWithUrl')
+      }
+      await current.connectNewTabWithUrl(url, { forceSameTabNavigation: true })
+      tabAttached = true
+      return { ok: true, url }
     },
     async screenshotPage() {
       const current = await ensureConnected()
