@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { MessageSquare, Paperclip, Play, Send } from 'lucide-react'
+import { MessageSquare, Paperclip, Play, Send, Square } from 'lucide-react'
 
 function insertPath(current, filePath) {
   const trimmed = current.trim()
   return `"${filePath}" ${trimmed}`.trim()
 }
 
-export default function InputBar({ mode = 'chat', onModeChange, onSend, disabled }) {
+export default function InputBar({ mode = 'chat', onModeChange, onSend, disabled, agentRunning, onCancel }) {
   const [text, setText] = useState('')
 
   useEffect(() => {
@@ -53,7 +53,13 @@ export default function InputBar({ mode = 'chat', onModeChange, onSend, disabled
             <Play size={14} /> 执行
           </button>
         </div>
-        <div className="text-xs text-[color:var(--text-muted)]">{isExecute ? 'Qwen 负责规划；AionUi 会在高风险操作前请求确认。' : '普通聊天模式：此输入不会直接执行本地操作。'}</div>
+        <div className="text-xs text-[color:var(--text-muted)]">
+          {agentRunning
+            ? 'Agent 正在执行... 工具调用需要审批时会显示审批卡片。'
+            : isExecute
+              ? 'Agent 模式：AI 直接调用工具执行任务，高风险操作会在聊天中请求确认。'
+              : '普通聊天模式：此输入不会直接执行本地操作。'}
+        </div>
       </div>
       <div className="flex items-end gap-3 bg-[color:var(--bg-primary)] border border-[color:var(--border)] rounded-md px-3 py-2 focus-within:border-[color:var(--accent)]">
         <button type="button" onClick={handleAttachFile} className="h-8 w-8 flex items-center justify-center rounded-md text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-tertiary)]" aria-label="附加文件路径" title="附加本地文件路径">
@@ -67,9 +73,15 @@ export default function InputBar({ mode = 'chat', onModeChange, onSend, disabled
           rows={1}
           className="flex-1 resize-none bg-transparent outline-none text-sm max-h-40 py-1"
         />
-        <button type="submit" disabled={disabled || !text.trim()} className="h-8 w-8 flex items-center justify-center rounded-md bg-[color:var(--accent)] text-white disabled:opacity-40" aria-label="发送">
-          <Send size={14} />
-        </button>
+        {agentRunning ? (
+          <button type="button" onClick={onCancel} className="h-8 w-8 flex items-center justify-center rounded-md bg-red-500 text-white hover:bg-red-600" aria-label="停止执行">
+            <Square size={14} />
+          </button>
+        ) : (
+          <button type="submit" disabled={disabled || !text.trim()} className="h-8 w-8 flex items-center justify-center rounded-md bg-[color:var(--accent)] text-white disabled:opacity-40" aria-label="发送">
+            <Send size={14} />
+          </button>
+        )}
       </div>
     </form>
   )
