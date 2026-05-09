@@ -115,6 +115,15 @@ function evaluateToolCall(name, args = {}, ctx = {}) {
     case 'browser_task':
       return { risk: RISK_LEVELS.MEDIUM, reason: '浏览器自动化任务会操作真实网页。' }
 
+    case 'desktop_observe':
+      return { risk: RISK_LEVELS.LOW, reason: '桌面截图（只读）。' }
+
+    case 'desktop_click':
+      return { risk: RISK_LEVELS.HIGH, reason: '桌面点击会操作真实应用程序。' }
+
+    case 'desktop_type':
+      return { risk: RISK_LEVELS.MEDIUM, reason: '桌面输入会在当前焦点处输入文本。' }
+
     default:
       return { risk: RISK_LEVELS.BLOCKED, reason: `未知工具：${name}` }
   }

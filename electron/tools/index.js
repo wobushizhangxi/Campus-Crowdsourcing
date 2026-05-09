@@ -33,6 +33,9 @@ function loadBuiltins() {
   require('./remember')
   require('../skills/loader')
   require('./browserTask')
+  require('./desktopObserve')
+  require('./desktopClick')
+  require('./desktopType')
 }
 
 function getExecutionToolSchemas() {
