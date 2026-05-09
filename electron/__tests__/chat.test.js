@@ -78,7 +78,6 @@ test('chat:send routes execute mode through agent loop', async () => {
   })
   const register = createRegister({
     storeRef: { getConfig: () => ({ permissionMode: 'default' }) },
-    taskOrchestrator: { runExecutionTask: vi.fn() },
     runTurn,
     userRules: { buildSystemPromptSection: () => '' },
     skillRegistry: { listSkills: () => [], buildSkillIndex: () => '' }

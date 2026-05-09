@@ -3,7 +3,6 @@ const deepseek = require('../services/deepseek')
 const tools = require('../tools')
 const skillRegistry = require('../skills/registry')
 const userRules = require('../services/userRules')
-const { createTaskOrchestrator } = require('../services/taskOrchestrator')
 const { runTurn } = require('../services/agentLoop')
 const { requestConfirm } = require('../confirm')
 
@@ -122,7 +121,6 @@ function createRegister(overrides = {}) {
     toolSchemas: tools.TOOL_SCHEMAS,
     skillRegistry,
     userRules,
-    taskOrchestrator: createTaskOrchestrator(),
     runTurn,
     ...overrides
   }
