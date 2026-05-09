@@ -259,3 +259,40 @@ Events:
 - **assistant_message** @4481ms: {"time":4481,"convId":"smoke-test-1778360072834","type":"assistant_message","content":"Done! The file `hello.txt` has been created at `C:\\Users\\g\\Desktop` with the content \"hello world\" (11 bytes
 
 Result: PASS
+
+
+## Phase C acceptance smoke
+
+Date: 2026-05-09
+
+```json
+{
+  "passed": true,
+  "tests": [
+    {
+      "test": "parseSSE",
+      "passed": true
+    },
+    {
+      "test": "parseSSE (no trailing blank line)",
+      "passed": true
+    },
+    {
+      "test": "tool registration",
+      "passed": true
+    },
+    {
+      "test": "tool policy",
+      "passed": true
+    },
+    {
+      "test": "rejects empty goal",
+      "passed": true
+    }
+  ],
+  "totalTests": 5,
+  "passedCount": 5
+}
+```
+
+Result: PASS
