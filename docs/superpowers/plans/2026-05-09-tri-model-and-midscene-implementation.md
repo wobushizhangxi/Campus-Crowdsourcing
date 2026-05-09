@@ -1811,6 +1811,555 @@ git add electron/ipc/openExternal.js electron/ipc/setupStatus.js electron/ipc/in
 git commit -m "fix(welcome): open external links in OS browser via shell.openExternal; correct verified URLs"
 ```
 
+## Task 5.5d: Midscene Bridge — accurate label & inline 3-step guide
+
+**Why:** A user installed the Midscene Chrome extension and the dialog still
+showed `Chrome Midscene extension connected` as ⚠ unsatisfied. Two reasons:
+
+1. The label was wrong. Bridge Mode requires the user to open the extension,
+   switch to the **Bridge Mode** tab (not the default Playground tab), and
+   click **Allow connection** with `http://localhost:8770` as the target.
+   "Extension installed" is necessary but not sufficient.
+2. The Midscene extension shows its own "Please set up your environment
+   variables before using" warning in the Playground tab. That warning is
+   for the extension's Playground feature (it wants OPENAI_API_KEY for its
+   own demo) and is **completely unrelated** to AionUi Bridge Mode. Users
+   conflate the two and try to fix the wrong thing.
+
+**Files:**
+- Modify: `client/src/components/WelcomeSetupDialog.jsx` (rename label, branch
+  on `midsceneExtension` to render an inline guide block when unsatisfied)
+- Modify: `electron/ipc/setupStatus.js` (rename label string only; detection
+  logic is already correct — `extensionConnected` from bridge `/health`
+  already means "bridge connected", just mislabeled)
+- Modify: `electron/__tests__/setup-status-ipc.test.js` if it asserts the
+  old label string anywhere
+
+### New row visual (when unsatisfied)
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ ⚠ Chrome Midscene Bridge 已连接                                       │
+│                                                                       │
+│  扩展已装但还需要打开 Bridge Mode：                                   │
+│   1. 在 Chrome 工具栏点 Midscene 扩展图标                             │
+│   2. 切到「Bridge Mode」标签（扩展左侧 ☰ 菜单）                       │
+│   3. 看到底部出现「Listening for connection」即可，                   │
+│      不需要展开「Use remote server」也不需要填 URL                    │
+│   4. 回到这里 —— 状态会自动变绿                                        │
+│                                                                       │
+│  ⓘ 扩展自带的 Playground 显示的 "Please set up environment variables" │
+│     警告与本应用无关，可忽略。AionUi 走 Bridge Mode，模型配置在        │
+│     AionUi 这一侧。                                                   │
+│                                                                       │
+│  还没装扩展？  [前往 Chrome Web Store ↗]                              │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+When satisfied, the row collapses to a single line: `✓ Chrome Midscene Bridge 已连接`.
+
+### Steps
+
+- [ ] **Step 1: Update labels in `setupStatus.js`**
+
+```js
+// in computeSetupStatus return
+deps: { ..., midsceneExtension: ... }  // key name unchanged for store compat
+labels: {
+  ...,
+  midsceneExtension: 'Chrome Midscene Bridge 已连接'  // was: '...extension connected'
+}
+```
+
+If labels are currently in the React component (not in IPC), update them
+there instead. Keep the dep key `midsceneExtension` as-is to avoid breaking
+existing tests for `deps` shape.
+
+- [ ] **Step 2: Branch in `WelcomeSetupDialog.jsx`**
+
+Add a `MidsceneBridgeRow` component used when `dep === 'midsceneExtension'`:
+
+```jsx
+function MidsceneBridgeRow({ ok, onSaved }) {
+  if (ok) {
+    return <li className="ok"><span>✓ Chrome Midscene Bridge 已连接</span></li>
+  }
+
+  return (
+    <li className="missing midscene-bridge-guide">
+      <div className="row-head">
+        <span>⚠ Chrome Midscene Bridge 已连接</span>
+      </div>
+
+      <div className="guide">
+        <p>扩展已装但还需要打开 Bridge Mode：</p>
+        <ol>
+          <li>在 Chrome 工具栏点 Midscene 扩展图标</li>
+          <li>切到「Bridge Mode」标签（扩展左侧 ☰ 菜单）</li>
+          <li>看到底部出现「Listening for connection」即可，<strong>不需要</strong>展开「Use remote server」也不需要填 URL</li>
+          <li>回到这里 —— 状态会自动变绿</li>
+        </ol>
+
+        <div className="hint">
+          ⓘ 扩展自带的 Playground 显示的 “Please set up environment variables” 警告与本应用无关，可忽略。
+          AionUi 走 Bridge Mode，模型配置在 AionUi 这一侧。
+        </div>
+
+        <p className="fallback">
+          还没装扩展？{' '}
+          <button
+            type="button"
+            className="link-like"
+            onClick={() => window.aionui.invoke('app:open-external', {
+              url: 'https://chromewebstore.google.com/detail/midscene/gbldofcpkknbggpkmbdaefngejllnief'
+            })}
+          >
+            前往 Chrome Web Store ↗
+          </button>
+        </p>
+      </div>
+
+      {/* Auto-detect when bridge sees the connection: parent re-fetches every 5s */}
+    </li>
+  )
+}
+```
+
+In `DepRow`, add the dispatch:
+
+```js
+if (dep === 'midsceneExtension') return <MidsceneBridgeRow ok={ok} onSaved={onSaved} />
+```
+
+- [ ] **Step 3: Auto-refresh `setup:status` while dialog is open**
+
+The user does steps 1–4 outside AionUi. They expect the dialog to flip to ✓
+without manual reload. Add a 5-second polling effect that re-fetches
+`setup:status` whenever the dialog is open and at least one dep is missing:
+
+```jsx
+useEffect(() => {
+  if (!open) return
+  const allReady = status && Object.values(status.deps).every(Boolean)
+  if (allReady) return  // nothing to poll for
+  const id = setInterval(() => {
+    window.aionui.invoke('setup:status').then(setStatus)
+  }, 5000)
+  return () => clearInterval(id)
+}, [open, status])
+```
+
+Stop polling when everything's green.
+
+- [ ] **Step 4: Smoke test (manual)**
+
+```bash
+npm run electron:dev
+```
+
+- Open dialog → Midscene Bridge row shows the inline 3-step guide.
+- Copy the `http://localhost:8770` URL via the copy button.
+- In Chrome, open Midscene extension → Bridge Mode tab → paste URL → Allow connection.
+- Within ~5 seconds the dialog flips that row to ✓ without any user action.
+- Hint text about the Playground warning is visible.
+- Dismiss dialog and reopen → still works (no stale state).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add client/src/components/WelcomeSetupDialog.jsx electron/ipc/setupStatus.js electron/__tests__/setup-status-ipc.test.js
+git commit -m "fix(welcome): accurate Midscene Bridge label + inline 3-step guide + auto-refresh"
+```
+
+## Task 5.5e: midscene-bridge — `extensionConnected()` actually probes the bridge
+
+**Why:** A user with the Midscene extension installed and the **Bridge Mode**
+tab showing "Listening for connection" still sees the AionUi welcome dialog
+mark `Chrome Midscene Bridge 已连接` as ⚠ unsatisfied. Root cause is in
+`server/midscene-bridge/bridgeMode.js`:
+
+```js
+extensionConnected: () => {
+  const current = ensure()                        // creates agent — but no socket open yet
+  if (typeof current.isConnected === 'function')   // method does NOT exist on AgentOverChromeBridge
+    return Boolean(current.isConnected())
+  if (typeof current.connected === 'boolean')      // also does not exist
+    return current.connected
+  return connected                                  // still false — connectCurrentTab never ran
+}
+```
+
+The actual connection only happens lazily inside `ensureConnected()`, which
+is invoked solely from action handlers (`aiAction`, `aiInput`, etc.). The
+`/health` endpoint never triggers it, so the dialog only flips green AFTER
+the user runs a Midscene action — which defeats the dialog's purpose
+(telling the user when they're ready).
+
+**Files:**
+- Modify: `server/midscene-bridge/bridgeMode.js`
+- Modify: `server/midscene-bridge/index.js` (kick off probe at startup)
+- Modify: `server/midscene-bridge/__tests__/health.test.js` (new test)
+
+### Approach
+
+The Midscene extension's WebSocket server starts listening as soon as the
+user opens Bridge Mode. `AgentOverChromeBridge` connects via WebSocket
+**before** any tab attach. The right signal is "did the SDK successfully
+hand-shake with the extension", not "did we attach to a tab".
+
+Two parts:
+
+1. **Background probe loop** in the bridge: every 3s, attempt a lightweight
+   handshake (e.g. `agent.connectCurrentTab` with a short timeout, or
+   whichever `@midscene/web/bridge-mode` API exposes "is the server-side of
+   the socket reachable" without opening a tab). On success: set
+   `connected = true`. On failure: leave `connected = false`. Stop probing
+   once connected; resume on disconnect events if exposed.
+2. **Synchronous `extensionConnected()`** in the existing health route now
+   reads ONLY `connected` (the cached state), so `/health` is fast.
+
+### Steps
+
+- [ ] **Step 1: Inspect the actual `@midscene/web/bridge-mode` API**
+
+```bash
+cat node_modules/@midscene/web/dist/types/bridge-mode/agent.d.ts || true
+cat node_modules/@midscene/web/bridge-mode/package.json
+```
+
+Find the method that establishes the socket without requiring a tab. Likely
+candidates: `connect()`, `connectCurrentTab({ ...timeout })`,
+`waitForConnection(ms)`. Pick the lightest one. If only
+`connectCurrentTab` exists, pass a short timeout (e.g. 1500ms) so the probe
+fails fast when the extension isn't listening.
+
+> If no usable method exists without side effects, fall back to: keep the
+> current "trigger on first action" behaviour, but additionally update the
+> `/health` `extensionConnected` to expose `agent.isOpen?.()` /
+> `agent.isAvailable?.()` if any such property exists. As last resort, leave
+> the probe-based approach below in place — it's better than the current
+> "always false until first action".
+
+- [ ] **Step 2: Refactor `bridgeMode.js`**
+
+```js
+function createBridgeMode(opts = {}) {
+  let agent = null
+  let connected = false
+  let probeTimer = null
+
+  const factory = opts.factory || (/* ...existing... */)
+
+  function ensure() { if (!agent) agent = factory(); return agent }
+
+  async function probeOnce() {
+    try {
+      const a = ensure()
+      // pick the lightest verified API from Step 1; example uses connectCurrentTab w/ 1500ms timeout
+      await a.connectCurrentTab({ forceSameTabNavigation: true, timeoutMs: 1500 })
+      connected = true
+    } catch {
+      connected = false
+    }
+  }
+
+  function startProbeLoop() {
+    if (probeTimer) return
+    probeTimer = setInterval(() => {
+      if (connected) return  // stop probing once green
+      probeOnce()
+    }, 3000)
+    probeOnce()  // immediate first attempt
+  }
+
+  function stopProbeLoop() {
+    if (probeTimer) { clearInterval(probeTimer); probeTimer = null }
+  }
+
+  return {
+    start: startProbeLoop,
+    stop: stopProbeLoop,
+    ready: () => Boolean(opts.endpoint && opts.apiKey && opts.model),
+    extensionConnected: () => connected,  // synchronous, fast
+    async ensureConnected() {
+      if (!connected) await probeOnce()
+      if (!connected) throw new Error('Midscene extension not connected')
+      return ensure()
+    },
+    async screenshotPage() { return (await this.ensureConnected()).screenshotPage() },
+    async aiAction(i)   { return (await this.ensureConnected()).aiAction(i) },
+    async aiInput(t, p) { return (await this.ensureConnected()).aiInput(t, p) },
+    async aiQuery(q)    { return (await this.ensureConnected()).aiQuery(q) },
+    async destroy() { stopProbeLoop(); if (agent?.destroy) await agent.destroy(); agent = null; connected = false }
+  }
+}
+```
+
+- [ ] **Step 3: Start the probe loop on bridge boot**
+
+In `server/midscene-bridge/index.js` `wireDefaultBridge()`, after creating
+the bridge, call `bridge.start()`. Stop it in any shutdown path that exists
+(e.g. SIGTERM handler, if any).
+
+```js
+function wireDefaultBridge() {
+  const { createBridgeMode } = require('./bridgeMode')
+  const bridge = createBridgeMode({
+    endpoint: process.env.MIDSCENE_QWEN_ENDPOINT,
+    apiKey: process.env.MIDSCENE_QWEN_API_KEY,
+    model: process.env.MIDSCENE_QWEN_MODEL || 'qwen3-vl-plus'
+  })
+  bridge.start()
+  return { bridge }
+}
+```
+
+- [ ] **Step 4: New test in `server/midscene-bridge/__tests__/health.test.js`**
+
+```js
+const { describe, it, expect, vi } = require('vitest')
+const request = require('supertest')
+
+describe('midscene-bridge /health reflects probe outcome', () => {
+  it('reports extensionConnected=true after probe succeeds', async () => {
+    let probeCalled = 0
+    const fakeAgent = {
+      connectCurrentTab: async () => { probeCalled++; return true }
+    }
+    const { createBridgeMode } = require('../bridgeMode')
+    const bridge = createBridgeMode({
+      endpoint: 'http://x', apiKey: 'k', model: 'qwen3-vl-plus',
+      factory: () => fakeAgent
+    })
+    bridge.start()
+    await new Promise((r) => setTimeout(r, 50))
+    expect(bridge.extensionConnected()).toBe(true)
+    bridge.stop()
+  })
+
+  it('reports extensionConnected=false when probe rejects', async () => {
+    const fakeAgent = { connectCurrentTab: async () => { throw new Error('not listening') } }
+    const { createBridgeMode } = require('../bridgeMode')
+    const bridge = createBridgeMode({
+      endpoint: 'http://x', apiKey: 'k', model: 'qwen3-vl-plus',
+      factory: () => fakeAgent
+    })
+    bridge.start()
+    await new Promise((r) => setTimeout(r, 50))
+    expect(bridge.extensionConnected()).toBe(false)
+    bridge.stop()
+  })
+})
+```
+
+- [ ] **Step 5: Smoke test (manual)**
+
+```bash
+npm run electron:dev
+```
+
+Expected end-to-end behaviour:
+- Boot AionUi with Chrome Midscene extension closed → dialog shows ⚠ for Bridge.
+- Open extension → Bridge Mode tab → "Listening for connection".
+- Within ~5s the welcome dialog flips that row to ✓ **without** the user
+  triggering any Midscene action.
+- Close extension → after the next probe tick (3s) the row goes back to ⚠.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add server/midscene-bridge/bridgeMode.js server/midscene-bridge/index.js server/midscene-bridge/__tests__/health.test.js
+git commit -m "fix(midscene-bridge): /health reflects probe-based connection state, not lazy ensure"
+```
+
+## Task 5.5f: Packaging — bundle sidecar `node_modules` into installer
+
+**Why:** Live debugging on a real install (`C:\Users\g\AppData\Local\Programs\AgentDevLite\…\AionUi\resources\server\`) revealed that none of the three bridges' `node_modules` were shipped. `extraResources` at Task 4.6 / Task 13 only copies sidecar source files; deps (`@midscene/web`, `express`, `@ui-tars/sdk`, `@nut-tree-fork/nut-js`, `screenshot-desktop`, `node-fetch`) are absent. With `stdio: 'ignore'` in the supervisor, the `Cannot find module 'express'` failure is silent. Consequence: every fresh install has all three sidecars dead on arrival; users see "extension not connected" forever even with everything else perfect. A development hot-fix using a Windows junction (`mklink /J`) only works on the developer's machine.
+
+**Files:**
+- Create: `scripts/prepare-bridges.js`
+- Modify: `package.json` (`scripts`, `build.extraResources`)
+- Modify: `.gitignore` (ignore the staging dir)
+- Modify: `electron/services/bridgeSupervisor.js` (capture stderr to a log file so future failures aren't silent)
+
+### Approach
+
+Workspace-mode dev hoists every dep into the **root** `node_modules`, so a sidecar dir contains no `node_modules` of its own. We need each shipped sidecar to be self-contained.
+
+The cleanest path:
+
+1. At build time, copy each `server/<bridge>/` to a **staging dir** outside the workspace.
+2. In the staging copy, run `npm install --omit=dev --no-package-lock --no-workspaces` so npm produces a **standalone** `node_modules/` for that sidecar.
+3. Point `extraResources` at the staging dir instead of the in-workspace source.
+4. Keep the in-workspace dir untouched — it's still hoisted via root `node_modules` for dev, vitest, etc.
+
+Result: the shipped tree contains `resources/server/midscene-bridge/{index.js, bridgeMode.js, …, node_modules/}` — fully self-contained.
+
+### Steps
+
+- [ ] **Step 1: Create `scripts/prepare-bridges.js`**
+
+```js
+const fs = require('fs')
+const path = require('path')
+const { spawnSync } = require('child_process')
+
+const BRIDGES = ['oi-bridge', 'uitars-bridge', 'midscene-bridge']
+const SRC_ROOT = path.join(__dirname, '..', 'server')
+const STAGING_ROOT = path.join(__dirname, '..', 'dist-bridges')
+
+function rmrf(p) { if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true }) }
+
+function copyDir(src, dst, ignore = []) {
+  fs.mkdirSync(dst, { recursive: true })
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    if (ignore.includes(entry.name)) continue
+    const s = path.join(src, entry.name)
+    const d = path.join(dst, entry.name)
+    if (entry.isDirectory()) copyDir(s, d, ignore)
+    else if (entry.isFile()) fs.copyFileSync(s, d)
+  }
+}
+
+function run(cmd, args, cwd) {
+  const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' })
+  if (r.status !== 0) {
+    process.stderr.write(`\n[prepare-bridges] ${cmd} ${args.join(' ')} failed in ${cwd}\n`)
+    process.exit(r.status || 1)
+  }
+}
+
+rmrf(STAGING_ROOT)
+fs.mkdirSync(STAGING_ROOT, { recursive: true })
+
+for (const name of BRIDGES) {
+  const src = path.join(SRC_ROOT, name)
+  const dst = path.join(STAGING_ROOT, name)
+  if (!fs.existsSync(src)) {
+    process.stderr.write(`[prepare-bridges] missing source ${src}\n`)
+    process.exit(1)
+  }
+  copyDir(src, dst, ['__tests__', 'node_modules'])
+  process.stdout.write(`[prepare-bridges] installing deps for ${name}\n`)
+  // --no-workspaces forces a standalone install in this dir, ignoring the parent workspace config
+  run('npm', ['install', '--omit=dev', '--no-package-lock', '--no-workspaces'], dst)
+}
+
+process.stdout.write('[prepare-bridges] done\n')
+```
+
+- [ ] **Step 2: Update `package.json` scripts**
+
+```json
+"scripts": {
+  "setup": "npm install && npm --prefix client install",
+  "build:client": "npm --prefix client run build",
+  "build:bridges": "node scripts/prepare-bridges.js",
+  "electron:dev": "concurrently -n client,electron -c magenta,yellow \"npm --prefix client run dev\" \"node -e \\\"setTimeout(()=>require('child_process').execSync('electron .', {stdio:'inherit'}),3000)\\\"\"",
+  "electron:build": "npm run build:client && npm run build:bridges && electron-builder --win",
+  "test": "vitest run",
+  "test:watch": "vitest"
+}
+```
+
+> Note: `electron:dev` does NOT call `build:bridges`. Dev mode runs bridges directly from `server/<bridge>/index.js`, where workspace hoisting already provides deps via root `node_modules`. Only the packaged build needs standalone bridges.
+
+- [ ] **Step 3: Update `extraResources`**
+
+Change every `server/<bridge>` source path to the staging path:
+
+```json
+"extraResources": [
+  { "from": "resources/skills", "to": "skills" },
+  { "from": "client/dist", "to": "client/dist" },
+  { "from": "dist-bridges/oi-bridge",       "to": "server/oi-bridge" },
+  { "from": "dist-bridges/uitars-bridge",   "to": "server/uitars-bridge" },
+  { "from": "dist-bridges/midscene-bridge", "to": "server/midscene-bridge" }
+]
+```
+
+The `to` path stays the same so `bridgeSupervisor.js`'s `path.join(rootDir, 'server/<bridge>/index.js')` still resolves correctly post-install.
+
+- [ ] **Step 4: Add `dist-bridges/` to `.gitignore`**
+
+```
+dist-bridges/
+```
+
+- [ ] **Step 5: Make supervisor errors visible**
+
+Currently `electron/services/bridgeSupervisor.js` line 55 has `stdio: 'ignore'`. Change to capture the child's stderr to a log file so future packaging regressions surface immediately:
+
+```js
+const fs = require('fs')
+const os = require('os')
+// ...
+function buildStdio(key) {
+  const logDir = path.join(os.tmpdir(), 'aionui-logs')
+  fs.mkdirSync(logDir, { recursive: true })
+  const out = fs.openSync(path.join(logDir, `${key}-stdout.log`), 'a')
+  const err = fs.openSync(path.join(logDir, `${key}-stderr.log`), 'a')
+  return ['ignore', out, err]
+}
+// ...
+const spawnOptions = { stdio: buildStdio(key), env: buildEnv(key) }
+```
+
+Document the path in `docs/USER_MANUAL.md` (a one-line "if a runtime won't start, check `%TEMP%\aionui-logs\<bridge>-stderr.log`").
+
+- [ ] **Step 6: Verify build produces self-contained sidecars**
+
+```bash
+npm run build:bridges
+ls dist-bridges/midscene-bridge/node_modules/@midscene/web   # must exist
+npm run electron:build
+```
+
+After install of the resulting NSIS installer, the install dir must contain:
+
+```
+resources/server/midscene-bridge/node_modules/@midscene/web/...
+resources/server/uitars-bridge/node_modules/@ui-tars/sdk/...
+resources/server/oi-bridge/node_modules/express/...
+```
+
+Spot-check at least one `package.json` exists under each `node_modules`.
+
+- [ ] **Step 7: End-to-end smoke test on a clean Windows VM**
+
+(Important: do this on a VM where the dev tree is NOT present, so junctions/symlinks from the developer's machine cannot mask packaging gaps.)
+
+1. Install the new NSIS installer.
+2. Launch AionUi.
+3. Welcome dialog should NOT show "extension not connected" forever after Bridge Mode is started — the same probe logic from Task 5.5e must work because the bridge can now actually start.
+4. `netstat -ano | findstr :8770` shows midscene-bridge listening within ~5s of app launch.
+
+If any of these fail, the packaging is still broken — investigate per `%TEMP%\aionui-logs\midscene-bridge-stderr.log`.
+
+- [ ] **Step 8: Native modules sanity check**
+
+`uitars-bridge` depends on `@nut-tree-fork/nut-js` which has Windows-native binaries. Confirm `dist-bridges/uitars-bridge/node_modules/@nut-tree-fork/nut-js/` contains the prebuilt `.node` files for the target arch (x64). If absent, `npm install` likely needs `--target_arch=x64` or `electron-rebuild` after the prepare step. Fix in this same task if so.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add scripts/prepare-bridges.js package.json .gitignore electron/services/bridgeSupervisor.js docs/USER_MANUAL.md
+git commit -m "build: ship self-contained sidecar node_modules via dist-bridges staging; capture supervisor stderr to log"
+```
+
+### Manual hot-fix to remove afterwards
+
+Whoever has the developer-machine junction set (`mklink /J resources/server/<bridge> -> <dev>/server/<bridge>`) should remove those junctions after this task ships, since the proper path now works:
+
+```powershell
+foreach ($b in @("oi-bridge","uitars-bridge","midscene-bridge")) {
+  $p = "C:\Users\g\AppData\Local\Programs\AgentDevLite\AgentDev Lite\AionUi\resources\server\$b"
+  if ((Get-Item $p -Force).LinkType -eq 'Junction') { Remove-Item $p -Force }
+}
+```
+
+(Then reinstall to get the proper packaged version.)
+
 ## Task 5.6: Acceptance run + test-report
 
 **Files:**
