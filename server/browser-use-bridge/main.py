@@ -5,14 +5,11 @@ Endpoints:
   POST /execute    → SSE stream of { type, ... }
   POST /cancel     → cancels in-flight task
 """
-import asyncio
 import json
 import os
 import sys
-import traceback
-from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -38,7 +35,7 @@ async def health():
     }
 
 
-async def sse_event(event_type: str, data: dict | str):
+def sse_event(event_type: str, data: dict | str):
     if isinstance(data, dict):
         data = json.dumps(data, ensure_ascii=False, default=str)
     return f"event: {event_type}\ndata: {data}\n\n"
@@ -54,7 +51,7 @@ async def execute(req: ExecuteRequest):
         started = time.time()
 
         # Emit start event
-        yield await sse_event("start", {
+        yield sse_event("start", {
             "goal": req.goal,
             "max_steps": req.max_steps,
             "start_url": req.start_url,
@@ -70,7 +67,7 @@ async def execute(req: ExecuteRequest):
         result = await pool.run_task(task)
 
         # Emit result
-        yield await sse_event("result", {
+        yield sse_event("result", {
             "success": result.success,
             "summary": result.summary,
             "final_url": result.final_url,
@@ -80,7 +77,7 @@ async def execute(req: ExecuteRequest):
         })
 
         # Emit done
-        yield await sse_event("done", {
+        yield sse_event("done", {
             "duration_ms": int((time.time() - started) * 1000),
         })
 

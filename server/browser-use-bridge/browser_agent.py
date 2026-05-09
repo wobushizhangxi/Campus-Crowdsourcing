@@ -2,7 +2,7 @@
 import asyncio
 import os
 import traceback
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from browser_use import Agent, Browser, ChatOpenAI
@@ -55,6 +55,9 @@ class BrowserAgentPool:
     async def _ensure_browser(self, headless: bool) -> Browser:
         if self._browser is None:
             self._browser = Browser(headless=headless)
+        elif getattr(self._browser, 'headless', None) != headless:
+            import warnings
+            warnings.warn(f"Browser headless={self._browser.headless} but task requested headless={headless}. Reusing existing browser.")
         return self._browser
 
     async def run_task(self, task: BrowserTask):
