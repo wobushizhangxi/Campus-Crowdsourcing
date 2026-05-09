@@ -2,9 +2,52 @@ const { store } = require('../store')
 const modelRouter = require('./modelRouter')
 const { MODEL_ROLES } = require('./models/modelTypes')
 const { buildPlannerPrompt, normalizeActionPlan } = require('./actionPlanner')
+const visionPlannerModule = require('./visionPlanner')
 const dryRunRuntime = require('./dryRunRuntime')
 const { getBroker } = require('../ipc/actions')
 const { addRunOutput } = require('./runOutputs')
+
+const WEB_KEYWORDS = [
+  'web',
+  'website',
+  'browser',
+  'page',
+  'url',
+  'http',
+  'click',
+  'login',
+  'gmail',
+  'github',
+  'taobao',
+  'chaoxing',
+  'chapter',
+  'course',
+  '网页',
+  '网站',
+  '浏览器',
+  '登录',
+  '点击',
+  '打开',
+  '学习通',
+  '章节',
+  '课程'
+]
+
+const NON_WEB_KEYWORDS = [
+  'shell',
+  'command',
+  'git',
+  'npm',
+  'python',
+  'file',
+  'code',
+  'run ',
+  '命令',
+  '执行 ',
+  '运行 ',
+  '文件',
+  '代码'
+]
 
 function lastUserMessage(messages = []) {
   return [...messages].reverse().find((message) => message.role === 'user')?.content || ''
@@ -48,10 +91,48 @@ function saveCompletedOutputs(actions = [], addOutput = addRunOutput) {
   return outputs
 }
 
+function looksLikeWebTask(latestUserMessage = '', messages = []) {
+  const text = String(latestUserMessage || '')
+  const lower = text.toLowerCase()
+  if (NON_WEB_KEYWORDS.some((keyword) => lower.includes(keyword.toLowerCase()))) return false
+  if (WEB_KEYWORDS.some((keyword) => lower.includes(keyword.toLowerCase()) || text.includes(keyword))) return true
+
+  if (/^(continue|next|again|ok|done|继续|下一步|再来一次|好了|登录好了)$/.test(text.trim())) {
+    const lastAssistant = [...messages].reverse().find((message) => message.role === 'assistant')
+    return Boolean(lastAssistant && /midscene|web\./.test(String(lastAssistant.content || '')))
+  }
+
+  return false
+}
+
+async function internalObserve(config = {}, fetchImpl = global.fetch) {
+  if (!fetchImpl) throw new Error('No fetch implementation available for internal observe')
+  const endpoint = (config.midsceneEndpoint || 'http://127.0.0.1:8770').replace(/\/+$/, '')
+  const response = await fetchImpl(`${endpoint}/execute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      protocol: 'aionui.midscene.v1',
+      actionId: `internal-observe-${Date.now()}`,
+      sessionId: 'orchestrator',
+      type: 'web.observe',
+      payload: {},
+      approved: true,
+      createdAt: new Date().toISOString()
+    })
+  })
+  if (!response.ok) throw new Error(`internalObserve HTTP ${response.status}`)
+  const data = await response.json()
+  if (!data?.metadata?.screenshotBase64) throw new Error('internalObserve returned no screenshot')
+  return data.metadata.screenshotBase64
+}
+
 function createTaskOrchestrator(overrides = {}) {
   const deps = {
     storeRef: store,
     modelRouter,
+    visionPlanner: visionPlannerModule,
+    fetchImpl: global.fetch,
     dryRunRuntime,
     broker: getBroker(),
     addRunOutput,
@@ -76,6 +157,36 @@ function createTaskOrchestrator(overrides = {}) {
       const plan = deps.dryRunRuntime.planTask(task, { sessionId, cwd: config.workspace_root })
       proposals = plan.actions
       usedDryRun = true
+    } else if (
+      Boolean(config.visionLoopEnabled) &&
+      Boolean(config.doubaoVisionEndpoint) &&
+      Boolean(config.doubaoVisionApiKey) &&
+      Boolean(config.doubaoVisionModel) &&
+      looksLikeWebTask(task, messages)
+    ) {
+      let screenshotBase64 = null
+      try {
+        screenshotBase64 = await internalObserve(config, deps.fetchImpl)
+      } catch (error) {
+        onEvent?.('chat:vision-fallback', { stage: 'observe', reason: error.message })
+      }
+
+      if (screenshotBase64) {
+        try {
+          const raw = await deps.visionPlanner.planNext({
+            goal: task,
+            history: messages,
+            screenshotBase64,
+            config
+          })
+          proposals = normalizeActionPlan(raw, { sessionId, now: deps.now() })
+        } catch (error) {
+          onEvent?.('chat:vision-fallback', { stage: 'plan', reason: error.message })
+          proposals = await planWithModel(messages, config, sessionId)
+        }
+      } else {
+        proposals = await planWithModel(messages, config, sessionId)
+      }
     } else {
       // Pass full conversation history to the planner so multi-turn cues
       // ("继续", "再来一次", "登录好了") resolve against prior turns.
@@ -98,4 +209,11 @@ function createTaskOrchestrator(overrides = {}) {
   return { runExecutionTask }
 }
 
-module.exports = { createTaskOrchestrator, lastUserMessage, saveCompletedOutputs, summarizeSubmitted }
+module.exports = {
+  createTaskOrchestrator,
+  internalObserve,
+  lastUserMessage,
+  looksLikeWebTask,
+  saveCompletedOutputs,
+  summarizeSubmitted
+}
