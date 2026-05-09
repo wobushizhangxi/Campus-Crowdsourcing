@@ -4,12 +4,14 @@ const { register } = require('./index')
 const { requestConfirm } = require('../confirm')
 const { toolError } = require('./_fs-helpers')
 
-async function writeFile({ path: filePath, content = '', encoding = 'utf8', overwrite = false }) {
+async function writeFile({ path: filePath, content = '', encoding = 'utf8', overwrite = false }, context = {}) {
   if (!filePath) throw toolError('INVALID_ARGS', '需要提供路径。')
   if (fs.existsSync(filePath)) {
     if (!overwrite) return { error: { code: 'ALREADY_EXISTS', message: `文件已存在：${filePath}` } }
-    const allowed = await requestConfirm({ kind: 'overwrite', payload: { path: filePath } })
-    if (!allowed) return { error: { code: 'USER_CANCELLED', message: '用户已取消覆盖。' } }
+    if (!context.skipInternalConfirm) {
+      const allowed = await requestConfirm({ kind: 'overwrite', payload: { path: filePath } })
+      if (!allowed) return { error: { code: 'USER_CANCELLED', message: '用户已取消覆盖。' } }
+    }
   }
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   const data = encoding === 'base64' ? Buffer.from(String(content), 'base64') : String(content)

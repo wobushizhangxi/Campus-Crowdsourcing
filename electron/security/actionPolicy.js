@@ -1,19 +1,15 @@
 const { ACTION_TYPES, RISK_LEVELS } = require('./actionTypes')
-
-const LOW_SHELL_PREFIXES = [
-  'pwd', 'cd', 'dir', 'ls', 'type', 'cat', 'where', 'which', 'echo',
-  'git status', 'git diff', 'git log', 'npm --version', 'node --version',
-  'python --version', 'pip --version'
-]
-
-const INSTALL_PATTERN = /\b(npm|pnpm|yarn|pip|pip3|uv|winget|choco|scoop)\s+(install|add|i)\b|\bsetup\.exe\b|\bmsiexec\b/i
-const DELETE_PATTERN = /\b(rm|del|erase|rd|rmdir|remove-item)\b/i
-const FORMAT_PATTERN = /\b(format|diskpart|mkfs|dd)\b/i
-const SECURITY_DISABLE_PATTERN = /\b(Set-MpPreference|DisableRealtimeMonitoring|Add-MpPreference|netsh\s+advfirewall|sc\s+stop|Stop-Service)\b/i
-const CREDENTIAL_PATTERN = /\b(api[_-]?key|secret|token|password|passwd|credential|authorization|bearer)\b/i
-const EXFIL_PATTERN = /\b(curl|wget|Invoke-WebRequest|iwr|Invoke-RestMethod)\b/i
-const HIDDEN_PATTERN = /\b(-WindowStyle\s+Hidden|Start-Process\b.*\bHidden\b|nohup\b|setsid\b|schtasks\s+\/create|Start-Job\b)\b/i
-const UNBOUNDED_DELETE_PATTERN = /\b(rm\s+(-[a-z]*r[a-z]*f|-rf|-fr)\s+([\\/]|\.|\*)|del\s+\/s\s+\/q\s+([A-Z]:\\|\\|\*)|remove-item\b.*\b-recurse\b.*\b-force\b.*([A-Z]:\\|\\|\*))\b/i
+const {
+  LOW_SHELL_PREFIXES,
+  INSTALL_PATTERN,
+  DELETE_PATTERN,
+  FORMAT_PATTERN,
+  SECURITY_DISABLE_PATTERN,
+  CREDENTIAL_PATTERN,
+  EXFIL_PATTERN,
+  HIDDEN_PATTERN,
+  UNBOUNDED_DELETE_PATTERN
+} = require('./policyPatterns')
 
 function commandText(action) {
   return String(action?.payload?.command || action?.payload?.script || '').trim()
@@ -134,5 +130,15 @@ function evaluateAction(action = {}, config = {}) {
 module.exports = {
   evaluateAction,
   shellRisk,
-  blockedShellReason
+  blockedShellReason,
+  // Re-exported from policyPatterns for backcompat
+  LOW_SHELL_PREFIXES,
+  INSTALL_PATTERN,
+  DELETE_PATTERN,
+  FORMAT_PATTERN,
+  SECURITY_DISABLE_PATTERN,
+  CREDENTIAL_PATTERN,
+  EXFIL_PATTERN,
+  HIDDEN_PATTERN,
+  UNBOUNDED_DELETE_PATTERN
 }

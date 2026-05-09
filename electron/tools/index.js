@@ -37,5 +37,9 @@ function getExecutionToolSchemas() {
   return []
 }
 
-module.exports = { TOOLS, TOOL_SCHEMAS, register, execute, loadBuiltins, getExecutionToolSchemas }
+function getAgentLoopToolSchemas() {
+  return TOOL_SCHEMAS.map(s => ({ type: 'function', function: { name: s.name, description: s.description, parameters: s.parameters } }))
+}
+
+module.exports = { TOOLS, TOOL_SCHEMAS, register, execute, loadBuiltins, getExecutionToolSchemas, getAgentLoopToolSchemas }
 loadBuiltins()

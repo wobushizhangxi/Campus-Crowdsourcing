@@ -1,0 +1,303 @@
+import { test, expect, vi } from 'vitest'
+import { createRequire } from 'module'
+
+const require = createRequire(import.meta.url)
+const { runTurn } = require('../services/agentLoop')
+
+function mockDeepseek(responses) {
+  let call = 0
+  const chat = async ({ messages, tools, signal }) => {
+    const r = responses[call]
+    call += 1
+    if (!r) return { content: 'done', assistant_message: { role: 'assistant', content: 'done' }, tool_calls: [] }
+    return r
+  }
+  return { chat }
+}
+
+function mockTools(results) {
+  return {
+    execute: vi.fn(async (name, args, context) => {
+      return results[name] || `OK: ${name}`
+    }),
+    getAgentLoopToolSchemas: vi.fn(() => ([
+      { type: 'function', function: { name: 'read_file', description: 'Read a file', parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] } } }
+    ]))
+  }
+}
+
+function mockPolicy(decisions) {
+  return {
+    evaluateToolCall: vi.fn((name, args) => {
+      return decisions[name] || { risk: 'low', reason: 'ok', allowed: true, requiresApproval: false }
+    })
+  }
+}
+
+test('no tool calls → returns immediately', async () => {
+  const deepseek = mockDeepseek([
+    { content: 'Hello!', assistant_message: { role: 'assistant', content: 'Hello!' }, tool_calls: [] }
+  ])
+  const tools = mockTools({})
+  const policy = mockPolicy({})
+
+  const result = await runTurn({ messages: [{ role: 'user', content: 'hi' }] }, { deepseek, tools, policy })
+
+  expect(result.finalText).toBe('Hello!')
+  expect(deepseek).toBeDefined()
+})
+
+test('single tool call → executed → result fed back → finishes', async () => {
+  const deepseek = mockDeepseek([
+    {
+      content: null,
+      assistant_message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'read_file', arguments: '{"path":"C:/Users/g/Desktop/foo.txt"}' } }] },
+      tool_calls: [{ id: 'c1', name: 'read_file', args: { path: 'C:/Users/g/Desktop/foo.txt' }, raw: {} }]
+    },
+    { content: 'File contents are: hello', assistant_message: { role: 'assistant', content: 'File contents are: hello' }, tool_calls: [] }
+  ])
+  const tools = mockTools({ read_file: 'hello' })
+  const policy = mockPolicy({ read_file: { risk: 'low', reason: 'reading file', allowed: true, requiresApproval: false } })
+
+  const events = []
+  const result = await runTurn(
+    { messages: [{ role: 'user', content: 'read foo.txt' }], onEvent: (type, data) => events.push({ type, ...data }) },
+    { deepseek, tools, policy }
+  )
+
+  expect(tools.execute).toHaveBeenCalledWith('read_file', { path: 'C:/Users/g/Desktop/foo.txt' }, expect.objectContaining({ skipInternalConfirm: true }))
+  expect(result.finalText).toBe('File contents are: hello')
+  expect(events.some(e => e.type === 'assistant_message')).toBe(true)
+  expect(events.some(e => e.type === 'tool_result')).toBe(true)
+})
+
+test('blocked tool → POLICY_BLOCKED appended, execute NOT called', async () => {
+  const deepseek = mockDeepseek([
+    {
+      content: null,
+      assistant_message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'read_file', arguments: '{"path":"C:/Windows/System32/SAM"}' } }] },
+      tool_calls: [{ id: 'c1', name: 'read_file', args: { path: 'C:/Windows/System32/SAM' }, raw: {} }]
+    },
+    { content: 'Blocked, cannot read that.', assistant_message: { role: 'assistant', content: 'Blocked, cannot read that.' }, tool_calls: [] }
+  ])
+  const tools = mockTools({})
+  const policy = mockPolicy({ read_file: { risk: 'blocked', reason: '系统路径已被阻止。', allowed: false, requiresApproval: false } })
+
+  const events = []
+  const result = await runTurn(
+    { messages: [{ role: 'user', content: 'read SAM' }], onEvent: (type, data) => events.push({ type, ...data }) },
+    { deepseek, tools, policy }
+  )
+
+  expect(tools.execute).not.toHaveBeenCalled()
+  expect(events.some(e => e.type === 'tool_blocked')).toBe(true)
+  expect(events.find(e => e.type === 'tool_blocked').call.name).toBe('read_file')
+  expect(result.finalText).toBe('Blocked, cannot read that.')
+})
+
+test('approval-required tool → denied → USER_DENIED appended', async () => {
+  const deepseek = mockDeepseek([
+    {
+      content: null,
+      assistant_message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'run_shell_command', arguments: '{"command":"npm install react"}' } }] },
+      tool_calls: [{ id: 'c1', name: 'run_shell_command', args: { command: 'npm install react' }, raw: {} }]
+    },
+    { content: 'Install denied by user.', assistant_message: { role: 'assistant', content: 'Install denied by user.' }, tool_calls: [] }
+  ])
+  const tools = mockTools({})
+  const policy = mockPolicy({ run_shell_command: { risk: 'high', reason: 'install', allowed: true, requiresApproval: true } })
+
+  let approvalRequested = null
+  const result = await runTurn(
+    {
+      messages: [{ role: 'user', content: 'install react' }],
+      requestApproval: async (req) => {
+        approvalRequested = req
+        return false // denied
+      }
+    },
+    { deepseek, tools, policy }
+  )
+
+  expect(approvalRequested).not.toBeNull()
+  expect(approvalRequested.call.name).toBe('run_shell_command')
+  expect(tools.execute).not.toHaveBeenCalled()
+})
+
+test('approval-required tool → approved → executed', async () => {
+  const deepseek = mockDeepseek([
+    {
+      content: null,
+      assistant_message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'run_shell_command', arguments: '{"command":"echo hi"}' } }] },
+      tool_calls: [{ id: 'c1', name: 'run_shell_command', args: { command: 'echo hi' }, raw: {} }]
+    },
+    { content: 'Command ran successfully.', assistant_message: { role: 'assistant', content: 'Command ran successfully.' }, tool_calls: [] }
+  ])
+  const tools = mockTools({ run_shell_command: 'hi' })
+  const policy = mockPolicy({ run_shell_command: { risk: 'medium', reason: 'shell', allowed: true, requiresApproval: true } })
+
+  const result = await runTurn(
+    {
+      messages: [{ role: 'user', content: 'run echo' }],
+      requestApproval: async () => true // approved
+    },
+    { deepseek, tools, policy }
+  )
+
+  expect(tools.execute).toHaveBeenCalledWith('run_shell_command', { command: 'echo hi' }, expect.objectContaining({ skipInternalConfirm: true }))
+})
+
+test('signal aborted mid-invoke → returns cancelled, no further model calls', async () => {
+  const controller = new AbortController()
+  let callCount = 0
+  const deepseek = { chat: async ({ messages, tools, signal }) => {
+    callCount += 1
+    if (callCount === 1) {
+      return {
+        content: null,
+        assistant_message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'run_shell_command', arguments: '{"command":"sleep 30"}' } }] },
+        tool_calls: [{ id: 'c1', name: 'run_shell_command', args: { command: 'sleep 30' }, raw: {} }]
+      }
+    }
+    return { content: 'should not reach', assistant_message: { role: 'assistant', content: 'should not reach' }, tool_calls: [] }
+  } }
+
+  const tools = {
+    execute: vi.fn(async (name, args, context) => {
+      // Abort during execution
+      context.signal.addEventListener('abort', () => {
+        // Signal received
+      })
+      controller.abort()
+      throw Object.assign(new Error('aborted'), { name: 'AbortError' })
+    }),
+    getAgentLoopToolSchemas: vi.fn(() => [])
+  }
+
+  const policy = mockPolicy({ run_shell_command: { risk: 'medium', reason: 'shell', allowed: true, requiresApproval: false } })
+
+  const result = await runTurn(
+    { messages: [{ role: 'user', content: 'sleep' }], signal: controller.signal },
+    { deepseek, tools, policy }
+  )
+
+  expect(result.finalText).toBe('操作已取消')
+  expect(callCount).toBe(1) // no second model call
+})
+
+test('MAX_STEPS reached → returns step-limit message', async () => {
+  let callCount = 0
+  const deepseek = { chat: async ({ messages, tools, signal }) => {
+    callCount += 1
+    return {
+      content: null,
+      assistant_message: { role: 'assistant', content: null, tool_calls: [{ id: `c${callCount}`, type: 'function', function: { name: 'read_file', arguments: '{"path":"foo.txt"}' } }] },
+      tool_calls: [{ id: `c${callCount}`, name: 'read_file', args: { path: 'foo.txt' }, raw: {} }]
+    }
+  } }
+  const tools = mockTools({ read_file: 'content' })
+  const policy = mockPolicy({ read_file: { risk: 'low', reason: 'ok', allowed: true, requiresApproval: false } })
+
+  const result = await runTurn(
+    { messages: [{ role: 'user', content: 'read foo' }] },
+    { deepseek, tools, policy }
+  )
+
+  expect(result.finalText).toMatch(/步/)
+  expect(callCount).toBe(30)
+})
+
+test('tool throws non-abort error → error appended, loop continues', async () => {
+  const deepseek = mockDeepseek([
+    {
+      content: null,
+      assistant_message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'write_file', arguments: '{"path":"C:/locked/file.txt"}' } }] },
+      tool_calls: [{ id: 'c1', name: 'write_file', args: { path: 'C:/locked/file.txt' }, raw: {} }]
+    },
+    { content: 'Failed to write.', assistant_message: { role: 'assistant', content: 'Failed to write.' }, tool_calls: [] }
+  ])
+  const tools = {
+    execute: vi.fn(async () => { throw new Error('Permission denied') }),
+    getAgentLoopToolSchemas: vi.fn(() => [])
+  }
+  const policy = mockPolicy({ write_file: { risk: 'medium', reason: 'write', allowed: true, requiresApproval: false } })
+
+  const result = await runTurn(
+    { messages: [{ role: 'user', content: 'write file' }] },
+    { deepseek, tools, policy }
+  )
+
+  expect(result.finalText).toBe('Failed to write.')
+})
+
+test('preserves conversation history through tool turns', async () => {
+  const deepseek = mockDeepseek([
+    {
+      content: null,
+      assistant_message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'read_file', arguments: '{"path":"notes.txt"}' } }] },
+      tool_calls: [{ id: 'c1', name: 'read_file', args: { path: 'notes.txt' }, raw: {} }]
+    },
+    { content: 'File says: hello world', assistant_message: { role: 'assistant', content: 'File says: hello world' }, tool_calls: [] }
+  ])
+  const tools = mockTools({ read_file: 'hello world' })
+  const policy = mockPolicy({ read_file: { risk: 'low', reason: 'ok', allowed: true, requiresApproval: false } })
+
+  const result = await runTurn(
+    { messages: [{ role: 'user', content: 'read notes' }] },
+    { deepseek, tools, policy }
+  )
+
+  expect(result.history).toBeDefined()
+  expect(result.history.length).toBe(4) // user, assistant(tool_call), tool(result), assistant(final)
+  expect(result.history[2].role).toBe('tool')
+  expect(result.history[2].content).toBe('hello world')
+})
+
+test('passes skipInternalConfirm to tools.execute', async () => {
+  const deepseek = mockDeepseek([
+    {
+      content: null,
+      assistant_message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'write_file', arguments: '{"path":"foo.txt","content":"hi"}' } }] },
+      tool_calls: [{ id: 'c1', name: 'write_file', args: { path: 'foo.txt', content: 'hi' }, raw: {} }]
+    },
+    { content: 'Done.', assistant_message: { role: 'assistant', content: 'Done.' }, tool_calls: [] }
+  ])
+  const tools = mockTools({ write_file: { path: 'foo.txt', bytes_written: 2 } })
+  const policy = mockPolicy({ write_file: { risk: 'medium', reason: 'write', allowed: true, requiresApproval: false } })
+
+  await runTurn(
+    { messages: [{ role: 'user', content: 'write file' }] },
+    { deepseek, tools, policy }
+  )
+
+  expect(tools.execute).toHaveBeenCalledWith('write_file', { path: 'foo.txt', content: 'hi' }, expect.objectContaining({ skipInternalConfirm: true }))
+})
+
+test('returns history on abort for audit trail', async () => {
+  const controller = new AbortController()
+  const deepseek = mockDeepseek([
+    {
+      content: null,
+      assistant_message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'read_file', arguments: '{"path":"foo.txt"}' } }] },
+      tool_calls: [{ id: 'c1', name: 'read_file', args: { path: 'foo.txt' }, raw: {} }]
+    }
+  ])
+
+  const tools = {
+    execute: vi.fn(async (name, args, context) => {
+      controller.abort()
+      throw Object.assign(new Error('aborted'), { name: 'AbortError' })
+    }),
+    getAgentLoopToolSchemas: vi.fn(() => [])
+  }
+
+  const policy = mockPolicy({ read_file: { risk: 'low', reason: 'ok', allowed: true, requiresApproval: false } })
+
+  const result = await runTurn(
+    { messages: [{ role: 'user', content: 'read foo' }], signal: controller.signal },
+    { deepseek, tools, policy }
+  )
+
+  expect(result.finalText).toBe('操作已取消')
+  expect(result.history.length).toBeGreaterThanOrEqual(2) // user + assistant at minimum
+})
