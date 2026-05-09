@@ -26,7 +26,7 @@ test('uses dry-run planning when Qwen is not configured', async () => {
   expect(result.content).toContain('[演示模式]')
 })
 
-test('uses Qwen model router when configured', async () => {
+test('uses DeepSeek model router when configured', async () => {
   const modelRouter = {
     jsonForRole: vi.fn(async () => ({
       actions: [{ runtime: 'open-interpreter', type: 'shell.command', payload: { command: 'git status' }, risk: 'low' }]
@@ -35,7 +35,7 @@ test('uses Qwen model router when configured', async () => {
   const broker = { submitActions: vi.fn(async (actions) => actions.map((action) => ({ ...action, status: 'completed', result: { stdout: 'clean' } }))) }
   const addRunOutput = vi.fn((output) => ({ id: 'out1', ...output }))
   const orchestrator = createTaskOrchestrator({
-    storeRef: { getConfig: () => ({ qwenApiKey: 'sk-qwen', dryRunEnabled: true }) },
+    storeRef: { getConfig: () => ({ deepseekApiKey: 'sk-deepseek', dryRunEnabled: true }) },
     modelRouter,
     broker,
     addRunOutput,

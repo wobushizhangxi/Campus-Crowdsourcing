@@ -57,8 +57,12 @@ test('rejects unknown action types', () => {
   ], { now: NOW })).toThrow(/未知动作类型/)
 })
 
-test('planner prompt requires JSON proposals', () => {
+test('planner prompt requires JSON proposals and lists all three runtimes', () => {
   const messages = buildPlannerPrompt('run tests')
-  expect(messages[0].content).toContain('Return only JSON')
+  expect(messages[0].content).toMatch(/Return ONLY JSON/i)
+  expect(messages[0].content).toContain('open-interpreter')
+  expect(messages[0].content).toContain('ui-tars')
+  expect(messages[0].content).toContain('midscene')
+  expect(messages[0].content).toContain('web.click')
   expect(messages[1].content).toBe('run tests')
 })

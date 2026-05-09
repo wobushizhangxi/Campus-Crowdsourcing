@@ -30,7 +30,7 @@ function parseModelJson(raw) {
   const arrayEnd = text.lastIndexOf(']')
   if (arrayStart !== -1 && arrayEnd > arrayStart && (objectStart === -1 || arrayStart < objectStart)) return JSON.parse(text.slice(arrayStart, arrayEnd + 1))
   if (objectStart !== -1 && objectEnd > objectStart) return JSON.parse(text.slice(objectStart, objectEnd + 1))
-  throw new ActionPlannerError('PLAN_JSON_MISSING', 'Qwen 未返回 JSON 动作提案。')
+  throw new ActionPlannerError('PLAN_JSON_MISSING', '模型未返回 JSON 动作提案。')
 }
 
 function unwrapPlan(parsed) {
@@ -38,7 +38,7 @@ function unwrapPlan(parsed) {
   if (Array.isArray(parsed.actions)) return parsed.actions
   if (Array.isArray(parsed.proposals)) return parsed.proposals
   if (Array.isArray(parsed.actionProposals)) return parsed.actionProposals
-  throw new ActionPlannerError('PLAN_ACTIONS_MISSING', 'Qwen JSON 中没有动作提案数组。')
+  throw new ActionPlannerError('PLAN_ACTIONS_MISSING', '模型 JSON 中没有动作提案数组。')
 }
 
 function text(value, fallback = '') {
@@ -111,12 +111,28 @@ function buildPlannerPrompt(userTask) {
     {
       role: 'system',
       content: [
-        'You are Qwen inside AionUi. Return only JSON.',
-        'Create an array of ActionProposal objects for AionUi to validate.',
-        'Never ask runtimes to execute hidden background work.',
-        'Use open-interpreter for command, file, and code work.',
-        'Use ui-tars for screen, mouse, and keyboard work.',
-        'Use aionui-dry-run when the task is explicitly a demo or runtimes are unavailable.'
+        'You are the action planner inside AionUi. Return ONLY JSON, no prose.',
+        'Output shape: { "actions": [ ActionProposal, ... ] }',
+        'Each ActionProposal: { runtime, type, title, summary, payload, risk, requiresConfirmation? }',
+        'Available runtimes and their action types:',
+        '  - "open-interpreter": "shell.command", "file.read", "file.write", "code.execute"',
+        '       payload examples: { command: "ls" } | { path: "C:/x.txt" } | { path, content } | { language: "python", code }',
+        '  - "ui-tars": "screen.observe", "mouse.click", "keyboard.type"',
+        '       payload examples: {} | { target: "登录按钮" } | { text: "username" }',
+        '       use ONLY for native Windows desktop apps (not browsers) and only when screen authorization is on',
+        '  - "midscene": "web.observe", "web.click", "web.type", "web.query"',
+        '       payload examples: {} | { target: "登录按钮" } | { text: "username" } | { question: "页面标题是什么？" }',
+        '       use for ALL web/browser tasks (login, scrape, fill forms, click buttons on websites)',
+        '  - "aionui-dry-run": same action types as the others; use when explicitly demo or runtime unavailable',
+        'Routing rules:',
+        '  - User mentions a website, browser, URL, or web service (e.g., 学习通, 淘宝, GitHub, gmail) -> midscene + web.*',
+        '  - User mentions running a command or local file -> open-interpreter + shell.command/file.*',
+        '  - User mentions clicking on a desktop app, Notepad, Office, system dialog -> ui-tars + mouse.*/keyboard.*',
+        '  - User asks to write code -> open-interpreter + code.execute',
+        'Risk levels: "low" (read-only/observe), "medium" (mutations bounded to workspace/page), "high" (install, delete, submit forms with credentials, send messages).',
+        'Login-style tasks: usually a SEQUENCE — first web.observe, then web.type for username, web.type for password, web.click for submit. Mark them medium or high risk.',
+        'Never fabricate runtimes or action types outside the lists above. Never include hidden background work.',
+        'If the task is unclear or impossible with these tools, return { "actions": [] }.'
       ].join('\n')
     },
     { role: 'user', content: userTask }

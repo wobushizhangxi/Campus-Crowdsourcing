@@ -59,7 +59,7 @@ function createTaskOrchestrator(overrides = {}) {
     ...overrides
   }
 
-  async function planWithQwen(task, config, sessionId) {
+  async function planWithModel(task, config, sessionId) {
     const messages = buildPlannerPrompt(task)
     const raw = await deps.modelRouter.jsonForRole(MODEL_ROLES.TASK_PLANNING, messages, { temperature: 0.1 }, config)
     return normalizeActionPlan(raw, { sessionId, now: deps.now() })
@@ -72,12 +72,12 @@ function createTaskOrchestrator(overrides = {}) {
     let proposals
     let usedDryRun = false
 
-    if (dryRun || (config.dryRunEnabled !== false && !config.qwenApiKey)) {
+    if (dryRun || (config.dryRunEnabled !== false && !config.deepseekApiKey && !config.apiKey)) {
       const plan = deps.dryRunRuntime.planTask(task, { sessionId, cwd: config.workspace_root })
       proposals = plan.actions
       usedDryRun = true
     } else {
-      proposals = await planWithQwen(task, config, sessionId)
+      proposals = await planWithModel(task, config, sessionId)
     }
 
     onEvent?.('chat:action-plan', { actions: proposals, dryRun: usedDryRun })
