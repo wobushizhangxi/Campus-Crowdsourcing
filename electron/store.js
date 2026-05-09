@@ -84,7 +84,12 @@ function readJson(filePath, fallback) {
     return initial
   }
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+    let content = fs.readFileSync(filePath, 'utf-8')
+    // Strip UTF-8 BOM if present. PowerShell's `Set-Content -Encoding utf8`
+    // adds one and JSON.parse rejects it — without this, getConfig() silently
+    // returns DEFAULT_CONFIG even though the file on disk is correct.
+    if (content.charCodeAt(0) === 0xFEFF) content = content.slice(1)
+    return JSON.parse(content)
   } catch (error) {
     console.error('[store] parse error, using fallback:', filePath, error.message)
     return clone(fallback)
