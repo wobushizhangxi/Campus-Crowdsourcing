@@ -1,5 +1,4 @@
 const { store } = require('../store')
-const midsceneBootstrap = require('../services/midscene/bootstrap')
 const oiBootstrap = require('../services/openInterpreter/bootstrap')
 const uiTarsBootstrap = require('../services/uiTars/bootstrap')
 
@@ -11,12 +10,10 @@ const KEY_FIELD_MAP = {
 
 async function computeSetupStatus({ storeRef = store, bootstraps = {} } = {}) {
   const cfg = storeRef.getConfig()
-  const ms = bootstraps.midscene || midsceneBootstrap
   const oi = bootstraps.openInterpreter || oiBootstrap
   const ut = bootstraps.uiTars || uiTarsBootstrap
 
-  const [msStatus, oiStatus, utStatus] = await Promise.all([
-    ms.detect(cfg).catch(() => ({})),
+  const [oiStatus, utStatus] = await Promise.all([
     oi.detect(cfg).catch(() => ({})),
     ut.detect(cfg).catch(() => ({}))
   ])
@@ -25,7 +22,6 @@ async function computeSetupStatus({ storeRef = store, bootstraps = {} } = {}) {
     deepseekKey: Boolean(cfg.deepseekApiKey),
     qwenKey: Boolean(cfg.qwenVisionApiKey),
     doubaoKey: Boolean(cfg.doubaoVisionApiKey),
-    midsceneExtension: Boolean(msStatus.extensionConnected),
     pythonOpenInterpreter: Boolean(oiStatus.oiReady || oiStatus.state === 'configured'),
     screenAuthorized: Boolean(utStatus.screenAuthorized || cfg.uiTarsScreenAuthorized)
   }
@@ -38,14 +34,14 @@ async function computeSetupStatus({ storeRef = store, bootstraps = {} } = {}) {
     },
     browser: {
       label: 'Browser automation',
-      requires: ['deepseekKey', 'qwenKey', 'midsceneExtension'],
-      ready: deps.deepseekKey && deps.qwenKey && deps.midsceneExtension,
+      requires: ['deepseekKey', 'qwenKey'],
+      ready: deps.deepseekKey && deps.qwenKey,
       recommended: true
     },
     full: {
       label: 'Full desktop and local execution',
-      requires: ['deepseekKey', 'qwenKey', 'midsceneExtension', 'doubaoKey', 'pythonOpenInterpreter', 'screenAuthorized'],
-      ready: deps.deepseekKey && deps.qwenKey && deps.midsceneExtension && deps.doubaoKey && deps.pythonOpenInterpreter && deps.screenAuthorized
+      requires: ['deepseekKey', 'qwenKey', 'doubaoKey', 'pythonOpenInterpreter', 'screenAuthorized'],
+      ready: deps.deepseekKey && deps.qwenKey && deps.doubaoKey && deps.pythonOpenInterpreter && deps.screenAuthorized
     }
   }
 
@@ -56,7 +52,6 @@ async function computeSetupStatus({ storeRef = store, bootstraps = {} } = {}) {
       deepseekKey: 'https://platform.deepseek.com/api_keys',
       qwenKey: 'https://bailian.console.aliyun.com/?apiKey=1#/api-key',
       doubaoKey: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
-      midsceneExtension: 'https://chromewebstore.google.com/detail/midscene/gbldofcpkknbggpkmbdaefngejllnief',
       pythonOpenInterpreter: 'https://docs.openinterpreter.com/getting-started/setup'
     }
   }

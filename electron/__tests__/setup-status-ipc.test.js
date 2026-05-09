@@ -13,7 +13,6 @@ describe('setup-status', () => {
   it('reports lite tier ready when only DeepSeek key set', async () => {
     const fakeStore = { getConfig: () => ({ deepseekApiKey: 'k', qwenVisionApiKey: '', doubaoVisionApiKey: '', uiTarsScreenAuthorized: false }) }
     const fakeBootstraps = {
-      midscene: { detect: async () => ({ extensionConnected: false }) },
       openInterpreter: { detect: async () => ({ state: 'not-installed', oiReady: false }) },
       uiTars: { detect: async () => ({ screenAuthorized: false }) }
     }
@@ -22,13 +21,11 @@ describe('setup-status', () => {
     expect(status.tiers.browser.ready).toBe(false)
     expect(status.tiers.full.ready).toBe(false)
     expect(status.deps.deepseekKey).toBe(true)
-    expect(status.deps.midsceneExtension).toBe(false)
   })
 
   it('returns verified help links and omits screen authorization URL', async () => {
     const fakeStore = { getConfig: () => ({ deepseekApiKey: '', qwenVisionApiKey: '', doubaoVisionApiKey: '', uiTarsScreenAuthorized: false }) }
     const fakeBootstraps = {
-      midscene: { detect: async () => ({ extensionConnected: false }) },
       openInterpreter: { detect: async () => ({ state: 'not-installed', oiReady: false }) },
       uiTars: { detect: async () => ({ screenAuthorized: false }) }
     }
@@ -37,15 +34,13 @@ describe('setup-status', () => {
       deepseekKey: 'https://platform.deepseek.com/api_keys',
       qwenKey: 'https://bailian.console.aliyun.com/?apiKey=1#/api-key',
       doubaoKey: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
-      midsceneExtension: 'https://chromewebstore.google.com/detail/midscene/gbldofcpkknbggpkmbdaefngejllnief',
       pythonOpenInterpreter: 'https://docs.openinterpreter.com/getting-started/setup'
     })
   })
 
-  it('reports browser tier ready when Qwen key and extension are connected', async () => {
+  it('reports browser tier ready when Qwen key is set', async () => {
     const fakeStore = { getConfig: () => ({ deepseekApiKey: 'k', qwenVisionApiKey: 'q', doubaoVisionApiKey: '', uiTarsScreenAuthorized: false }) }
     const fakeBootstraps = {
-      midscene: { detect: async () => ({ extensionConnected: true }) },
       openInterpreter: { detect: async () => ({ oiReady: false }) },
       uiTars: { detect: async () => ({ screenAuthorized: false }) }
     }
@@ -57,7 +52,6 @@ describe('setup-status', () => {
   it('reports full tier ready only when all deps are green', async () => {
     const fakeStore = { getConfig: () => ({ deepseekApiKey: 'k', qwenVisionApiKey: 'q', doubaoVisionApiKey: 'd', uiTarsScreenAuthorized: true }) }
     const fakeBootstraps = {
-      midscene: { detect: async () => ({ extensionConnected: true }) },
       openInterpreter: { detect: async () => ({ oiReady: true }) },
       uiTars: { detect: async () => ({ screenAuthorized: true }) }
     }

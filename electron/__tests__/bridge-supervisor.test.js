@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url)
 const { createSupervisor } = require('../services/bridgeSupervisor')
 
 describe('bridgeSupervisor', () => {
-  it('starts all four bridges and waits for /health', async () => {
+  it('starts all three bridges and waits for /health', async () => {
     const calls = []
     const fakeChild = () => ({ on() {}, kill() { this.killed = true }, killed: false })
     const sup = createSupervisor({
@@ -18,15 +18,11 @@ describe('bridgeSupervisor', () => {
     const result = await sup.start()
     expect(result.oi.ready).toBe(true)
     expect(result.uitars.ready).toBe(true)
-    expect(result.midscene.ready).toBe(true)
     expect(result.browserUse.ready).toBe(true)
-    expect(calls).toHaveLength(4)
+    expect(calls).toHaveLength(3)
     const uitars = calls.find((c) => c.args.some((arg) => arg.includes('uitars-bridge')))
     expect(uitars.env.UITARS_MODEL_PROVIDER).toBe('volcengine')
     expect(uitars.env.UITARS_MODEL_ENDPOINT).toContain('volces.com')
-    const midscene = calls.find((c) => c.args.some((arg) => arg.includes('midscene-bridge')))
-    expect(midscene.env.MIDSCENE_QWEN_ENDPOINT).toContain('dashscope.aliyuncs.com')
-    expect(midscene.env.MIDSCENE_QWEN_MODEL).toBeDefined()
     const browserUse = calls.find((c) => c.cmd === 'python' && c.args.some((arg) => arg.includes('browser-use-bridge')))
     expect(browserUse).toBeDefined()
     expect(browserUse.env.BROWSER_USE_MODEL_ENDPOINT).toContain('volces.com')
@@ -49,9 +45,9 @@ describe('bridgeSupervisor', () => {
 
     await sup.start()
 
-    expect(seenStdio).toHaveLength(4)
+    expect(seenStdio).toHaveLength(3)
     expect(seenStdio.every((stdio) => Array.isArray(stdio) && stdio[0] === 'ignore')).toBe(true)
-    for (const key of ['oi', 'uitars', 'midscene', 'browserUse']) {
+    for (const key of ['oi', 'uitars', 'browserUse']) {
       expect(fs.existsSync(path.join(os.tmpdir(), 'aionui-logs', `${key}-stdout.log`))).toBe(true)
       expect(fs.existsSync(path.join(os.tmpdir(), 'aionui-logs', `${key}-stderr.log`))).toBe(true)
     }
@@ -81,6 +77,6 @@ describe('bridgeSupervisor', () => {
     await sup.start()
     sup.stop()
     expect(children.every((c) => c.killed)).toBe(true)
-    expect(children).toHaveLength(4)
+    expect(children).toHaveLength(3)
   })
 })

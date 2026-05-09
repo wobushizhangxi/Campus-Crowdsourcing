@@ -7,7 +7,6 @@ const fetchImpl = global.fetch || ((...a) => import('node-fetch').then(({ defaul
 const DEFAULTS = {
   oi: { name: 'oi-bridge', port: 8756, dir: 'server/oi-bridge' },
   uitars: { name: 'uitars-bridge', port: 8765, dir: 'server/uitars-bridge' },
-  midscene: { name: 'midscene-bridge', port: 8770, dir: 'server/midscene-bridge' },
   browserUse: { name: 'browser-use-bridge', port: 8780, dir: 'server/browser-use-bridge', runtime: 'python' }
 }
 
@@ -48,20 +47,6 @@ function createSupervisor(opts = {}) {
       env.UITARS_MODEL_ENDPOINT = config.doubaoVisionEndpoint || ''
       env.UITARS_MODEL_API_KEY = config.doubaoVisionApiKey || ''
       env.UITARS_MODEL_NAME = config.doubaoVisionModel || ''
-    }
-    if (key === 'midscene') {
-      // Switched from Qwen3-VL to Doubao 1.5 vision (Volcengine Ark) for
-      // better GUI grounding on web pages. Reuses the Doubao key/endpoint
-      // already configured for uitars-bridge — user configures Volcengine
-      // Ark once.
-      env.MIDSCENE_VISION_PROVIDER = 'doubao'
-      env.MIDSCENE_VISION_ENDPOINT = config.doubaoVisionEndpoint || ''
-      env.MIDSCENE_VISION_API_KEY = config.doubaoVisionApiKey || ''
-      env.MIDSCENE_VISION_MODEL = config.doubaoVisionModel || ''
-      // Legacy Qwen vars left in env so bridgeMode can fall back if needed.
-      env.MIDSCENE_QWEN_ENDPOINT = config.qwenVisionEndpoint || ''
-      env.MIDSCENE_QWEN_API_KEY = config.qwenVisionApiKey || ''
-      env.MIDSCENE_QWEN_MODEL = config.qwenVisionModel || ''
     }
     if (key === 'browserUse') {
       env.BROWSER_USE_MODEL_ENDPOINT = config.doubaoVisionEndpoint || ''

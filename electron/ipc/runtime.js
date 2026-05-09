@@ -6,7 +6,6 @@ const oiBootstrap = require('../services/openInterpreter/bootstrap')
 const oiProcess = require('../services/openInterpreter/processManager')
 const tarsBootstrap = require('../services/uiTars/bootstrap')
 const tarsProcess = require('../services/uiTars/processManager')
-const midsceneBootstrap = require('../services/midscene/bootstrap')
 
 function ok(data = {}) { return { ok: true, ...data } }
 function fail(error) { return { ok: false, error: { code: error.code || 'IPC_ERROR', message: error.message || String(error) } } }
@@ -17,7 +16,6 @@ async function runtimeStatus(config = store.getConfig()) {
     { runtime: 'deepseek', state: deepseekProvider.getStatus(config).configured ? 'ready' : 'not-configured', ...deepseekProvider.getStatus(config) },
     await oiProcess.status(config),
     await tarsProcess.status(config),
-    await midsceneBootstrap.detect(config),
     { runtime: 'aionui-dry-run', state: config.dryRunEnabled === false ? 'disabled' : 'ready', configured: true }
   ]
 }
@@ -25,7 +23,6 @@ async function runtimeStatus(config = store.getConfig()) {
 async function bootstrapRuntime(runtime, config = store.getConfig()) {
   if (runtime === 'open-interpreter') return oiBootstrap.repair(config)
   if (runtime === 'ui-tars') return tarsBootstrap.repair(config)
-  if (runtime === 'midscene') return midsceneBootstrap.repair(config)
   if (runtime === 'qwen') return qwenProvider.getStatus(config)
   if (runtime === 'deepseek') return deepseekProvider.getStatus(config)
   if (runtime === 'aionui-dry-run') return { runtime, state: config.dryRunEnabled === false ? 'disabled' : 'ready' }
