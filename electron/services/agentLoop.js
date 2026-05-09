@@ -39,7 +39,12 @@ async function runTurn({ messages, signal, onEvent, requestApproval }, deps = {}
         continue
       }
 
-      if (decision.requiresApproval && requestApproval) {
+      if (decision.requiresApproval) {
+        if (!requestApproval) {
+          history.push({ role: 'tool', tool_call_id: call.id, content: `POLICY_BLOCKED: 需要用户审批但审批回调未提供 (${decision.reason})` })
+          onEvent?.('tool_blocked', { call, reason: '审批回调缺失' })
+          continue
+        }
         onEvent?.('approval_request', { call, decision })
         const ok = await requestApproval({ call, decision })
         if (!ok) {

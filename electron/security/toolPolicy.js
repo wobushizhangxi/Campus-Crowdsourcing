@@ -49,12 +49,25 @@ function codeRisk(code) {
 }
 
 function fileRisk(toolName, args, ctx) {
+  const writableRoots = ctx.writableRoots || [os.homedir()]
+
+  if (toolName === 'move_path') {
+    const srcPath = args.src
+    const destPath = args.dest
+    if (!srcPath || !destPath) return { risk: RISK_LEVELS.BLOCKED, reason: 'move_path 需要提供 src 和 dest。' }
+    const srcResult = validatePath(srcPath, 'write', { writableRoots })
+    if (!srcResult.safe) return { risk: RISK_LEVELS.BLOCKED, reason: `源路径: ${srcResult.reason}` }
+    const destResult = validatePath(destPath, 'write', { writableRoots })
+    if (!destResult.safe) return { risk: RISK_LEVELS.BLOCKED, reason: `目标路径: ${destResult.reason}` }
+    return { risk: RISK_LEVELS.HIGH, reason: '移动或重命名文件需要确认。' }
+  }
+
   const filePath = args.path || args.root || args.src || args.dest
   if (!filePath) return { risk: RISK_LEVELS.BLOCKED, reason: '缺少路径参数。' }
 
-  const isWrite = ['write_file', 'edit_file', 'create_dir', 'delete_path', 'move_path'].includes(toolName)
+  const isWrite = ['write_file', 'edit_file', 'create_dir', 'delete_path'].includes(toolName)
   const mode = isWrite ? 'write' : 'read'
-  const pathResult = validatePath(filePath, mode, { writableRoots: ctx.writableRoots || [os.homedir()] })
+  const pathResult = validatePath(filePath, mode, { writableRoots })
   if (!pathResult.safe) return { risk: RISK_LEVELS.BLOCKED, reason: pathResult.reason }
 
   if (toolName === 'read_file' || toolName === 'list_dir' || toolName === 'search_files') {

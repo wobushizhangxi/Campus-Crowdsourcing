@@ -11,6 +11,9 @@ const SYSTEM_ROOTS = [
 
 function stripLongPathPrefix(p) {
   if (typeof p !== 'string') return p
+  if (p.startsWith('\\\\?\\UNC\\') || p.startsWith('\\\\?\\UNC/')) {
+    return '\\\\' + p.slice(8)
+  }
   return p.replace(/^\\\\\?\\/, '')
 }
 

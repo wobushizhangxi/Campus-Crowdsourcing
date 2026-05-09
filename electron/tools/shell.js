@@ -29,7 +29,7 @@ function appendOutput(target, chunk) {
 }
 
 async function runShellCommand({ command, cwd, timeout_ms = 120000 }, context = {}) {
-  const { onLog, skipInternalConfirm } = context
+  const { onLog, skipInternalConfirm, signal } = context
   if (!command || typeof command !== 'string') return { error: { code: 'INVALID_ARGS', message: '需要提供命令。' } }
   const config = store.getConfig()
   const token = firstToken(command)
@@ -53,10 +53,26 @@ async function runShellCommand({ command, cwd, timeout_ms = 120000 }, context = 
       ? spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-Command', command], { cwd: workingDir, windowsHide: true })
       : spawn('/bin/bash', ['-lc', command], { cwd: workingDir })
 
-    const timer = setTimeout(() => {
-      timedOut = true
+    const killChild = () => {
       child.kill('SIGTERM')
       setTimeout(() => { if (!child.killed) child.kill('SIGKILL') }, 2000)
+    }
+
+    if (signal) {
+      if (signal.aborted) {
+        clearTimeout(timer)
+        resolve({ error: { code: 'ABORTED', message: '操作已取消' } })
+        return
+      }
+      signal.addEventListener('abort', () => {
+        clearTimeout(timer)
+        killChild()
+      }, { once: true })
+    }
+
+    const timer = setTimeout(() => {
+      timedOut = true
+      killChild()
     }, Number(timeout_ms) || 120000)
 
     child.stdout.on('data', (chunk) => {

@@ -94,7 +94,10 @@ async function postChat(body, timeout = 60000, signal) {
       signal: effectiveSignal
     })
   } catch (error) {
-    if (error.name === 'AbortError' || error.name === 'TimeoutError') throw new DeepSeekError('DEEPSEEK_TIMEOUT', '模型响应超时。')
+    if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+      if (signal?.aborted) throw error
+      throw new DeepSeekError('DEEPSEEK_TIMEOUT', '模型响应超时。')
+    }
     throw new DeepSeekError('DEEPSEEK_NETWORK', `网络错误：${error.message}`)
   }
   if (!resp.ok) {

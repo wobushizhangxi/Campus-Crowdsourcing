@@ -16,6 +16,7 @@ async function execute(name, args, context = {}) {
   try {
     return await fn(args || {}, context)
   } catch (error) {
+    if (error.name === 'AbortError') throw error
     return { error: { code: error.code || 'INTERNAL', message: error.message || '工具执行失败。' } }
   }
 }
