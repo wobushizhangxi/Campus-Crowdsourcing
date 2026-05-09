@@ -18,8 +18,7 @@ function register(ipcMain) {
         onEvent: (type, data) => {
           send('agent:event', { type, ...data })
         },
-        requestApproval: async ({ call, decision }) => {
-          send('agent:event', { type: 'approval_request', call, decision })
+        requestApproval: async ({ call }) => {
           return new Promise((resolve) => {
             pendingApprovals.set(call.id, resolve)
           })

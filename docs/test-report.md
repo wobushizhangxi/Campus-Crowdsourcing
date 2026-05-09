@@ -227,3 +227,35 @@ Events:
 - **assistant_message** @3356ms: {"type":"assistant_message","time":3356,"content":"The file `hello.txt` has been created on your desktop at `C:\\Users\\g\\Desktop\\hello.txt` with the content \"hello world\".","toolCalls":[]}
 
 Result: PASS
+
+
+## Phase B acceptance smoke
+
+Date: 2026-05-09
+
+```json
+{
+  "passed": true,
+  "finalText": "Done! The file `hello.txt` has been created at `C:\\Users\\g\\Desktop` with the content \"hello world\" (11 bytes written).",
+  "steps": 6,
+  "toolCalls": 2,
+  "toolResults": 2,
+  "writeFileCalls": 1,
+  "approvalRequests": 2,
+  "fileCreated": true,
+  "fileContent": "hello world",
+  "abortSupported": true,
+  "durationMs": 4481
+}
+```
+
+Events:
+- **assistant_message** @1469ms: {"time":1469,"convId":"smoke-test-1778360072834","type":"assistant_message","content":"Let me first check the path to make sure the directory exists.","toolCalls":[{"id":"call_00_1Ae138t4cftaoKiVzzvu3
+- **tool_result** @1485ms: {"time":1485,"convId":"smoke-test-1778360072834","type":"tool_result","call":{"id":"call_00_1Ae138t4cftaoKiVzzvu3482","name":"list_dir","args":{"path":"C:\\Users\\g\\Desktop"},"raw":{"index":0,"id":"c
+- **assistant_message** @3471ms: {"time":3471,"convId":"smoke-test-1778360072834","type":"assistant_message","content":"The directory exists. Now I'll create the hello.txt file with content \"hello world\".","toolCalls":[{"id":"call_
+- **approval_request** @3472ms: {"time":3472,"convId":"smoke-test-1778360072834","type":"approval_request","call":{"id":"call_00_kiIWP0tX0TeeJw4RCuZ22349","name":"write_file","args":{"path":"C:\\Users\\g\\Desktop\\hello.txt","conten
+- **approval_request** @3472ms: {"time":3472,"convId":"smoke-test-1778360072834","type":"approval_request","call":{"id":"call_00_kiIWP0tX0TeeJw4RCuZ22349","name":"write_file","args":{"path":"C:\\Users\\g\\Desktop\\hello.txt","conten
+- **tool_result** @3632ms: {"time":3632,"convId":"smoke-test-1778360072834","type":"tool_result","call":{"id":"call_00_kiIWP0tX0TeeJw4RCuZ22349","name":"write_file","args":{"path":"C:\\Users\\g\\Desktop\\hello.txt","content":"h
+- **assistant_message** @4481ms: {"time":4481,"convId":"smoke-test-1778360072834","type":"assistant_message","content":"Done! The file `hello.txt` has been created at `C:\\Users\\g\\Desktop` with the content \"hello world\" (11 bytes
+
+Result: PASS
