@@ -3,24 +3,27 @@ import { createRequire } from 'module'
 
 const require = createRequire(import.meta.url)
 
-// Mock adapter before loading tool module
+const { healthCheckMock, executeMock, requestConfirmMock } = vi.hoisted(() => ({
+  healthCheckMock: vi.fn(async () => ({ available: true, detail: { ok: true } })),
+  executeMock: vi.fn(async () => ({ ok: true, summary: 'done', final_url: 'https://example.com' })),
+  requestConfirmMock: vi.fn(async () => true),
+}))
+
 vi.mock('../services/browserUse/adapter', () => ({
-  healthCheck: vi.fn(async () => ({ available: true, detail: { ok: true } })),
-  execute: vi.fn(async () => ({ ok: true, summary: 'done', final_url: 'https://example.com' })),
+  healthCheck: healthCheckMock,
+  execute: executeMock,
   cancel: vi.fn(),
 }))
 
-// Mock confirm
 vi.mock('../confirm', () => ({
-  requestConfirm: vi.fn(async () => true),
+  requestConfirm: requestConfirmMock,
 }))
 
-const { register, TOOLS, TOOL_SCHEMAS, execute } = require('../tools')
+const { TOOL_SCHEMAS } = require('../tools')
 const toolPolicy = require('../security/toolPolicy')
 
 test('browser_task is registered in tool registry', () => {
-  const schemas = TOOL_SCHEMAS
-  const browserTaskSchema = schemas.find(s => s.name === 'browser_task')
+  const browserTaskSchema = TOOL_SCHEMAS.find(s => s.name === 'browser_task')
   expect(browserTaskSchema).toBeDefined()
   expect(browserTaskSchema.parameters.required).toContain('goal')
 })

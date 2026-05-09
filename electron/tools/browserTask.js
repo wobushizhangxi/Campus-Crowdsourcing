@@ -1,5 +1,5 @@
 const { register } = require('./index')
-const { healthCheck, execute, cancel } = require('../services/browserUse/adapter')
+const { healthCheck, execute } = require('../services/browserUse/adapter')
 const { requestConfirm } = require('../confirm')
 
 async function browserTask(args, context = {}) {
