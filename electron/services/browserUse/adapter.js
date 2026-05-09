@@ -15,37 +15,41 @@ async function healthCheck() {
 }
 
 async function execute(action, context = {}) {
-  const { goal, max_steps = 15, start_url, headless = true } = action.payload || action
+  try {
+    const { goal, max_steps = 15, start_url, headless = true } = action.payload || action
 
-  const resp = await fetch(`${endpoint()}/execute`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ goal, max_steps, start_url, headless }),
-    signal: context.signal,
-  })
+    const resp = await fetch(`${endpoint()}/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal, max_steps, start_url, headless }),
+      signal: context.signal,
+    })
 
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '')
-    return { ok: false, error: { code: 'BRIDGE_ERROR', message: `browser-use bridge ${resp.status}: ${text.slice(0, 200)}` } }
-  }
-
-  // Read SSE stream
-  const text = await resp.text()
-  const events = parseSSE(text)
-
-  const resultEvent = events.find(e => e.type === 'result')
-  if (resultEvent) {
-    return {
-      ok: resultEvent.data?.success !== false,
-      summary: resultEvent.data?.summary || '',
-      final_url: resultEvent.data?.final_url || '',
-      steps_completed: resultEvent.data?.steps_completed || 0,
-      duration_ms: resultEvent.data?.duration_ms || 0,
-      error: resultEvent.data?.error,
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '')
+      return { ok: false, error: { code: 'BRIDGE_ERROR', message: `browser-use bridge ${resp.status}: ${text.slice(0, 200)}` } }
     }
-  }
 
-  return { ok: false, error: { code: 'NO_RESULT', message: 'browser-use 未返回结果事件。' } }
+    // Read SSE stream
+    const text = await resp.text()
+    const events = parseSSE(text)
+
+    const resultEvent = events.find(e => e.type === 'result')
+    if (resultEvent) {
+      return {
+        ok: resultEvent.data?.success !== false,
+        summary: resultEvent.data?.summary || '',
+        final_url: resultEvent.data?.final_url || '',
+        steps_completed: resultEvent.data?.steps_completed || 0,
+        duration_ms: resultEvent.data?.duration_ms || 0,
+        error: resultEvent.data?.error,
+      }
+    }
+
+    return { ok: false, error: { code: 'NO_RESULT', message: 'browser-use 未返回结果事件。' } }
+  } catch (err) {
+    return { ok: false, error: { code: 'BRIDGE_UNREACHABLE', message: `browser-use bridge 不可达: ${err.message}` } }
+  }
 }
 
 async function cancel() {
@@ -73,6 +77,15 @@ function parseSSE(text) {
       }
       currentType = ''
       currentData = ''
+    }
+  }
+
+  // Flush final event when stream lacks trailing blank line
+  if (currentType && currentData) {
+    try {
+      events.push({ type: currentType, data: JSON.parse(currentData) })
+    } catch {
+      events.push({ type: currentType, data: currentData })
     }
   }
 
