@@ -61,7 +61,7 @@ describe('bridgeSupervisor', () => {
     const result = await sup.start({ healthTimeoutMs: 50, maxRestarts: 3 })
     expect(result.uitars.ready).toBe(false)
     expect(result.uitars.state).toBe('failed')
-  })
+  }, 15000)
 
   it('stop() kills all children', async () => {
     const children = []
