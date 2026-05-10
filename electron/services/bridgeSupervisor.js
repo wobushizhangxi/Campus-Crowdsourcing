@@ -5,6 +5,8 @@ const os = require('os')
 const path = require('path')
 const fetchImpl = global.fetch || ((...a) => import('node-fetch').then(({ default: f }) => f(...a)))
 
+const RETRY_DELAYS = [1000, 2000, 4000]
+
 const DEFAULTS = {
   uitars: { name: 'uitars-bridge', port: 8765, dir: 'server/uitars-bridge' },
   browserUse: { name: 'browser-use-bridge', port: 8780, dir: 'server/browser-use-bridge', runtime: 'python' }
@@ -87,6 +89,9 @@ function createSupervisor(opts = {}) {
       state[key].ready = false
       if (state[key].restarts < maxRestarts) {
         state[key].restarts++
+        const delay = RETRY_DELAYS[state[key].restarts] || 4000
+        emitter.emit('toast', { message: `${key} 连接断开，正在重连...`, bridge: key })
+        await new Promise(r => setTimeout(r, delay))
         return startOne(key, { healthTimeoutMs, maxRestarts })
       }
       state[key].lastError = 'health check timeout'
@@ -98,6 +103,9 @@ function createSupervisor(opts = {}) {
       state[key].lastError = error.message
       if (state[key].restarts < maxRestarts) {
         state[key].restarts++
+        const delay = RETRY_DELAYS[state[key].restarts] || 4000
+        emitter.emit('toast', { message: `${key} 连接断开，正在重连...`, bridge: key })
+        await new Promise(r => setTimeout(r, delay))
         return startOne(key, { healthTimeoutMs, maxRestarts })
       }
       state[key].state = 'failed'
