@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url)
 const { createSupervisor } = require('../services/bridgeSupervisor')
 
 describe('bridgeSupervisor', () => {
-  it('starts all three bridges and waits for /health', async () => {
+  it('starts all bridges and waits for /health', async () => {
     const calls = []
     const fakeChild = () => ({ on() {}, kill() { this.killed = true }, killed: false })
     const sup = createSupervisor({
@@ -16,10 +16,9 @@ describe('bridgeSupervisor', () => {
       healthImpl: async (port) => ({ ok: true, port })
     })
     const result = await sup.start()
-    expect(result.oi.ready).toBe(true)
     expect(result.uitars.ready).toBe(true)
     expect(result.browserUse.ready).toBe(true)
-    expect(calls).toHaveLength(3)
+    expect(calls).toHaveLength(2)
     const uitars = calls.find((c) => c.args.some((arg) => arg.includes('uitars-bridge')))
     expect(uitars.env.UITARS_MODEL_PROVIDER).toBe('volcengine')
     expect(uitars.env.UITARS_MODEL_ENDPOINT).toContain('volces.com')
@@ -45,9 +44,9 @@ describe('bridgeSupervisor', () => {
 
     await sup.start()
 
-    expect(seenStdio).toHaveLength(3)
+    expect(seenStdio).toHaveLength(2)
     expect(seenStdio.every((stdio) => Array.isArray(stdio) && stdio[0] === 'ignore')).toBe(true)
-    for (const key of ['oi', 'uitars', 'browserUse']) {
+    for (const key of ['uitars', 'browserUse']) {
       expect(fs.existsSync(path.join(os.tmpdir(), 'aionui-logs', `${key}-stdout.log`))).toBe(true)
       expect(fs.existsSync(path.join(os.tmpdir(), 'aionui-logs', `${key}-stderr.log`))).toBe(true)
     }
@@ -60,8 +59,8 @@ describe('bridgeSupervisor', () => {
       healthImpl: async () => { attempts++; return { ok: false } }
     })
     const result = await sup.start({ healthTimeoutMs: 50, maxRestarts: 3 })
-    expect(result.oi.ready).toBe(false)
-    expect(result.oi.state).toBe('failed')
+    expect(result.uitars.ready).toBe(false)
+    expect(result.uitars.state).toBe('failed')
   })
 
   it('stop() kills all children', async () => {
@@ -77,6 +76,6 @@ describe('bridgeSupervisor', () => {
     await sup.start()
     sup.stop()
     expect(children.every((c) => c.killed)).toBe(true)
-    expect(children).toHaveLength(3)
+    expect(children).toHaveLength(2)
   })
 })

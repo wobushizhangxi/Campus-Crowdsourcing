@@ -5,7 +5,6 @@ const path = require('path')
 const fetchImpl = global.fetch || ((...a) => import('node-fetch').then(({ default: f }) => f(...a)))
 
 const DEFAULTS = {
-  oi: { name: 'oi-bridge', port: 8756, dir: 'server/oi-bridge' },
   uitars: { name: 'uitars-bridge', port: 8765, dir: 'server/uitars-bridge' },
   browserUse: { name: 'browser-use-bridge', port: 8780, dir: 'server/browser-use-bridge', runtime: 'python' }
 }
