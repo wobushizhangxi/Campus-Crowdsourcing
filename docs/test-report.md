@@ -345,3 +345,64 @@ Date: 2026-05-09
 ```
 
 Result: PASS
+
+
+## Phase E acceptance smoke
+
+Date: 2026-05-10
+
+```json
+{
+  "passed": true,
+  "tests": [
+    {
+      "test": "agent loop module loads",
+      "passed": true
+    },
+    {
+      "test": "agent IPC module loads",
+      "passed": true
+    },
+    {
+      "test": "browser_task tool registered",
+      "passed": true
+    },
+    {
+      "test": "browser adapter loads",
+      "passed": true
+    },
+    {
+      "test": "desktop_observe registered",
+      "passed": true
+    },
+    {
+      "test": "desktop_click HIGH risk",
+      "passed": true
+    },
+    {
+      "test": "no midscene in RUNTIME_NAMES",
+      "passed": true
+    },
+    {
+      "test": "no midscene in bridge state",
+      "passed": true
+    },
+    {
+      "test": "conversation store create",
+      "passed": true
+    },
+    {
+      "test": "conversation store read",
+      "passed": true
+    },
+    {
+      "test": "conversation store delete",
+      "passed": true
+    }
+  ],
+  "totalTests": 11,
+  "passedCount": 11
+}
+```
+
+Result: PASS
