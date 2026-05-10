@@ -155,7 +155,13 @@ export default function WelcomeSetupDialog({ open, onClose, onMarkSeen }) {
     }
   }
 
-  function handleSkipApiKey() {
+  async function handleSkipApiKey() {
+    try {
+      await setupInvoke('setup:mark-welcome-shown')
+    } catch {
+      // Ignore in browser-only dev sessions
+    }
+    onMarkSeen?.(true)
     setStep(1)
   }
 

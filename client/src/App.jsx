@@ -19,9 +19,16 @@ export default function App() {
     const openWelcome = () => setWelcomeOpen(true)
     window.addEventListener('aionui:open-welcome', openWelcome)
     checkWelcome()
+
+    // Listen for main-process first-run welcome event
+    const ipcCleanup = window.electronAPI?.on?.('app:show-welcome', () => {
+      setWelcomeOpen(true)
+    })
+
     return () => {
       ignored = true
       window.removeEventListener('aionui:open-welcome', openWelcome)
+      ipcCleanup?.()
     }
   }, [])
 

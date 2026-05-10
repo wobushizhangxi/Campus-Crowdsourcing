@@ -5,6 +5,7 @@ const { registerAll } = require('./ipc')
 const { createSupervisor } = require('./services/bridgeSupervisor')
 const { setSupervisor } = require('./ipc/bridgeStatus')
 const { setBridgeContext } = require('./ipc/setupStatus')
+const { store } = require('./store')
 
 const isDev = !app.isPackaged
 let mainWindow = null
@@ -76,6 +77,14 @@ function createWindow() {
   })
 
   if (isDev) mainWindow.webContents.openDevTools()
+
+  // First-run: auto-open welcome wizard
+  const config = store.getConfig()
+  if (!config.welcomeShown) {
+    mainWindow.webContents.on('did-finish-load', () => {
+      mainWindow.webContents.send('app:show-welcome')
+    })
+  }
 }
 
 app.whenReady().then(async () => {
