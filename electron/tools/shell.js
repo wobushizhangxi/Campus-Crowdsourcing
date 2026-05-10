@@ -28,7 +28,8 @@ function appendOutput(target, chunk) {
   target.truncated = true
 }
 
-async function runShellCommand({ command, cwd, timeout_ms = 120000 }, { onLog } = {}) {
+async function runShellCommand({ command, cwd, timeout_ms = 120000 }, context = {}) {
+  const { onLog, skipInternalConfirm, signal } = context
   if (!command || typeof command !== 'string') return { error: { code: 'INVALID_ARGS', message: '需要提供命令。' } }
   const config = store.getConfig()
   const token = firstToken(command)
@@ -36,8 +37,10 @@ async function runShellCommand({ command, cwd, timeout_ms = 120000 }, { onLog } 
   const whitelist = new Set([...DEFAULT_WHITELIST, ...(config.shell_whitelist_extra || []).map((item) => String(item).toLowerCase())])
   if (blacklist.has(token)) return { error: { code: 'PERMISSION_DENIED', message: `命令已被阻止：${token}` } }
   if (!whitelist.has(token)) {
-    const allowed = await requestConfirm({ kind: 'shell-command', payload: { command, cwd } })
-    if (!allowed) return { error: { code: 'USER_CANCELLED', message: '用户已取消命令。' } }
+    if (!skipInternalConfirm) {
+      const allowed = await requestConfirm({ kind: 'shell-command', payload: { command, cwd } })
+      if (!allowed) return { error: { code: 'USER_CANCELLED', message: '用户已取消命令。' } }
+    }
   }
 
   const workingDir = cwd || config.workspace_root || process.cwd()
@@ -50,10 +53,26 @@ async function runShellCommand({ command, cwd, timeout_ms = 120000 }, { onLog } 
       ? spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-Command', command], { cwd: workingDir, windowsHide: true })
       : spawn('/bin/bash', ['-lc', command], { cwd: workingDir })
 
-    const timer = setTimeout(() => {
-      timedOut = true
+    const killChild = () => {
       child.kill('SIGTERM')
       setTimeout(() => { if (!child.killed) child.kill('SIGKILL') }, 2000)
+    }
+
+    if (signal) {
+      if (signal.aborted) {
+        clearTimeout(timer)
+        resolve({ error: { code: 'ABORTED', message: '操作已取消' } })
+        return
+      }
+      signal.addEventListener('abort', () => {
+        clearTimeout(timer)
+        killChild()
+      }, { once: true })
+    }
+
+    const timer = setTimeout(() => {
+      timedOut = true
+      killChild()
     }, Number(timeout_ms) || 120000)
 
     child.stdout.on('data', (chunk) => {

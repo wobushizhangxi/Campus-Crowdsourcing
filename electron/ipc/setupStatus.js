@@ -1,34 +1,39 @@
 const { store } = require('../store')
-const midsceneBootstrap = require('../services/midscene/bootstrap')
-const oiBootstrap = require('../services/openInterpreter/bootstrap')
-const uiTarsBootstrap = require('../services/uiTars/bootstrap')
+
+let pythonBootstrap, supervisor
+function setBridgeContext(ctx) {
+  pythonBootstrap = ctx.pythonBootstrap
+  supervisor = ctx.supervisor
+}
 
 const KEY_FIELD_MAP = {
   deepseekKey: 'deepseekApiKey',
-  qwenKey: 'qwenVisionApiKey',
   doubaoKey: 'doubaoVisionApiKey'
 }
 
-async function computeSetupStatus({ storeRef = store, bootstraps = {} } = {}) {
+async function computeSetupStatus({ storeRef = store } = {}) {
   const cfg = storeRef.getConfig()
-  const ms = bootstraps.midscene || midsceneBootstrap
-  const oi = bootstraps.openInterpreter || oiBootstrap
-  const ut = bootstraps.uiTars || uiTarsBootstrap
-
-  const [msStatus, oiStatus, utStatus] = await Promise.all([
-    ms.detect(cfg).catch(() => ({})),
-    oi.detect(cfg).catch(() => ({})),
-    ut.detect(cfg).catch(() => ({}))
-  ])
-
   const deps = {
     deepseekKey: Boolean(cfg.deepseekApiKey),
-    qwenKey: Boolean(cfg.qwenVisionApiKey),
     doubaoKey: Boolean(cfg.doubaoVisionApiKey),
-    midsceneExtension: Boolean(msStatus.extensionConnected),
-    pythonOpenInterpreter: Boolean(oiStatus.oiReady || oiStatus.state === 'configured'),
-    screenAuthorized: Boolean(utStatus.screenAuthorized || cfg.uiTarsScreenAuthorized)
   }
+
+  // Check Python/bridge health (non-blocking)
+  try {
+    if (typeof pythonBootstrap !== 'undefined' && pythonBootstrap) {
+      const pyResult = await pythonBootstrap.detect()
+      deps.python = pyResult.available
+      deps.browserUse = pyResult.browserUseInstalled
+      deps.playwright = pyResult.playwrightInstalled
+    }
+  } catch { deps.python = false }
+
+  try {
+    if (typeof supervisor !== 'undefined' && supervisor) {
+      const bridgeState = supervisor.getState()
+      deps.bridgesRunning = Object.values(bridgeState).every(b => b.state === 'running')
+    }
+  } catch { deps.bridgesRunning = false }
 
   const tiers = {
     lite: {
@@ -37,27 +42,18 @@ async function computeSetupStatus({ storeRef = store, bootstraps = {} } = {}) {
       ready: deps.deepseekKey
     },
     browser: {
-      label: 'Browser automation',
-      requires: ['deepseekKey', 'qwenKey', 'midsceneExtension'],
-      ready: deps.deepseekKey && deps.qwenKey && deps.midsceneExtension,
+      label: 'Browser + Desktop automation',
+      requires: ['deepseekKey', 'doubaoKey'],
+      ready: deps.deepseekKey && deps.doubaoKey && deps.python !== false,
       recommended: true
     },
-    full: {
-      label: 'Full desktop and local execution',
-      requires: ['deepseekKey', 'qwenKey', 'midsceneExtension', 'doubaoKey', 'pythonOpenInterpreter', 'screenAuthorized'],
-      ready: deps.deepseekKey && deps.qwenKey && deps.midsceneExtension && deps.doubaoKey && deps.pythonOpenInterpreter && deps.screenAuthorized
-    }
   }
-
   return {
     deps,
     tiers,
     helpLinks: {
       deepseekKey: 'https://platform.deepseek.com/api_keys',
-      qwenKey: 'https://bailian.console.aliyun.com/?apiKey=1#/api-key',
       doubaoKey: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
-      midsceneExtension: 'https://chromewebstore.google.com/detail/midscene/gbldofcpkknbggpkmbdaefngejllnief',
-      pythonOpenInterpreter: 'https://docs.openinterpreter.com/getting-started/setup'
     }
   }
 }
@@ -76,10 +72,6 @@ function register(ipcMain) {
     store.setConfig({ [field]: value.trim() })
     return { ok: true }
   })
-  ipcMain.handle('setup:set-screen-authorized', (_evt, { value } = {}) => {
-    store.setConfig({ uiTarsScreenAuthorized: Boolean(value) })
-    return { ok: true }
-  })
 }
 
-module.exports = { register, computeSetupStatus }
+module.exports = { register, computeSetupStatus, setBridgeContext }

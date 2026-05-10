@@ -13,11 +13,9 @@ const DEFAULT_FORM = {
   deepseekApiKey: '',
   deepseekBaseUrl: 'https://api.deepseek.com',
   fallbackModel: 'deepseek-chat',
-  openInterpreterEndpoint: '',
-  openInterpreterCommand: '',
-  uiTarsEndpoint: '',
-  uiTarsCommand: '',
-  uiTarsScreenAuthorized: false,
+  doubaoVisionApiKey: '',
+  doubaoVisionEndpoint: 'https://ark.cn-beijing.volces.com/api/v3',
+  doubaoVisionModel: 'doubao-seed-1-6-vision-250815',
   dryRunEnabled: true,
   permissionMode: 'default',
   workspace_root: '',
@@ -31,6 +29,78 @@ const TABS = [
   { id: 'skills', label: '技能' },
   { id: 'rules', label: '偏好' }
 ]
+
+function BridgeStatusPanel() {
+  const [bridges, setBridges] = useState({})
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    async function poll() {
+      try {
+        const result = await window.electronAPI?.invoke('bridge:status')
+        if (active && result?.bridges) setBridges(result.bridges)
+      } catch {}
+    }
+    poll()
+    const timer = setInterval(poll, 5000)
+    return () => { active = false; clearInterval(timer) }
+  }, [])
+
+  async function restart(key) {
+    setLoading(true)
+    try {
+      await window.electronAPI?.invoke('bridge:restart', { key })
+      // Re-poll after a short delay
+      setTimeout(async () => {
+        try {
+          const result = await window.electronAPI?.invoke('bridge:status')
+          if (result?.bridges) setBridges(result.bridges)
+        } catch {}
+      }, 2000)
+    } finally { setLoading(false) }
+  }
+
+  const entries = [
+    { key: 'browserUse', label: 'Browser-Use (浏览器自动化)', port: 8780, runtime: 'Python' },
+    { key: 'uitars', label: 'UI-TARS (桌面控制)', port: 8765, runtime: 'Node.js' },
+  ]
+
+  return (
+    <div className="space-y-3">
+      <h2 className="text-lg font-semibold">Bridge 状态</h2>
+      {entries.map(({ key, label, port, runtime }) => {
+        const b = bridges[key] || {}
+        const running = b.state === 'running'
+        const failed = b.state === 'failed'
+        const color = running ? 'text-[color:var(--success)]' : failed ? 'text-red-500' : 'text-amber-500'
+        const dotColor = running ? 'bg-[color:var(--success)]' : failed ? 'bg-red-500' : 'bg-amber-500'
+        const stateText = running ? 'Running' : failed ? 'Failed' : b.state || 'Unknown'
+        return (
+          <div key={key} className="rounded-md border border-[color:var(--border)] p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className={`inline-block w-2 h-2 rounded-full mr-2 ${dotColor}`} />
+                <span className="text-sm font-medium">{label}</span>
+                <span className="text-xs text-[color:var(--text-muted)] ml-2">{runtime} | port {port}</span>
+              </div>
+              <span className={`text-xs ${color}`}>{stateText}</span>
+            </div>
+            {failed && b.lastError && (
+              <div className="mt-2 text-xs text-red-500">{b.lastError}</div>
+            )}
+            {failed && (
+              <button type="button" onClick={() => restart(key)} disabled={loading}
+                className="mt-2 h-7 rounded-md border border-[color:var(--border)] px-3 text-xs hover:bg-[color:var(--bg-tertiary)]">
+                重新启动
+              </button>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function SettingsPanel() {
   const [tab, setTab] = useState('models')
@@ -47,12 +117,13 @@ export default function SettingsPanel() {
         if (ignored || !result.config) return
         const config = result.config
         const mode = config.permissionMode || 'default'
-        setMasked({ qwenApiKey: config.qwenApiKey, deepseekApiKey: config.deepseekApiKey, apiKey: config.apiKey })
+        setMasked({ qwenApiKey: config.qwenApiKey, deepseekApiKey: config.deepseekApiKey, apiKey: config.apiKey, doubaoVisionApiKey: config.doubaoVisionApiKey })
         setForm({
           ...DEFAULT_FORM,
           ...config,
           qwenApiKey: '',
           deepseekApiKey: '',
+          doubaoVisionApiKey: '',
           permissionMode: mode
         })
         localStorage.setItem('agentdev-permission-mode', mode)
@@ -75,10 +146,11 @@ export default function SettingsPanel() {
       const next = { ...form }
       if (!next.qwenApiKey) delete next.qwenApiKey
       if (!next.deepseekApiKey) delete next.deepseekApiKey
+      if (!next.doubaoVisionApiKey) delete next.doubaoVisionApiKey
       const result = await setConfig(next)
       const mode = result.config?.permissionMode || form.permissionMode
-      setMasked({ qwenApiKey: result.config?.qwenApiKey, deepseekApiKey: result.config?.deepseekApiKey, apiKey: result.config?.apiKey })
-      patch({ qwenApiKey: '', deepseekApiKey: '' })
+      setMasked({ qwenApiKey: result.config?.qwenApiKey, deepseekApiKey: result.config?.deepseekApiKey, apiKey: result.config?.apiKey, doubaoVisionApiKey: result.config?.doubaoVisionApiKey })
+      patch({ qwenApiKey: '', deepseekApiKey: '', doubaoVisionApiKey: '' })
       localStorage.setItem('agentdev-permission-mode', mode)
       window.dispatchEvent(new CustomEvent('agentdev:permission-changed', { detail: { mode } }))
       setMsg('已保存')
@@ -114,6 +186,26 @@ export default function SettingsPanel() {
 
       {tab === 'models' && (
         <div className="space-y-4">
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold">Doubao Vision (browser + desktop automation)</h2>
+            <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">API Key
+              <input type="password" value={form.doubaoVisionApiKey}
+                onChange={(event) => patch({ doubaoVisionApiKey: event.target.value })}
+                placeholder={masked.doubaoVisionApiKey || 'Volcengine Ark API Key'}
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" />
+            </label>
+            <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">Endpoint
+              <input value={form.doubaoVisionEndpoint}
+                onChange={(event) => patch({ doubaoVisionEndpoint: event.target.value })}
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" />
+            </label>
+            <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">Model Name
+              <input value={form.doubaoVisionModel}
+                onChange={(event) => patch({ doubaoVisionModel: event.target.value })}
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" />
+            </label>
+          </div>
+
           <h2 className="text-lg font-semibold">Qwen 配置</h2>
           <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">API Key<input type="password" value={form.qwenApiKey} onChange={(event) => patch({ qwenApiKey: event.target.value })} placeholder={masked.qwenApiKey || 'DashScope API Key'} className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" /></label>
           <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">Base URL<input value={form.qwenBaseUrl} onChange={(event) => patch({ qwenBaseUrl: event.target.value })} className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" /></label>
@@ -132,15 +224,7 @@ export default function SettingsPanel() {
       )}
 
       {tab === 'runtimes' && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">外部运行时</h2>
-          <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">Open Interpreter 端点<input value={form.openInterpreterEndpoint} onChange={(event) => patch({ openInterpreterEndpoint: event.target.value })} placeholder="http://127.0.0.1:8756" className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" /></label>
-          <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">Open Interpreter 启动命令<input value={form.openInterpreterCommand} onChange={(event) => patch({ openInterpreterCommand: event.target.value })} placeholder="外部 sidecar 启动命令" className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" /></label>
-          <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">UI-TARS 端点<input value={form.uiTarsEndpoint} onChange={(event) => patch({ uiTarsEndpoint: event.target.value })} placeholder="http://127.0.0.1:8765" className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" /></label>
-          <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">UI-TARS 启动命令<input value={form.uiTarsCommand} onChange={(event) => patch({ uiTarsCommand: event.target.value })} placeholder="外部适配器启动命令" className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" /></label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.uiTarsScreenAuthorized} onChange={(event) => patch({ uiTarsScreenAuthorized: event.target.checked })} /> 已授权屏幕控制</label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.dryRunEnabled} onChange={(event) => patch({ dryRunEnabled: event.target.checked })} /> 启用演示模式</label>
-        </div>
+        <BridgeStatusPanel />
       )}
 
       {tab === 'safety' && (

@@ -19,14 +19,12 @@ test('desktop scripts no longer start the legacy server', () => {
 
   expect(JSON.stringify(pkg.build.files)).not.toContain('server')
   expect(pkg.build.extraResources).toEqual(expect.arrayContaining([
-    expect.objectContaining({ from: 'dist-bridges/oi-bridge', to: 'server/oi-bridge' }),
-    expect.objectContaining({ from: 'dist-bridges/uitars-bridge', to: 'server/uitars-bridge' }),
-    expect.objectContaining({ from: 'dist-bridges/midscene-bridge', to: 'server/midscene-bridge' })
+    expect.objectContaining({ from: 'dist-bridges/browser-use-bridge', to: 'server/browser-use-bridge' }),
+    expect.objectContaining({ from: 'dist-bridges/uitars-bridge', to: 'server/uitars-bridge' })
   ]))
   expect(pkg.build.extraResources).not.toEqual(expect.arrayContaining([
     expect.objectContaining({ from: 'server/oi-bridge' }),
-    expect.objectContaining({ from: 'server/uitars-bridge' }),
-    expect.objectContaining({ from: 'server/midscene-bridge' })
+    expect.objectContaining({ from: 'server/uitars-bridge' })
   ]))
 })
 
@@ -59,10 +57,8 @@ test('README describes the V2 control plane scope', () => {
   const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf-8')
   const requiredText = [
     'DeepSeek-V4 owns chat, planning, intent classification, and coding reasoning',
-    'Qwen3-VL is vision-only and drives browser automation through the Midscene bridge',
     'Doubao 1.5 vision runs desktop screen control through UI-TARS on Volcengine Ark',
     'Open Interpreter remains the managed local runtime',
-    'server/midscene-bridge',
     'AionUi owns policy',
     'High-risk actions always require explicit confirmation'
   ]

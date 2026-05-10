@@ -40,13 +40,7 @@ const DEFAULT_CONFIG = {
   qwenVisionModel: 'qwen3-vl-plus',
   doubaoVisionEndpoint: 'https://ark.cn-beijing.volces.com/api/v3',
   doubaoVisionApiKey: '',
-  doubaoVisionModel: 'doubao-1-5-thinking-vision-pro-250428',
-  openInterpreterCommand: '',
-  openInterpreterEndpoint: '',
-  uiTarsEndpoint: '',
-  uiTarsModelEndpoint: '',
-  uiTarsCommand: '',
-  uiTarsScreenAuthorized: false,
+  doubaoVisionModel: 'doubao-seed-1-6-vision-250815',
   dryRunEnabled: true,
   visionLoopEnabled: true,
   auditRetentionDays: 30,
@@ -101,6 +95,8 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf-8')
 }
 
+const conversationStore = require('./services/conversationStore')
+
 const store = {
   genId: (prefix = '') => prefix + crypto.randomUUID(),
 
@@ -124,7 +120,8 @@ const store = {
       ...config,
       apiKey: mask(config.apiKey || ''),
       qwenApiKey: mask(config.qwenApiKey || ''),
-      deepseekApiKey: mask(config.deepseekApiKey || '')
+      deepseekApiKey: mask(config.deepseekApiKey || ''),
+      doubaoVisionApiKey: mask(config.doubaoVisionApiKey || '')
     }
   },
 
@@ -137,20 +134,23 @@ const store = {
   },
 
   upsertConversation(conversation) {
-    const data = this.getData()
-    const index = data.conversations.findIndex((item) => item.id === conversation.id)
-    if (index === -1) data.conversations.unshift(conversation)
-    else data.conversations[index] = conversation
-    this.saveData(data)
-    return conversation
+    return conversationStore.upsertConversation(conversation.id, conversation)
   },
 
   getConversation(id) {
-    return this.getData().conversations.find((item) => item.id === id)
+    return conversationStore.getConversation(id)
   },
 
   listConversations() {
-    return this.getData().conversations
+    return conversationStore.listConversations()
+  },
+
+  deleteConversation(id) {
+    return conversationStore.deleteConversation(id)
+  },
+
+  closeConversationStore() {
+    return conversationStore.close()
   },
 
   addArtifact(artifact) {

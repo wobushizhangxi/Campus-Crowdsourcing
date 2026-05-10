@@ -7,6 +7,20 @@ import path from 'path'
 const TMP = path.join(os.tmpdir(), `agentdev-ipc-test-${Date.now()}`)
 process.env.AGENTDEV_DATA_DIR = path.join(TMP, 'data')
 const require = createRequire(import.meta.url)
+
+// Mock electron for conversationStore (SQLite-backed CRUD needs app.getPath)
+const convDir = path.join(TMP, 'conversations')
+require.cache[require.resolve('electron')] = {
+  exports: {
+    app: {
+      getPath: () => {
+        fs.mkdirSync(convDir, { recursive: true })
+        return convDir
+      }
+    }
+  }
+}
+
 const { registerAll } = require('../ipc')
 const { store } = require('../store')
 
@@ -19,7 +33,8 @@ function createIpcMain() {
 }
 
 beforeEach(() => {
-  fs.rmSync(TMP, { recursive: true, force: true })
+  try { store.closeConversationStore() } catch {}
+  try { fs.rmSync(TMP, { recursive: true, force: true }) } catch {}
 })
 
 test('registerAll registers core IPC channels', () => {

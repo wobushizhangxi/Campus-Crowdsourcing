@@ -7,6 +7,7 @@ import WordCard from '../cards/WordCard.jsx'
 import PptCard from '../cards/PptCard.jsx'
 import FileCard from '../cards/FileCard.jsx'
 import ActionCard from '../actions/ActionCard.jsx'
+import AgentToolCard from './AgentToolCard.jsx'
 
 export default function MessageList({ messages }) {
   const endRef = useRef(null)
@@ -30,6 +31,9 @@ export default function MessageList({ messages }) {
           return message.toolName === 'run_shell_command'
             ? <ShellCard key={message.id} message={message} />
             : <ToolCard key={message.id} message={message} />
+        }
+        if (message.role === 'agent-tool') {
+          return <AgentToolCard key={message.id} message={message} />
         }
         if (message.role === 'skill') {
           return <SkillBadge key={message.id} name={message.skillName} />

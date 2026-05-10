@@ -2,7 +2,7 @@ import { afterEach, describe, it, expect, vi } from 'vitest'
 import { createRequire } from 'module'
 
 const require = createRequire(import.meta.url)
-const { computeSetupStatus, register } = require('../ipc/setupStatus')
+const { computeSetupStatus, register, setBridgeContext } = require('../ipc/setupStatus')
 const { store } = require('../store')
 
 describe('setup-status', () => {
@@ -11,58 +11,55 @@ describe('setup-status', () => {
   })
 
   it('reports lite tier ready when only DeepSeek key set', async () => {
-    const fakeStore = { getConfig: () => ({ deepseekApiKey: 'k', qwenVisionApiKey: '', doubaoVisionApiKey: '', uiTarsScreenAuthorized: false }) }
-    const fakeBootstraps = {
-      midscene: { detect: async () => ({ extensionConnected: false }) },
-      openInterpreter: { detect: async () => ({ state: 'not-installed', oiReady: false }) },
-      uiTars: { detect: async () => ({ screenAuthorized: false }) }
-    }
-    const status = await computeSetupStatus({ storeRef: fakeStore, bootstraps: fakeBootstraps })
+    const fakeStore = { getConfig: () => ({ deepseekApiKey: 'k', doubaoVisionApiKey: '' }) }
+    setBridgeContext({ pythonBootstrap: null, supervisor: null })
+    const status = await computeSetupStatus({ storeRef: fakeStore })
     expect(status.tiers.lite.ready).toBe(true)
     expect(status.tiers.browser.ready).toBe(false)
-    expect(status.tiers.full.ready).toBe(false)
     expect(status.deps.deepseekKey).toBe(true)
-    expect(status.deps.midsceneExtension).toBe(false)
   })
 
-  it('returns verified help links and omits screen authorization URL', async () => {
-    const fakeStore = { getConfig: () => ({ deepseekApiKey: '', qwenVisionApiKey: '', doubaoVisionApiKey: '', uiTarsScreenAuthorized: false }) }
-    const fakeBootstraps = {
-      midscene: { detect: async () => ({ extensionConnected: false }) },
-      openInterpreter: { detect: async () => ({ state: 'not-installed', oiReady: false }) },
-      uiTars: { detect: async () => ({ screenAuthorized: false }) }
-    }
-    const status = await computeSetupStatus({ storeRef: fakeStore, bootstraps: fakeBootstraps })
+  it('returns verified help links', async () => {
+    const fakeStore = { getConfig: () => ({ deepseekApiKey: '', doubaoVisionApiKey: '' }) }
+    setBridgeContext({ pythonBootstrap: null, supervisor: null })
+    const status = await computeSetupStatus({ storeRef: fakeStore })
     expect(status.helpLinks).toEqual({
       deepseekKey: 'https://platform.deepseek.com/api_keys',
-      qwenKey: 'https://bailian.console.aliyun.com/?apiKey=1#/api-key',
       doubaoKey: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey',
-      midsceneExtension: 'https://chromewebstore.google.com/detail/midscene/gbldofcpkknbggpkmbdaefngejllnief',
-      pythonOpenInterpreter: 'https://docs.openinterpreter.com/getting-started/setup'
     })
   })
 
-  it('reports browser tier ready when Qwen key and extension are connected', async () => {
-    const fakeStore = { getConfig: () => ({ deepseekApiKey: 'k', qwenVisionApiKey: 'q', doubaoVisionApiKey: '', uiTarsScreenAuthorized: false }) }
-    const fakeBootstraps = {
-      midscene: { detect: async () => ({ extensionConnected: true }) },
-      openInterpreter: { detect: async () => ({ oiReady: false }) },
-      uiTars: { detect: async () => ({ screenAuthorized: false }) }
-    }
-    const status = await computeSetupStatus({ storeRef: fakeStore, bootstraps: fakeBootstraps })
+  it('reports browser tier ready when doubao key and python deps are available', async () => {
+    const fakeStore = { getConfig: () => ({ deepseekApiKey: 'k', doubaoVisionApiKey: 'd' }) }
+    setBridgeContext({
+      pythonBootstrap: { detect: async () => ({ available: true, browserUseInstalled: true, playwrightInstalled: true }) },
+      supervisor: null
+    })
+    const status = await computeSetupStatus({ storeRef: fakeStore })
     expect(status.tiers.browser.ready).toBe(true)
-    expect(status.tiers.full.ready).toBe(false)
+    expect(status.deps.python).toBe(true)
+    expect(status.deps.browserUse).toBe(true)
   })
 
-  it('reports full tier ready only when all deps are green', async () => {
-    const fakeStore = { getConfig: () => ({ deepseekApiKey: 'k', qwenVisionApiKey: 'q', doubaoVisionApiKey: 'd', uiTarsScreenAuthorized: true }) }
-    const fakeBootstraps = {
-      midscene: { detect: async () => ({ extensionConnected: true }) },
-      openInterpreter: { detect: async () => ({ oiReady: true }) },
-      uiTars: { detect: async () => ({ screenAuthorized: true }) }
-    }
-    const status = await computeSetupStatus({ storeRef: fakeStore, bootstraps: fakeBootstraps })
-    expect(status.tiers.full.ready).toBe(true)
+  it('reports browser tier not ready when python is missing', async () => {
+    const fakeStore = { getConfig: () => ({ deepseekApiKey: 'k', doubaoVisionApiKey: 'd' }) }
+    setBridgeContext({
+      pythonBootstrap: { detect: async () => ({ available: false, browserUseInstalled: false, playwrightInstalled: false }) },
+      supervisor: null
+    })
+    const status = await computeSetupStatus({ storeRef: fakeStore })
+    expect(status.tiers.browser.ready).toBe(false)
+    expect(status.deps.python).toBe(false)
+  })
+
+  it('reports bridges running when supervisor reports all running', async () => {
+    const fakeStore = { getConfig: () => ({ deepseekApiKey: 'k', doubaoVisionApiKey: 'd' }) }
+    setBridgeContext({
+      pythonBootstrap: null,
+      supervisor: { getState: () => ({ uitars: { state: 'running' }, browserUse: { state: 'running' } }) }
+    })
+    const status = await computeSetupStatus({ storeRef: fakeStore })
+    expect(status.deps.bridgesRunning).toBe(true)
   })
 
   it('registers status and welcome visibility handlers', () => {
@@ -73,7 +70,6 @@ describe('setup-status', () => {
       'setup:get-welcome-shown',
       'setup:mark-welcome-shown',
       'setup:set-key',
-      'setup:set-screen-authorized'
     ]))
   })
 
@@ -99,16 +95,7 @@ describe('setup-status', () => {
     vi.spyOn(store, 'setConfig').mockImplementation((patch) => patch)
     register({ handle: (channel, handler) => handlers.set(channel, handler) })
 
-    expect(() => handlers.get('setup:set-key')({}, { dep: 'qwenKey', value: 123 })).toThrow(/invalid key/)
-    expect(() => handlers.get('setup:set-key')({}, { dep: 'qwenKey', value: 'x'.repeat(4097) })).toThrow(/invalid key/)
-  })
-
-  it('setup:set-screen-authorized stores a boolean value', () => {
-    const handlers = new Map()
-    const setConfig = vi.spyOn(store, 'setConfig').mockImplementation((patch) => patch)
-    register({ handle: (channel, handler) => handlers.set(channel, handler) })
-
-    expect(handlers.get('setup:set-screen-authorized')({}, { value: 'yes' })).toEqual({ ok: true })
-    expect(setConfig).toHaveBeenCalledWith({ uiTarsScreenAuthorized: true })
+    expect(() => handlers.get('setup:set-key')({}, { dep: 'doubaoKey', value: 123 })).toThrow(/invalid key/)
+    expect(() => handlers.get('setup:set-key')({}, { dep: 'doubaoKey', value: 'x'.repeat(4097) })).toThrow(/invalid key/)
   })
 })

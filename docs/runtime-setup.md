@@ -2,30 +2,14 @@
 
 ## DeepSeek
 
-DeepSeek is the primary text model for chat, task planning, action intent, and coding reasoning.
+DeepSeek-V4 is the primary text model for chat, planning, intent classification, and coding reasoning.
 
 Configure:
 
 - DeepSeek API key.
-- Base URL, default `https://api.deepseek.com`.
-- Planner model, default `deepseek-chat`.
+- Base URL, default `https://api.platform.deepseek.com`.
+- Chat model, default `deepseek-chat`.
 - Coding model, default `deepseek-coder`.
-
-## Qwen3-VL
-
-Qwen3-VL is vision-only in AionUi. It is consumed by `server/midscene-bridge` through Midscene Bridge Mode for browser observation and browser actions.
-
-Default China Beijing base URL:
-
-```text
-https://dashscope.aliyuncs.com/compatible-mode/v1
-```
-
-Configure:
-
-- Qwen vision API key in `qwenVisionApiKey`.
-- Qwen vision model, default `qwen3-vl-plus`.
-- Chrome with the Midscene extension installed manually and connected.
 
 ## Doubao Vision
 
@@ -80,17 +64,36 @@ POST /execute
 
 Body protocol: `aionui.ui-tars.v1`.
 
-## Midscene
+## Browser Automation (browser-use)
 
-Midscene is the browser runtime. AionUi launches `server/midscene-bridge` on `127.0.0.1:8770`; the bridge consumes `@midscene/web` from npm and talks to the manually installed Chrome extension.
+Browser-use is a Python-based browser automation runtime. AionUi launches `server/browser-use-bridge` on `127.0.0.1:8780`.
 
-Recommended setup:
+### Prerequisites
 
-1. Install Google Chrome.
-2. Install the Midscene browser extension manually.
-3. Click `Allow Bridge Connection` in the extension.
-4. Configure `qwenVisionApiKey` for Qwen3-VL on DashScope.
-5. Run a `web.observe` smoke test before `web.click` or `web.type`.
+1. Install Python 3.11+ from https://python.org/downloads/
+2. Ensure Python is on PATH (verify with `python --version`)
+3. Install browser-use: `pip install browser-use`
+4. Install Playwright browsers: `playwright install chromium`
+5. (Optional) Install uv for faster package management: `pip install uv`
+
+### Recommended setup
+
+1. Verify Python 3.11+: `python --version`
+2. Install browser-use: `pip install browser-use`
+3. Install browsers: `playwright install chromium`
+4. Configure vision model API key for LiteLLM (browser-use uses this internally)
+5. Run Models/Runtimes health check — AionUi auto-detects Python and browser-use readiness
+6. Test with a simple `browser_navigate` or `browser_snapshot` before using `browser_task`
+
+### Detection
+
+AionUi automatically detects:
+- Python 3.11+ installation and path
+- uv availability (optional acceleration)
+- browser-use package installation
+- Playwright chromium browser installation
+
+Setup guidance appears in Models/Runtimes when components are missing.
 
 Endpoint contract:
 
@@ -98,8 +101,8 @@ Endpoint contract:
 POST /execute
 ```
 
-Body protocol: `aionui.midscene.v1`.
+Body protocol: `aionui.browser-use.v1`.
 
 ## Dry-Run
 
-Dry-run is enabled by default. It simulates model planning, command/file/code execution, screen observation, browser actions, mouse, keyboard, outputs, and logs.
+Dry-run is enabled by default. It simulates tool execution for demos when external runtimes are unavailable.

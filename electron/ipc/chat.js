@@ -3,7 +3,8 @@ const deepseek = require('../services/deepseek')
 const tools = require('../tools')
 const skillRegistry = require('../skills/registry')
 const userRules = require('../services/userRules')
-const { createTaskOrchestrator } = require('../services/taskOrchestrator')
+const { runTurn } = require('../services/agentLoop')
+const { requestConfirm } = require('../confirm')
 
 const BASE_PROMPT = '你是 AionUi，一个桌面控制平面助手。请默认使用简体中文，回答要简洁、专业。除非 AionUi 已报告审批通过的执行结果，否则不要暗示本地动作已经运行。'
 const FULL_PROMPT = `${BASE_PROMPT}\n\n旧版完全权限工具仅作为兼容辅助。新的执行任务应使用执行模式，让 Qwen 提案经过 AionUi 策略、确认、适配器和审计日志。`
@@ -29,17 +30,34 @@ async function handleChatSend(evt, payload = {}, deps) {
   const config = deps.storeRef.getConfig()
   if (payload.mode === 'execute') {
     try {
-      const result = await deps.taskOrchestrator.runExecutionTask({
-        convId,
-        messages,
-        dryRun: Boolean(payload.dryRun),
-        onEvent: (event, data) => send(event, data)
+      const execMessages = messages.filter(m => m.role === 'user' || m.role === 'assistant' || m.role === 'tool')
+      const result = await deps.runTurn({
+        messages: execMessages,
+        onEvent: (type, data) => {
+          if (type === 'assistant_message') {
+            if (data.content) send('chat:delta', { text: data.content })
+            if (data.toolCalls?.length) {
+              for (const call of data.toolCalls) {
+                send('chat:tool-start', { callId: call.id, name: call.name, args: call.args })
+              }
+            }
+          } else if (type === 'tool_result') {
+            send('chat:tool-result', { callId: data.call.id, result: data.result })
+          } else if (type === 'tool_blocked') {
+            send('chat:tool-error', { callId: data.call.id, error: { code: 'POLICY_BLOCKED', message: data.reason } })
+          } else if (type === 'approval_request') {
+            send('chat:tool-start', { callId: data.call.id, name: data.call.name, args: data.call.args, needsApproval: true })
+          }
+        },
+        requestApproval: async ({ call, decision }) => {
+          return requestConfirm({ kind: 'agent-tool', payload: { tool: call.name, reason: decision.reason } })
+        }
       })
-      send('chat:delta', { text: result.content })
+      if (result.finalText) send('chat:delta', { text: result.finalText })
       send('chat:done', {})
       return { ok: true }
     } catch (error) {
-      send('chat:error', { error: { code: error.code || 'EXECUTION_TASK_ERROR', message: error.message || '执行任务失败。' } })
+      send('chat:error', { error: { code: error.code || 'AGENT_ERROR', message: error.message || 'Agent 执行失败。' } })
       return { ok: true }
     }
   }
@@ -103,7 +121,7 @@ function createRegister(overrides = {}) {
     toolSchemas: tools.TOOL_SCHEMAS,
     skillRegistry,
     userRules,
-    taskOrchestrator: createTaskOrchestrator(),
+    runTurn,
     ...overrides
   }
   return function register(ipcMain) {

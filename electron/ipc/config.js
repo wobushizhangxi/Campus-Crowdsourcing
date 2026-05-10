@@ -13,11 +13,9 @@ function sanitizeConfigPatch(input = {}) {
   if (typeof input.fallbackModel === 'string' && input.fallbackModel) patch.fallbackModel = input.fallbackModel.trim()
   if (typeof input.deepseekApiKey === 'string' && input.deepseekApiKey && !input.deepseekApiKey.includes('***')) patch.deepseekApiKey = input.deepseekApiKey.trim()
   if (typeof input.deepseekBaseUrl === 'string' && input.deepseekBaseUrl) patch.deepseekBaseUrl = input.deepseekBaseUrl.trim()
-  if (typeof input.openInterpreterCommand === 'string') patch.openInterpreterCommand = input.openInterpreterCommand.trim()
-  if (typeof input.openInterpreterEndpoint === 'string') patch.openInterpreterEndpoint = input.openInterpreterEndpoint.trim()
-  if (typeof input.uiTarsEndpoint === 'string') patch.uiTarsEndpoint = input.uiTarsEndpoint.trim()
-  if (typeof input.uiTarsCommand === 'string') patch.uiTarsCommand = input.uiTarsCommand.trim()
-  if (typeof input.uiTarsScreenAuthorized === 'boolean') patch.uiTarsScreenAuthorized = input.uiTarsScreenAuthorized
+  if (typeof input.doubaoVisionApiKey === 'string' && input.doubaoVisionApiKey && !input.doubaoVisionApiKey.includes('***')) patch.doubaoVisionApiKey = input.doubaoVisionApiKey.trim()
+  if (typeof input.doubaoVisionEndpoint === 'string' && input.doubaoVisionEndpoint) patch.doubaoVisionEndpoint = input.doubaoVisionEndpoint.trim()
+  if (typeof input.doubaoVisionModel === 'string' && input.doubaoVisionModel) patch.doubaoVisionModel = input.doubaoVisionModel.trim()
   if (typeof input.dryRunEnabled === 'boolean') patch.dryRunEnabled = input.dryRunEnabled
   if (typeof input.auditRetentionDays === 'number') patch.auditRetentionDays = input.auditRetentionDays
   if (typeof input.outputRetentionDays === 'number') patch.outputRetentionDays = input.outputRetentionDays

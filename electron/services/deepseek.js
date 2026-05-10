@@ -75,11 +75,13 @@ function messageToChatResult(message = {}) {
   }
 }
 
-async function postChat(body, timeout = 60000) {
+async function postChat(body, timeout = 60000, signal) {
   const config = store.getConfig()
   const apiKey = config.deepseekApiKey || config.apiKey
   const baseUrl = (config.deepseekBaseUrl || config.baseUrl || 'https://api.deepseek.com').replace(/\/+$/, '')
   if (!apiKey) throw new DeepSeekError('DEEPSEEK_AUTH', '尚未配置 API Key。')
+  const timeoutSignal = AbortSignal.timeout(timeout)
+  const effectiveSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
   let resp
   try {
     resp = await getFetch()(`${baseUrl}/v1/chat/completions`, {
@@ -89,10 +91,13 @@ async function postChat(body, timeout = 60000) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeout)
+      signal: effectiveSignal
     })
   } catch (error) {
-    if (error.name === 'AbortError' || error.name === 'TimeoutError') throw new DeepSeekError('DEEPSEEK_TIMEOUT', '模型响应超时。')
+    if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+      if (signal?.aborted) throw error
+      throw new DeepSeekError('DEEPSEEK_TIMEOUT', '模型响应超时。')
+    }
     throw new DeepSeekError('DEEPSEEK_NETWORK', `网络错误：${error.message}`)
   }
   if (!resp.ok) {
@@ -102,17 +107,17 @@ async function postChat(body, timeout = 60000) {
   return resp
 }
 
-async function chat({ messages, json = false, temperature = 0.7, tools, stream = false, onDelta }) {
-  if (stream) return chatStreamingResult({ messages, temperature, tools, onDelta })
-  const resp = await postChat(buildBody({ messages, json, temperature, stream: false, tools }))
+async function chat({ messages, json = false, temperature = 0.7, tools, stream = false, onDelta, signal }) {
+  if (stream) return chatStreamingResult({ messages, temperature, tools, onDelta, signal })
+  const resp = await postChat(buildBody({ messages, json, temperature, stream: false, tools }), 60000, signal)
   const data = await resp.json()
   const message = data.choices?.[0]?.message || {}
   if (tools?.length) return messageToChatResult(message)
   return message.content ?? ''
 }
 
-async function chatStreamingResult({ messages, temperature = 0.7, tools, onDelta }) {
-  const resp = await postChat(buildBody({ messages, temperature, stream: true, tools }), 120000)
+async function chatStreamingResult({ messages, temperature = 0.7, tools, onDelta, signal }) {
+  const resp = await postChat(buildBody({ messages, temperature, stream: true, tools }), 120000, signal)
   const decoder = new TextDecoder()
   let buffer = ''
   let content = ''

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Sidebar from './Sidebar.jsx'
 import MainArea from './MainArea.jsx'
 import RightDrawer from './RightDrawer.jsx'
+import BridgeStatusBar from '../BridgeStatusBar.jsx'
 
 const ACTIVE_CONVERSATION_KEY = 'agentdev-active-conversation-id'
 
@@ -30,15 +31,18 @@ export default function Layout() {
   }
 
   return (
-    <div className="flex h-full w-full bg-[color:var(--bg-primary)] text-[color:var(--text-primary)]">
-      <Sidebar
-        collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(v => !v)}
-        onOpenDrawer={setDrawer}
-        onNewConversation={handleNewConversation}
-      />
-      <MainArea conversationId={conversationId} onOpenDrawer={setDrawer} />
-      <RightDrawer view={drawer} onClose={() => setDrawer(null)} />
+    <div className="flex flex-col h-full w-full bg-[color:var(--bg-primary)] text-[color:var(--text-primary)]">
+      <div className="flex flex-1 min-h-0">
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onToggle={() => setSidebarCollapsed(v => !v)}
+          onOpenDrawer={setDrawer}
+          onNewConversation={handleNewConversation}
+        />
+        <MainArea conversationId={conversationId} onOpenDrawer={setDrawer} />
+        <RightDrawer view={drawer} onClose={() => setDrawer(null)} />
+      </div>
+      <BridgeStatusBar onNavigateToSettings={(tab) => setDrawer(tab)} />
     </div>
   )
 }

@@ -1,13 +1,15 @@
 const { spawn: realSpawn } = require('child_process')
+const { EventEmitter } = require('events')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const fetchImpl = global.fetch || ((...a) => import('node-fetch').then(({ default: f }) => f(...a)))
 
+const RETRY_DELAYS = [1000, 2000, 4000]
+
 const DEFAULTS = {
-  oi: { name: 'oi-bridge', port: 8756, dir: 'server/oi-bridge' },
   uitars: { name: 'uitars-bridge', port: 8765, dir: 'server/uitars-bridge' },
-  midscene: { name: 'midscene-bridge', port: 8770, dir: 'server/midscene-bridge' }
+  browserUse: { name: 'browser-use-bridge', port: 8780, dir: 'server/browser-use-bridge', runtime: 'python' }
 }
 
 function resolveDefaultRootDir() {
@@ -34,9 +36,10 @@ function createSupervisor(opts = {}) {
     }
   })
   const rootDir = opts.rootDir || resolveDefaultRootDir()
+  const emitter = new EventEmitter()
 
   const state = Object.fromEntries(
-    Object.keys(DEFAULTS).map((key) => [key, { ready: false, state: 'pending', child: null, restarts: 0 }])
+    Object.keys(DEFAULTS).map((key) => [key, { ready: false, state: 'pending', child: null, lastError: null, restarts: 0 }])
   )
 
   function buildEnv(key) {
@@ -48,19 +51,10 @@ function createSupervisor(opts = {}) {
       env.UITARS_MODEL_API_KEY = config.doubaoVisionApiKey || ''
       env.UITARS_MODEL_NAME = config.doubaoVisionModel || ''
     }
-    if (key === 'midscene') {
-      // Switched from Qwen3-VL to Doubao 1.5 vision (Volcengine Ark) for
-      // better GUI grounding on web pages. Reuses the Doubao key/endpoint
-      // already configured for uitars-bridge — user configures Volcengine
-      // Ark once.
-      env.MIDSCENE_VISION_PROVIDER = 'doubao'
-      env.MIDSCENE_VISION_ENDPOINT = config.doubaoVisionEndpoint || ''
-      env.MIDSCENE_VISION_API_KEY = config.doubaoVisionApiKey || ''
-      env.MIDSCENE_VISION_MODEL = config.doubaoVisionModel || ''
-      // Legacy Qwen vars left in env so bridgeMode can fall back if needed.
-      env.MIDSCENE_QWEN_ENDPOINT = config.qwenVisionEndpoint || ''
-      env.MIDSCENE_QWEN_API_KEY = config.qwenVisionApiKey || ''
-      env.MIDSCENE_QWEN_MODEL = config.qwenVisionModel || ''
+    if (key === 'browserUse') {
+      env.BROWSER_USE_MODEL_ENDPOINT = config.doubaoVisionEndpoint || ''
+      env.BROWSER_USE_MODEL_API_KEY = config.doubaoVisionApiKey || ''
+      env.BROWSER_USE_MODEL_NAME = config.doubaoVisionModel || 'doubao-seed-1-6-vision-250815'
     }
     return env
   }
@@ -73,24 +67,51 @@ function createSupervisor(opts = {}) {
     const cfg = DEFAULTS[key]
     const spawnOptions = { stdio: buildStdio(key), env: buildEnv(key) }
     state[key].state = 'starting'
-    state[key].child = spawnImpl('node', [path.join(rootDir, cfg.dir, 'index.js'), '--port', String(cfg.port)], spawnOptions)
-    const deadline = Date.now() + healthTimeoutMs
-    while (Date.now() < deadline) {
-      const h = await healthImpl(cfg.port)
-      if (h.ok) {
-        state[key].ready = true
-        state[key].state = 'running'
-        return state[key]
+    const runtime = cfg.runtime || 'node'
+    let child
+    try {
+      child = runtime === 'python'
+        ? spawnImpl('python', ['-u', path.join(rootDir, cfg.dir, 'main.py'), String(cfg.port)], spawnOptions)
+        : spawnImpl('node', [path.join(rootDir, cfg.dir, 'index.js'), '--port', String(cfg.port)], spawnOptions)
+      state[key].child = child
+      const deadline = Date.now() + healthTimeoutMs
+      while (Date.now() < deadline) {
+        const h = await healthImpl(cfg.port)
+        if (h.ok) {
+          state[key].ready = true
+          state[key].state = 'running'
+          state[key].lastError = null
+          emitter.emit('change', { key, state: state[key] })
+          return state[key]
+        }
+        await new Promise((r) => setTimeout(r, 250))
       }
-      await new Promise((r) => setTimeout(r, 250))
+      state[key].ready = false
+      if (state[key].restarts < maxRestarts) {
+        state[key].restarts++
+        const delay = RETRY_DELAYS[state[key].restarts] || 4000
+        emitter.emit('toast', { message: `${key} 连接断开，正在重连...`, bridge: key })
+        await new Promise(r => setTimeout(r, delay))
+        return startOne(key, { healthTimeoutMs, maxRestarts })
+      }
+      state[key].lastError = 'health check timeout'
+      state[key].state = 'failed'
+      emitter.emit('change', { key, state: state[key] })
+      return state[key]
+    } catch (error) {
+      state[key].ready = false
+      state[key].lastError = error.message
+      if (state[key].restarts < maxRestarts) {
+        state[key].restarts++
+        const delay = RETRY_DELAYS[state[key].restarts] || 4000
+        emitter.emit('toast', { message: `${key} 连接断开，正在重连...`, bridge: key })
+        await new Promise(r => setTimeout(r, delay))
+        return startOne(key, { healthTimeoutMs, maxRestarts })
+      }
+      state[key].state = 'failed'
+      emitter.emit('change', { key, state: state[key] })
+      return state[key]
     }
-    state[key].ready = false
-    if (state[key].restarts < maxRestarts) {
-      state[key].restarts++
-      return startOne(key, { healthTimeoutMs, maxRestarts })
-    }
-    state[key].state = 'failed'
-    return state[key]
   }
 
   async function start(options = {}) {
@@ -108,7 +129,7 @@ function createSupervisor(opts = {}) {
     }
   }
 
-  return { start, stop, getState: snapshot }
+  return { start, stop, startOne, getState: snapshot, events: emitter }
 }
 
 module.exports = { createSupervisor }

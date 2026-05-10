@@ -16,6 +16,7 @@ async function execute(name, args, context = {}) {
   try {
     return await fn(args || {}, context)
   } catch (error) {
+    if (error.name === 'AbortError') throw error
     return { error: { code: error.code || 'INTERNAL', message: error.message || '工具执行失败。' } }
   }
 }
@@ -31,11 +32,19 @@ function loadBuiltins() {
   require('./docs')
   require('./remember')
   require('../skills/loader')
+  require('./browserTask')
+  require('./desktopObserve')
+  require('./desktopClick')
+  require('./desktopType')
 }
 
 function getExecutionToolSchemas() {
   return []
 }
 
-module.exports = { TOOLS, TOOL_SCHEMAS, register, execute, loadBuiltins, getExecutionToolSchemas }
+function getAgentLoopToolSchemas() {
+  return TOOL_SCHEMAS.map(s => ({ type: 'function', function: { name: s.name, description: s.description, parameters: s.parameters } }))
+}
+
+module.exports = { TOOLS, TOOL_SCHEMAS, register, execute, loadBuiltins, getExecutionToolSchemas, getAgentLoopToolSchemas }
 loadBuiltins()
