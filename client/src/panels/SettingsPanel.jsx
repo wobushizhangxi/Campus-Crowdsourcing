@@ -13,11 +13,9 @@ const DEFAULT_FORM = {
   deepseekApiKey: '',
   deepseekBaseUrl: 'https://api.deepseek.com',
   fallbackModel: 'deepseek-chat',
-  openInterpreterEndpoint: '',
-  openInterpreterCommand: '',
-  uiTarsEndpoint: '',
-  uiTarsCommand: '',
-  uiTarsScreenAuthorized: false,
+  doubaoVisionApiKey: '',
+  doubaoVisionEndpoint: 'https://ark.cn-beijing.volces.com/api/v3',
+  doubaoVisionModel: 'doubao-seed-1-6-vision-250815',
   dryRunEnabled: true,
   permissionMode: 'default',
   workspace_root: '',
@@ -47,12 +45,13 @@ export default function SettingsPanel() {
         if (ignored || !result.config) return
         const config = result.config
         const mode = config.permissionMode || 'default'
-        setMasked({ qwenApiKey: config.qwenApiKey, deepseekApiKey: config.deepseekApiKey, apiKey: config.apiKey })
+        setMasked({ qwenApiKey: config.qwenApiKey, deepseekApiKey: config.deepseekApiKey, apiKey: config.apiKey, doubaoVisionApiKey: config.doubaoVisionApiKey })
         setForm({
           ...DEFAULT_FORM,
           ...config,
           qwenApiKey: '',
           deepseekApiKey: '',
+          doubaoVisionApiKey: '',
           permissionMode: mode
         })
         localStorage.setItem('agentdev-permission-mode', mode)
@@ -75,10 +74,11 @@ export default function SettingsPanel() {
       const next = { ...form }
       if (!next.qwenApiKey) delete next.qwenApiKey
       if (!next.deepseekApiKey) delete next.deepseekApiKey
+      if (!next.doubaoVisionApiKey) delete next.doubaoVisionApiKey
       const result = await setConfig(next)
       const mode = result.config?.permissionMode || form.permissionMode
-      setMasked({ qwenApiKey: result.config?.qwenApiKey, deepseekApiKey: result.config?.deepseekApiKey, apiKey: result.config?.apiKey })
-      patch({ qwenApiKey: '', deepseekApiKey: '' })
+      setMasked({ qwenApiKey: result.config?.qwenApiKey, deepseekApiKey: result.config?.deepseekApiKey, apiKey: result.config?.apiKey, doubaoVisionApiKey: result.config?.doubaoVisionApiKey })
+      patch({ qwenApiKey: '', deepseekApiKey: '', doubaoVisionApiKey: '' })
       localStorage.setItem('agentdev-permission-mode', mode)
       window.dispatchEvent(new CustomEvent('agentdev:permission-changed', { detail: { mode } }))
       setMsg('已保存')
@@ -114,6 +114,26 @@ export default function SettingsPanel() {
 
       {tab === 'models' && (
         <div className="space-y-4">
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold">Doubao Vision (browser + desktop automation)</h2>
+            <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">API Key
+              <input type="password" value={form.doubaoVisionApiKey}
+                onChange={(event) => patch({ doubaoVisionApiKey: event.target.value })}
+                placeholder={masked.doubaoVisionApiKey || 'Volcengine Ark API Key'}
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" />
+            </label>
+            <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">Endpoint
+              <input value={form.doubaoVisionEndpoint}
+                onChange={(event) => patch({ doubaoVisionEndpoint: event.target.value })}
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" />
+            </label>
+            <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">Model Name
+              <input value={form.doubaoVisionModel}
+                onChange={(event) => patch({ doubaoVisionModel: event.target.value })}
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" />
+            </label>
+          </div>
+
           <h2 className="text-lg font-semibold">Qwen 配置</h2>
           <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">API Key<input type="password" value={form.qwenApiKey} onChange={(event) => patch({ qwenApiKey: event.target.value })} placeholder={masked.qwenApiKey || 'DashScope API Key'} className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" /></label>
           <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">Base URL<input value={form.qwenBaseUrl} onChange={(event) => patch({ qwenBaseUrl: event.target.value })} className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" /></label>
