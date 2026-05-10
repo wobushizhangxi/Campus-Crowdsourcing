@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Paperclip, Send, Square } from 'lucide-react'
+import ModelSelector, { STORAGE_KEY } from './ModelSelector.jsx'
 
 function insertPath(current, filePath) {
   const trimmed = current.trim()
   return `"${filePath}" ${trimmed}`.trim()
 }
 
-export default function InputBar({ onSend, disabled, agentRunning, onCancel }) {
+export default function InputBar({ onSend, disabled, agentRunning, onCancel, selectedModel, onModelChange }) {
   const [text, setText] = useState('')
 
   useEffect(() => {
@@ -23,6 +24,11 @@ export default function InputBar({ onSend, disabled, agentRunning, onCancel }) {
       ? await window.electronAPI.selectFile()
       : window.prompt('请输入文件的绝对路径：')
     if (filePath) setText((current) => insertPath(current, filePath))
+  }
+
+  function handleModelChange(id) {
+    localStorage.setItem(STORAGE_KEY, id)
+    onModelChange(id)
   }
 
   function handleSubmit(event) {
@@ -46,6 +52,7 @@ export default function InputBar({ onSend, disabled, agentRunning, onCancel }) {
         <button type="button" onClick={handleAttachFile} className="h-8 w-8 flex items-center justify-center rounded-md text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-tertiary)]" aria-label="附加文件路径" title="附加本地文件路径">
           <Paperclip size={14} />
         </button>
+        <ModelSelector value={selectedModel} onChange={handleModelChange} />
         <textarea
           value={text}
           onChange={(event) => setText(event.target.value)}

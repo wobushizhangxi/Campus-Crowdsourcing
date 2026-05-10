@@ -1,7 +1,17 @@
 const MAX_STEPS = 30
 
-async function runTurn({ messages, signal, onEvent, requestApproval }, deps = {}) {
-  const deepseek = deps.deepseek || require('./deepseek')
+function getProvider(modelId) {
+  if (!modelId || modelId.startsWith('deepseek')) {
+    return { model: modelId || 'deepseek-chat', chat: require('./deepseek').chat }
+  }
+  if (modelId.startsWith('doubao')) {
+    return { model: modelId || 'doubao-seed-1-6-vision-250815', chat: require('./doubao').chat }
+  }
+  return { model: 'deepseek-chat', chat: require('./deepseek').chat }
+}
+
+async function runTurn({ messages, model, signal, onEvent, requestApproval }, deps = {}) {
+  const { model: selectedModel, chat } = getProvider(model)
   const tools = deps.tools || require('../tools')
   const policy = deps.policy || require('../security/toolPolicy')
   const history = [...messages]
@@ -16,7 +26,8 @@ async function runTurn({ messages, signal, onEvent, requestApproval }, deps = {}
       return { finalText: '操作已取消', history }
     }
 
-    const response = await deepseek.chat({
+    const response = await chat({
+      model: selectedModel,
       messages: history,
       tools: tools.getAgentLoopToolSchemas(),
       signal

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FolderOpen, Shield, ShieldCheck } from 'lucide-react'
+import { ExternalLink, FolderOpen, Shield, ShieldCheck } from 'lucide-react'
 import { getConfig, setConfig } from '../lib/api.js'
 import SkillsTab from './SkillsTab.jsx'
 import RulesTab from './RulesTab.jsx'
@@ -169,6 +169,22 @@ export default function SettingsPanel() {
 
   const isFull = form.permissionMode === 'full'
 
+  function ApiKeyLabel({ text, url }) {
+    return (
+      <div className="flex items-center gap-2">
+        <span>{text}</span>
+        <button
+          type="button"
+          onClick={() => window.electronAPI?.openExternal?.(url)}
+          className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)]"
+          title={url}
+        >
+          <ExternalLink size={12} />
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 space-y-5">
       <div className="flex flex-wrap gap-1 border-b border-[color:var(--border)] pb-2">
@@ -188,7 +204,7 @@ export default function SettingsPanel() {
         <div className="space-y-4">
           <div className="space-y-3">
             <h2 className="text-lg font-semibold">Doubao Vision (browser + desktop automation)</h2>
-            <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">API Key
+            <label className="block space-y-2 text-xs text-[color:var(--text-muted)]"><ApiKeyLabel text="API Key" url="https://console.volcengine.com/ark" />
               <input type="password" value={form.doubaoVisionApiKey}
                 onChange={(event) => patch({ doubaoVisionApiKey: event.target.value })}
                 placeholder={masked.doubaoVisionApiKey || 'Volcengine Ark API Key'}
@@ -216,7 +232,7 @@ export default function SettingsPanel() {
             <h2 className="text-lg font-semibold">DeepSeek 备用聊天</h2>
             <p className="text-xs text-[color:var(--text-muted)]">仅作为普通聊天备用模型。DeepSeek 不会用于任务规划或动作意图。</p>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.fallbackProvider === 'deepseek'} onChange={(event) => patch({ fallbackProvider: event.target.checked ? 'deepseek' : '' })} /> 启用普通聊天备用模型</label>
-            <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">DeepSeek API Key<input type="password" value={form.deepseekApiKey} onChange={(event) => patch({ deepseekApiKey: event.target.value })} placeholder={masked.deepseekApiKey || masked.apiKey || 'sk-...'} className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" /></label>
+            <label className="block space-y-2 text-xs text-[color:var(--text-muted)]"><ApiKeyLabel text="DeepSeek API Key" url="https://platform.deepseek.com" /><input type="password" value={form.deepseekApiKey} onChange={(event) => patch({ deepseekApiKey: event.target.value })} placeholder={masked.deepseekApiKey || masked.apiKey || 'sk-...'} className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" /></label>
             <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">备用模型<input value={form.fallbackModel} onChange={(event) => patch({ fallbackModel: event.target.value })} className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" /></label>
             <label className="block space-y-2 text-xs text-[color:var(--text-muted)]">DeepSeek Base URL<input value={form.deepseekBaseUrl} onChange={(event) => patch({ deepseekBaseUrl: event.target.value })} className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] px-3 py-2 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)]" /></label>
           </div>

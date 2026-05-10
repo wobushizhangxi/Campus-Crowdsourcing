@@ -97,7 +97,7 @@ export function useChat(conversationId) {
     }
   }, [])
 
-  const sendUserMessage = useCallback((text) => {
+  const sendUserMessage = useCallback((text, model) => {
     const convId = conversationIdRef.current
     if (!convId) return
 
@@ -127,7 +127,7 @@ export function useChat(conversationId) {
 
     abortRef.current = api.stream({
       channel: 'chat:send',
-      payload: { convId, messages: history },
+      payload: { convId, messages: history, model },
       onDelta: (delta) => {
         assistantContent += delta
         dispatch({ type: 'APPEND_DELTA', id: assistantId, delta })

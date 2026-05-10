@@ -8,7 +8,25 @@ const { requestConfirm } = require('../confirm')
 
 const BASE_PROMPT = '你是 AionUi，一个桌面控制平面助手。请默认使用简体中文，回答要简洁、专业。所有用户输入都在同一个 Agent Loop 中处理：普通问题直接回答，需要本地、浏览器或桌面操作时再调用工具。除非 AionUi 已报告审批通过的执行结果，否则不要暗示本地动作已经运行。'
 const FULL_PROMPT = `${BASE_PROMPT}\n\n当前配置允许兼容工具进入候选集，但所有执行仍必须经过 AionUi 策略、确认、适配器和审计日志。`
-const REMEMBER_GUIDANCE = '当用户表达长期偏好，例如“以后”“始终”“下次”或“从现在开始”时，调用 remember_user_rule。不要记住一次性任务细节。'
+const REMEMBER_GUIDANCE = '当用户表达长期偏好，例如”以后””始终””下次”或”从现在开始”时，调用 remember_user_rule。不要记住一次性任务细节。'
+const TOOL_CALL_RULES = `
+## 工具调用规则（必须遵守）
+
+当用户请求涉及以下操作时，你**必须调用对应的工具函数**，
+**绝对不要用文字描述来代替工具调用**：
+
+| 用户意图 | 必须调用的工具 |
+|---------|-------------|
+| 打开网页/浏览网站/点击页面 | \`browser_task\` |
+| 截屏/观察屏幕 | \`desktop_observe\` |
+| 点击桌面/鼠标操作 | \`desktop_click\` |
+| 输入文字/键盘操作 | \`desktop_type\` |
+| 执行命令/运行脚本 | \`run_shell_command\` |
+| 读写文件 | \`file_read\` / \`file_write\` |
+| 生成文档/PPT | \`generate_document\` |
+
+如果用户说”帮我打开X”或”点击X”，你不能回复”好的我来做”然后什么都不做。
+你必须调用对应工具。工具执行结果会返回给你，你再据此回复用户。`
 const pendingApprovals = new Map()
 const activeControllers = new Map()
 
@@ -39,6 +57,7 @@ function buildSystemPrompt(config, deps) {
   const parts = []
   const isFull = config.permissionMode === 'full'
   parts.push(isFull ? FULL_PROMPT : BASE_PROMPT)
+  parts.push(TOOL_CALL_RULES)
   const rules = deps.userRules.buildSystemPromptSection()
   if (rules) parts.push(rules)
   if (isFull) {
@@ -50,7 +69,7 @@ function buildSystemPrompt(config, deps) {
 }
 
 async function handleChatSend(evt, payload = {}, deps) {
-  const { convId, messages = [] } = payload
+  const { convId, messages = [], model } = payload
   const send = (event, data = {}) => evt.sender.send(event, { convId, ...data })
   const config = deps.storeRef.getConfig()
   const ctl = new AbortController()
@@ -70,6 +89,7 @@ async function handleChatSend(evt, payload = {}, deps) {
   try {
     const result = await deps.runTurn({
       messages: agentMessages,
+      model,
       signal: ctl.signal,
       onEvent: (type, data) => {
         if (type === 'assistant_message') {
@@ -147,4 +167,4 @@ function createRegister(overrides = {}) {
 
 const register = createRegister()
 
-module.exports = { BASE_PROMPT, FULL_PROMPT, REMEMBER_GUIDANCE, buildSystemPrompt, handleChatSend, createRegister, register }
+module.exports = { BASE_PROMPT, FULL_PROMPT, REMEMBER_GUIDANCE, TOOL_CALL_RULES, buildSystemPrompt, handleChatSend, createRegister, register }
