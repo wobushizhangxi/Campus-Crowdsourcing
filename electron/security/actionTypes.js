@@ -3,7 +3,6 @@ const RUNTIME_NAMES = Object.freeze({
   DEEPSEEK: 'deepseek',
   OPEN_INTERPRETER: 'open-interpreter',
   UI_TARS: 'ui-tars',
-  MIDSCENE: 'midscene',
   DRY_RUN: 'aionui-dry-run'
 })
 
