@@ -125,6 +125,9 @@ export function exportAuditEvents(filters = {}, outputPath) { return invoke('aud
 export function listRunOutputs(filters = {}) { return invoke('outputs:list', { filters }) }
 export function exportRunOutputs(filters = {}, outputPath) { return invoke('outputs:export', { filters, outputPath }) }
 export function openRunOutput(filePath) { return invoke('outputs:open', { path: filePath }) }
+export function approveChatTool(convId, callId) { return invoke('chat:approve-tool', { convId, callId, approved: true }) }
+export function denyChatTool(convId, callId) { return invoke('chat:approve-tool', { convId, callId, approved: false }) }
+export function abortChat(convId) { return invoke('chat:abort', { convId }) }
 
 export async function openFile(filePath) {
   if (window.electronAPI?.openPath) return unwrap(await window.electronAPI.openPath(filePath))

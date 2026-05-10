@@ -1,14 +1,16 @@
-import { ChevronDown, ChevronRight, CheckCircle2, Loader2, XCircle } from 'lucide-react'
-import { useState } from 'react'
+import { Check, ChevronDown, ChevronRight, CheckCircle2, Clock, Loader2, X, XCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 const STATUS_LABELS = {
   running: '执行中',
   error: '失败',
-  ok: '成功'
+  ok: '成功',
+  awaiting_approval: '等待审批'
 }
 
 function StatusIcon({ status }) {
   if (status === 'running') return <Loader2 size={14} className="animate-spin text-[color:var(--accent)]" />
+  if (status === 'awaiting_approval') return <Clock size={14} className="text-yellow-500" />
   if (status === 'error') return <XCircle size={14} className="text-[color:var(--error)]" />
   return <CheckCircle2 size={14} className="text-[color:var(--success)]" />
 }
@@ -25,10 +27,15 @@ function JsonBlock({ label, value }) {
   )
 }
 
-export default function ToolCard({ message }) {
-  const [open, setOpen] = useState(message.toolStatus === 'error')
+export default function ToolCard({ message, onApproveTool, onDenyTool }) {
+  const [open, setOpen] = useState(message.toolStatus === 'error' || message.toolStatus === 'awaiting_approval')
   const status = message.toolStatus || 'running'
   const logs = message.logs || []
+  const canDecide = status === 'awaiting_approval' && message.toolCallId && onApproveTool && onDenyTool
+
+  useEffect(() => {
+    if (status === 'awaiting_approval' || status === 'error') setOpen(true)
+  }, [status])
 
   return (
     <div className="my-3 max-w-[820px] rounded-lg border border-[color:var(--border)] bg-[color:var(--bg-secondary)] text-[color:var(--text-primary)]">
@@ -41,9 +48,24 @@ export default function ToolCard({ message }) {
       {open && (
         <div className="space-y-3 border-t border-[color:var(--border)] px-3 py-3">
           <JsonBlock label="参数" value={message.args} />
+          {status === 'awaiting_approval' && message.decision && (
+            <div className="rounded-md border border-yellow-300 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
+              风险等级：{message.decision.risk} · {message.decision.reason}
+            </div>
+          )}
           {logs.length > 0 && <JsonBlock label="日志" value={logs.map((item) => `[${item.stream}] ${item.chunk}`).join('')} />}
           <JsonBlock label="结果" value={message.result} />
           <JsonBlock label="错误" value={message.error} />
+          {canDecide && (
+            <div className="flex gap-2">
+              <button type="button" onClick={() => onApproveTool(message.toolCallId)} className="h-8 inline-flex items-center justify-center gap-1 rounded-md bg-green-600 px-3 text-sm font-medium text-white hover:bg-green-700">
+                <Check size={14} /> 批准
+              </button>
+              <button type="button" onClick={() => onDenyTool(message.toolCallId)} className="h-8 inline-flex items-center justify-center gap-1 rounded-md border border-[color:var(--border)] px-3 text-sm hover:bg-[color:var(--bg-tertiary)]">
+                <X size={14} /> 拒绝
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

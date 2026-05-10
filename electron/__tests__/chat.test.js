@@ -63,6 +63,42 @@ test('chat:send forwards unified agent loop tool events', async () => {
   expect(send).toHaveBeenCalledWith('chat:done', { convId: 'conv-1' })
 })
 
+test('chat:send waits for inline tool approval over chat IPC', async () => {
+  const ipcMain = createIpcMain()
+  const send = vi.fn()
+  const call = { id: 'call-approval', name: 'run_shell_command', args: { command: 'npm install' } }
+  const decision = { risk: 'high', reason: '安装命令需要明确确认。' }
+  let approvedValue
+  const runTurn = vi.fn(async ({ onEvent, requestApproval }) => {
+    onEvent('assistant_message', { content: '', toolCalls: [call] })
+    onEvent('approval_request', { call, decision })
+    approvedValue = await requestApproval({ call, decision })
+    return { finalText: approvedValue ? 'approved' : 'denied', history: [] }
+  })
+  const register = createRegister({
+    storeRef: { getConfig: () => ({ permissionMode: 'default' }) },
+    runTurn,
+    userRules: { buildSystemPromptSection: () => '' },
+    skillRegistry: { listSkills: () => [], buildSkillIndex: () => '' }
+  })
+  register(ipcMain)
+
+  const pending = ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-1', messages: [{ role: 'user', content: 'install deps' }] })
+  await Promise.resolve()
+
+  expect(send).toHaveBeenCalledWith('chat:tool-start', { convId: 'conv-1', callId: call.id, name: call.name, args: call.args, needsApproval: true, decision })
+  expect(approvedValue).toBeUndefined()
+
+  const approval = await ipcMain.handlers.get('chat:approve-tool')({}, { convId: 'conv-1', callId: call.id, approved: true })
+  expect(approval).toEqual({ ok: true })
+  await pending
+
+  expect(approvedValue).toBe(true)
+  expect(send).toHaveBeenCalledWith('chat:tool-start', { convId: 'conv-1', callId: call.id, name: call.name, args: call.args, needsApproval: false })
+  expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-1', text: 'approved' })
+  expect(send).toHaveBeenCalledWith('chat:done', { convId: 'conv-1' })
+})
+
 test('buildSystemPrompt includes rules and skill index only in full mode', () => {
   const deps = { userRules: { buildSystemPromptSection: () => 'rules' }, skillRegistry: { listSkills: () => [{ name: 'x', description: 'y' }], buildSkillIndex: () => 'skills' } }
   expect(buildSystemPrompt({ permissionMode: 'default' }, deps)).toContain('rules')

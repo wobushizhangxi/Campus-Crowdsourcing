@@ -1,5 +1,5 @@
 import { useReducer, useCallback, useRef, useEffect, useState } from 'react'
-import { api } from '../lib/api.js'
+import { abortChat, api, approveChatTool, denyChatTool } from '../lib/api.js'
 
 function uid() {
   return Math.random().toString(36).slice(2, 10)
@@ -124,13 +124,15 @@ export function useChat(conversationId) {
       onToolStart: (event) => {
         const existingId = toolMessageIdsRef.current.get(event.callId)
         const toolStatus = event.needsApproval ? 'awaiting_approval' : 'running'
+        const patch = { toolStatus, args: event.args }
+        if (event.decision) patch.decision = event.decision
         if (existingId) {
-          dispatch({ type: 'UPDATE_TOOL', id: existingId, patch: { toolStatus, args: event.args } })
+          dispatch({ type: 'UPDATE_TOOL', id: existingId, patch })
           return
         }
         const id = uid()
         toolMessageIdsRef.current.set(event.callId, id)
-        dispatch({ type: 'ADD', msg: { id, role: 'tool', toolCallId: event.callId, toolName: event.name, args: event.args, toolStatus, logs: [] } })
+        dispatch({ type: 'ADD', msg: { id, role: 'tool', toolCallId: event.callId, toolName: event.name, args: event.args, toolStatus, decision: event.decision, logs: [] } })
       },
       onToolLog: (event) => {
         const id = toolMessageIdsRef.current.get(event.callId)
@@ -166,8 +168,32 @@ export function useChat(conversationId) {
   }, [state.messages, saveConversation])
 
   const handleAbort = useCallback(() => {
+    const convId = conversationIdRef.current
     abortRef.current?.()
+    if (convId) abortChat(convId).catch((error) => console.error('[chat] 取消请求失败:', error))
     setAgentRunning(false)
+  }, [])
+
+  const handleApproveTool = useCallback((callId) => {
+    const convId = conversationIdRef.current
+    const id = toolMessageIdsRef.current.get(callId)
+    if (id) dispatch({ type: 'UPDATE_TOOL', id, patch: { toolStatus: 'running' } })
+    if (convId) {
+      approveChatTool(convId, callId).catch((error) => {
+        if (id) dispatch({ type: 'UPDATE_TOOL', id, patch: { toolStatus: 'error', error: { code: error.code || 'APPROVAL_ERROR', message: error.message } } })
+      })
+    }
+  }, [])
+
+  const handleDenyTool = useCallback((callId) => {
+    const convId = conversationIdRef.current
+    const id = toolMessageIdsRef.current.get(callId)
+    if (id) dispatch({ type: 'UPDATE_TOOL', id, patch: { toolStatus: 'error', error: { code: 'USER_DENIED', message: '用户已拒绝执行。' } } })
+    if (convId) {
+      denyChatTool(convId, callId).catch((error) => {
+        if (id) dispatch({ type: 'UPDATE_TOOL', id, patch: { toolStatus: 'error', error: { code: error.code || 'APPROVAL_ERROR', message: error.message } } })
+      })
+    }
   }, [])
 
   const sendCommand = useCallback(({ command, prompt, referencePath }) => {
@@ -196,5 +222,5 @@ export function useChat(conversationId) {
   }, [])
   const clear = useCallback(() => dispatch({ type: 'CLEAR' }), [])
 
-  return { ...state, agentRunning, sendUserMessage, handleAbort, sendCommand, addCard, updateCard, addFileCard, clear }
+  return { ...state, agentRunning, sendUserMessage, handleAbort, handleApproveTool, handleDenyTool, sendCommand, addCard, updateCard, addFileCard, clear }
 }

@@ -9,7 +9,7 @@ import FileCard from '../cards/FileCard.jsx'
 import ActionCard from '../actions/ActionCard.jsx'
 import AgentToolCard from './AgentToolCard.jsx'
 
-export default function MessageList({ messages }) {
+export default function MessageList({ messages, onApproveTool, onDenyTool }) {
   const endRef = useRef(null)
 
   useEffect(() => {
@@ -29,8 +29,8 @@ export default function MessageList({ messages }) {
         }
         if (message.role === 'tool') {
           return message.toolName === 'run_shell_command'
-            ? <ShellCard key={message.id} message={message} />
-            : <ToolCard key={message.id} message={message} />
+            ? <ShellCard key={message.id} message={message} onApproveTool={onApproveTool} onDenyTool={onDenyTool} />
+            : <ToolCard key={message.id} message={message} onApproveTool={onApproveTool} onDenyTool={onDenyTool} />
         }
         if (message.role === 'agent-tool') {
           return <AgentToolCard key={message.id} message={message} />

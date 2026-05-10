@@ -40,4 +40,20 @@ describe('unified chat UI wiring', () => {
     expect(topBar).not.toContain('聊天模式')
     expect(messageList).not.toContain('执行模式')
   })
+
+  test('ToolCard exposes inline approval controls for pending tools', () => {
+    const toolCard = readProjectFile('client/src/components/chat/ToolCard.jsx')
+    const messageList = readProjectFile('client/src/components/chat/MessageList.jsx')
+    const chatArea = readProjectFile('client/src/components/chat/ChatArea.jsx')
+    const useChat = readProjectFile('client/src/hooks/useChat.js')
+
+    expect(toolCard).toContain('onApproveTool')
+    expect(toolCard).toContain('useEffect')
+    expect(toolCard).toContain('awaiting_approval')
+    expect(toolCard).toContain('批准')
+    expect(toolCard).toContain('拒绝')
+    expect(messageList).toContain('onApproveTool')
+    expect(chatArea).toContain('handleApproveTool')
+    expect(useChat).toContain('approveChatTool')
+  })
 })
