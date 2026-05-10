@@ -1,12 +1,15 @@
+import { useState } from 'react'
 import { useChat } from '../../hooks/useChat.js'
 import MessageList from './MessageList.jsx'
 import InputBar from './InputBar.jsx'
+import { loadModel } from './ModelSelector.jsx'
 
 export default function ChatArea({ conversationId }) {
   const { messages, streaming, agentRunning, sendUserMessage, handleAbort, handleApproveTool, handleDenyTool, handleApproveAction, handleDenyAction, handleCancelAction, updateCard, addFileCard } = useChat(conversationId)
+  const [selectedModel, setSelectedModel] = useState(loadModel)
 
   function handleSend(text) {
-    sendUserMessage(text)
+    sendUserMessage(text, selectedModel)
   }
 
   return (
@@ -26,6 +29,8 @@ export default function ChatArea({ conversationId }) {
         disabled={streaming || agentRunning}
         agentRunning={agentRunning}
         onCancel={handleAbort}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
       />
     </div>
   )
