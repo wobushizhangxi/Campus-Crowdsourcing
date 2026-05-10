@@ -7,7 +7,7 @@ const { isAllowed } = require('../ipc/openExternal')
 describe('openExternal allowlist', () => {
   it('allows known https prefixes', () => {
     expect(isAllowed('https://platform.deepseek.com/api_keys')).toBe(true)
-    expect(isAllowed('https://docs.openinterpreter.com/getting-started/introduction')).toBe(true)
+    expect(isAllowed('https://bailian.console.aliyun.com')).toBe(true)
   })
 
   it('rejects http', () => {

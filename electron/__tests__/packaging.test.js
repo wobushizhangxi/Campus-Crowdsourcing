@@ -19,7 +19,7 @@ test('desktop scripts no longer start the legacy server', () => {
 
   expect(JSON.stringify(pkg.build.files)).not.toContain('server')
   expect(pkg.build.extraResources).toEqual(expect.arrayContaining([
-    expect.objectContaining({ from: 'dist-bridges/oi-bridge', to: 'server/oi-bridge' }),
+    expect.objectContaining({ from: 'dist-bridges/browser-use-bridge', to: 'server/browser-use-bridge' }),
     expect.objectContaining({ from: 'dist-bridges/uitars-bridge', to: 'server/uitars-bridge' })
   ]))
   expect(pkg.build.extraResources).not.toEqual(expect.arrayContaining([
