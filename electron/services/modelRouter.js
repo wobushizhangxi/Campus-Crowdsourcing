@@ -1,4 +1,4 @@
-const deepseekProvider = require('./models/deepseekProvider')
+const deepseek = require('./deepseek')
 const {
   MODEL_PROVIDERS,
   MODEL_ROLES,
@@ -47,7 +47,7 @@ function selectModelForRole(role, config = {}) {
 
 function getProviderForRole(role, config = {}) {
   const selected = selectModelForRole(role, config)
-  if (selected.provider === MODEL_PROVIDERS.DEEPSEEK) return { selected, provider: deepseekProvider }
+  if (selected.provider === MODEL_PROVIDERS.DEEPSEEK) return { selected, provider: deepseek }
   throw new ModelRouterError('MODEL_PROVIDER_UNKNOWN', `Unknown model provider: ${selected.provider}`)
 }
 
