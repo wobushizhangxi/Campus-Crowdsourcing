@@ -29,7 +29,7 @@ test('getConfig returns defaults including new fields', () => {
   expect(config.qwenVisionModel).toBe('qwen3-vl-plus')
   expect(config.doubaoVisionEndpoint).toBe('https://ark.cn-beijing.volces.com/api/v3')
   expect(config.doubaoVisionApiKey).toBe('')
-  expect(config.doubaoVisionModel).toBe('doubao-1-5-thinking-vision-pro-250428')
+  expect(config.doubaoVisionModel).toBe('doubao-seed-1-6-vision-250815')
 })
 
 test('config has visionLoopEnabled default true', () => {

@@ -40,13 +40,7 @@ const DEFAULT_CONFIG = {
   qwenVisionModel: 'qwen3-vl-plus',
   doubaoVisionEndpoint: 'https://ark.cn-beijing.volces.com/api/v3',
   doubaoVisionApiKey: '',
-  doubaoVisionModel: 'doubao-1-5-thinking-vision-pro-250428',
-  openInterpreterCommand: '',
-  openInterpreterEndpoint: '',
-  uiTarsEndpoint: '',
-  uiTarsModelEndpoint: '',
-  uiTarsCommand: '',
-  uiTarsScreenAuthorized: false,
+  doubaoVisionModel: 'doubao-seed-1-6-vision-250815',
   dryRunEnabled: true,
   visionLoopEnabled: true,
   auditRetentionDays: 30,
@@ -126,7 +120,8 @@ const store = {
       ...config,
       apiKey: mask(config.apiKey || ''),
       qwenApiKey: mask(config.qwenApiKey || ''),
-      deepseekApiKey: mask(config.deepseekApiKey || '')
+      deepseekApiKey: mask(config.deepseekApiKey || ''),
+      doubaoVisionApiKey: mask(config.doubaoVisionApiKey || '')
     }
   },
 
