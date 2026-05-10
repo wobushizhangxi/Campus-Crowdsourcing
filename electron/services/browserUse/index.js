@@ -1,7 +1,22 @@
 const adapter = require('./adapter')
+const { detect: detectPython, getSetupGuide: getPythonGuide } = require('../pythonBootstrap')
 
 async function detect() {
-  return adapter.healthCheck()
+  const [health, python] = await Promise.all([
+    adapter.healthCheck(),
+    detectPython()
+  ])
+  return {
+    available: health.available,
+    bridge: health.detail,
+    python: {
+      path: python.python,
+      version: python.pythonVersion,
+      ready: python.ready,
+      issues: python.issues
+    },
+    setupGuide: python.ready ? null : getPythonGuide(python)
+  }
 }
 
 async function repair() {
