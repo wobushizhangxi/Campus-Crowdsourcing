@@ -1,6 +1,7 @@
 const MODEL_PROVIDERS = Object.freeze({
   QWEN: 'qwen',
-  DEEPSEEK: 'deepseek'
+  DEEPSEEK: 'deepseek',
+  DOUBAO: 'doubao'
 })
 
 const MODEL_ROLES = Object.freeze({
