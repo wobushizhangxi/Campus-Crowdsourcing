@@ -3,17 +3,22 @@
 - [x] Branch created from `origin/main`.
 - [x] Final delivery plan copied into `docs/superpowers/plans/`.
 - [x] Product identity changed to AionUi.
-- [x] Qwen model router and provider added.
-- [x] Action planner, policy engine, broker, and audit log added.
+- [x] DeepSeek-V4 model router and provider added.
+- [x] Agent loop, tool registry, and tool policy engine added.
 - [x] Open Interpreter external runtime boundary added.
 - [x] UI-TARS external runtime boundary added.
+- [x] Browser-use bridge with Python detection added.
+- [x] Desktop tools (desktop_observe, desktop_click, desktop_type) added.
 - [x] Dry-run runtime added.
-- [x] Runtime, action, audit, and output IPC added.
-- [x] Execute mode task orchestration added.
-- [x] Models/Runtimes, Control, Logs, Outputs, Settings, and Execute UI added.
-- [x] Legacy Office and tool surfaces marked compatibility-only.
-- [x] Security policy documented.
-- [x] Dry-run demo documented.
+- [x] Agent, chat, config, conversations, artifacts, files, dialog, skills, rules, runtime, audit, outputs, openExternal, and setupStatus IPC added.
+- [x] Models/Runtimes, Control, Logs, Outputs, Settings, and Chat UI added.
+- [x] Midscene and legacy execution pipeline (actionPlanner, actionPolicy, actionBroker, taskOrchestrator) fully retired.
+- [x] SQLite-backed conversation persistence via better-sqlite3.
+- [x] Python 3.11+ / uv / browser-use / playwright detection and guided setup.
+- [x] All stale midscene references removed from source, build scripts, docs, and gitignore.
+- [x] Documentation refreshed for agent-loop + tool-policy architecture.
+- [x] Security policy updated (toolPolicy replaces actionPolicy).
 - [x] `npm run electron:build` passes on release machine.
 - [x] Packaged app launch smoke passes.
-- [ ] Manual smoke test verifies chat, dry-run execute, approvals, logs export, outputs, runtime cards, and emergency stop.
+- [x] Phase E acceptance smoke test (11/11 tests) passes.
+- [ ] Manual smoke test verifies chat, agent loop, tool approvals, logs export, outputs, runtime cards, and emergency stop.
