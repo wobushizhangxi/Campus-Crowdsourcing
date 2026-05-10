@@ -111,6 +111,8 @@ export function deleteSkill(name) { return invoke('skills:delete', { name }) }
 export function copyBuiltinSkill(payload) { return invoke('skills:copyBuiltin', payload) }
 export function openSkillsFolder() { return invoke('skills:openFolder') }
 export function listRules() { return invoke('rules:list') }
+export function appendRule(text) { return invoke('rules:append', { text }) }
+export function updateRule(id, text) { return invoke('rules:update', { id, text }) }
 export function deleteRule(payload) { return invoke('rules:delete', payload) }
 export function emergencyStop() { return invoke('actions:emergencyStop') }
 export function getRuntimeStatus() { return invoke('runtime:status') }
