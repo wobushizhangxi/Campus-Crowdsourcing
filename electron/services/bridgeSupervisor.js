@@ -1,4 +1,5 @@
 const { spawn: realSpawn } = require('child_process')
+const { EventEmitter } = require('events')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -33,9 +34,10 @@ function createSupervisor(opts = {}) {
     }
   })
   const rootDir = opts.rootDir || resolveDefaultRootDir()
+  const emitter = new EventEmitter()
 
   const state = Object.fromEntries(
-    Object.keys(DEFAULTS).map((key) => [key, { ready: false, state: 'pending', child: null, restarts: 0 }])
+    Object.keys(DEFAULTS).map((key) => [key, { ready: false, state: 'pending', child: null, lastError: null, restarts: 0 }])
   )
 
   function buildEnv(key) {
@@ -64,27 +66,44 @@ function createSupervisor(opts = {}) {
     const spawnOptions = { stdio: buildStdio(key), env: buildEnv(key) }
     state[key].state = 'starting'
     const runtime = cfg.runtime || 'node'
-    const child = runtime === 'python'
-      ? spawnImpl('python', ['-u', path.join(rootDir, cfg.dir, 'main.py'), String(cfg.port)], spawnOptions)
-      : spawnImpl('node', [path.join(rootDir, cfg.dir, 'index.js'), '--port', String(cfg.port)], spawnOptions)
-    state[key].child = child
-    const deadline = Date.now() + healthTimeoutMs
-    while (Date.now() < deadline) {
-      const h = await healthImpl(cfg.port)
-      if (h.ok) {
-        state[key].ready = true
-        state[key].state = 'running'
-        return state[key]
+    let child
+    try {
+      child = runtime === 'python'
+        ? spawnImpl('python', ['-u', path.join(rootDir, cfg.dir, 'main.py'), String(cfg.port)], spawnOptions)
+        : spawnImpl('node', [path.join(rootDir, cfg.dir, 'index.js'), '--port', String(cfg.port)], spawnOptions)
+      state[key].child = child
+      const deadline = Date.now() + healthTimeoutMs
+      while (Date.now() < deadline) {
+        const h = await healthImpl(cfg.port)
+        if (h.ok) {
+          state[key].ready = true
+          state[key].state = 'running'
+          state[key].lastError = null
+          emitter.emit('change', { key, state: state[key] })
+          return state[key]
+        }
+        await new Promise((r) => setTimeout(r, 250))
       }
-      await new Promise((r) => setTimeout(r, 250))
+      state[key].ready = false
+      if (state[key].restarts < maxRestarts) {
+        state[key].restarts++
+        return startOne(key, { healthTimeoutMs, maxRestarts })
+      }
+      state[key].lastError = 'health check timeout'
+      state[key].state = 'failed'
+      emitter.emit('change', { key, state: state[key] })
+      return state[key]
+    } catch (error) {
+      state[key].ready = false
+      state[key].lastError = error.message
+      if (state[key].restarts < maxRestarts) {
+        state[key].restarts++
+        return startOne(key, { healthTimeoutMs, maxRestarts })
+      }
+      state[key].state = 'failed'
+      emitter.emit('change', { key, state: state[key] })
+      return state[key]
     }
-    state[key].ready = false
-    if (state[key].restarts < maxRestarts) {
-      state[key].restarts++
-      return startOne(key, { healthTimeoutMs, maxRestarts })
-    }
-    state[key].state = 'failed'
-    return state[key]
   }
 
   async function start(options = {}) {
@@ -102,7 +121,7 @@ function createSupervisor(opts = {}) {
     }
   }
 
-  return { start, stop, getState: snapshot }
+  return { start, stop, startOne, getState: snapshot, events: emitter }
 }
 
 module.exports = { createSupervisor }

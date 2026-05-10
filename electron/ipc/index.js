@@ -12,8 +12,9 @@ const outputs = require('./outputs')
 const openExternal = require('./openExternal')
 const setupStatus = require('./setupStatus')
 const agent = require('./agent')
+const bridgeStatus = require('./bridgeStatus')
 
-const MODULES = [config, conversations, artifacts, files, dialog, chat, skills, rules, runtime, audit, outputs, openExternal, setupStatus, agent]
+const MODULES = [config, conversations, artifacts, files, dialog, chat, skills, rules, runtime, audit, outputs, openExternal, setupStatus, agent, bridgeStatus]
 
 function registerAll(ipcMain, deps = {}) {
   for (const mod of MODULES) {

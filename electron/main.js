@@ -3,6 +3,8 @@ const path = require('path')
 const fs = require('fs')
 const { registerAll } = require('./ipc')
 const { createSupervisor } = require('./services/bridgeSupervisor')
+const { setSupervisor } = require('./ipc/bridgeStatus')
+const { setBridgeContext } = require('./ipc/setupStatus')
 
 const isDev = !app.isPackaged
 let mainWindow = null
@@ -79,6 +81,8 @@ function createWindow() {
 app.whenReady().then(async () => {
   registerAll(ipcMain)
   supervisor = createSupervisor()
+  setSupervisor(supervisor)
+  setBridgeContext({ pythonBootstrap: null, supervisor })
   supervisor.start().catch((err) => console.error('[bridges] start failed', err))
   createWindow()
 
