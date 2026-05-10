@@ -8,7 +8,7 @@ function normalizeMessages(messages) {
 }
 
 function register(ipcMain) {
-  ipcMain.handle('conversations:list', async () => ({ ok: true, conversations: store.listConversations() }))
+  ipcMain.handle('conversations:list', async (_event, payload = {}) => ({ ok: true, conversations: store.listConversations(payload.search || '') }))
 
   ipcMain.handle('conversations:get', async (_event, payload = {}) => {
     const id = typeof payload === 'string' ? payload : payload.id
@@ -33,6 +33,22 @@ function register(ipcMain) {
     }
 
     return { ok: true, conversation: store.upsertConversation(conversation) }
+  })
+
+  ipcMain.handle('conversations:rename', async (_event, payload = {}) => {
+    const { id, title } = payload
+    const nextTitle = typeof title === 'string' ? title.trim() : ''
+    if (!id || !nextTitle) return { ok: false, error: { code: 'BAD_REQUEST', message: '需要提供 id 和 title。' } }
+    const conversation = store.renameConversation(id, nextTitle)
+    if (!conversation) return { ok: false, error: { code: 'NOT_FOUND', message: '未找到对话。' } }
+    return { ok: true, conversation }
+  })
+
+  ipcMain.handle('conversations:delete', async (_event, payload = {}) => {
+    const id = typeof payload === 'string' ? payload : payload.id
+    if (!id) return { ok: false, error: { code: 'BAD_REQUEST', message: '需要提供对话 ID。' } }
+    store.deleteConversation(id)
+    return { ok: true }
   })
 }
 

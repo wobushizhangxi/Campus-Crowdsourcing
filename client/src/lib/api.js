@@ -30,6 +30,7 @@ function parseUrl(url) {
 async function get(url) {
   if (url === '/api/config') return invoke('config:get')
   if (url === '/api/artifacts') return invoke('artifacts:list')
+  if (url === '/api/conversations') return invoke('conversations:list')
   if (url.startsWith('/api/conversations/')) return invoke('conversations:get', { id: decodeURIComponent(url.slice('/api/conversations/'.length)) })
   if (url.startsWith('/api/files/list')) {
     const parsed = parseUrl(url)
@@ -125,6 +126,9 @@ export function exportAuditEvents(filters = {}, outputPath) { return invoke('aud
 export function listRunOutputs(filters = {}) { return invoke('outputs:list', { filters }) }
 export function exportRunOutputs(filters = {}, outputPath) { return invoke('outputs:export', { filters, outputPath }) }
 export function openRunOutput(filePath) { return invoke('outputs:open', { path: filePath }) }
+export function listConversations(search) { return invoke('conversations:list', search ? { search } : undefined) }
+export function deleteConversation(id) { return invoke('conversations:delete', { id }) }
+export function renameConversation(id, title) { return invoke('conversations:rename', { id, title }) }
 export function approveChatTool(convId, callId) { return invoke('chat:approve-tool', { convId, callId, approved: true }) }
 export function denyChatTool(convId, callId) { return invoke('chat:approve-tool', { convId, callId, approved: false }) }
 export function abortChat(convId) { return invoke('chat:abort', { convId }) }

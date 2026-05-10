@@ -1,5 +1,5 @@
 import { useReducer, useCallback, useRef, useEffect, useState } from 'react'
-import { abortChat, api, approveChatTool, denyChatTool } from '../lib/api.js'
+import { abortChat, api, approveAction, approveChatTool, cancelAction, denyAction, denyChatTool } from '../lib/api.js'
 
 function uid() {
   return Math.random().toString(36).slice(2, 10)
@@ -37,7 +37,17 @@ function reducer(state, action) {
 
 function makeTitle(messages) {
   const firstUser = messages.find((message) => message.role === 'user' && message.content)
-  return firstUser?.content.slice(0, 24) || '新对话'
+  return firstUser?.content.slice(0, 30) || '新聊天'
+}
+
+function schedulePendingActionTimeout(action) {
+  const risk = action.risk || action.riskLevel
+  if (risk === 'high' && action.status === 'pending' && action.id) {
+    setTimeout(() => {
+      cancelAction(action.id, '超时自动取消').catch(() => {})
+      window.dispatchEvent(new CustomEvent('aionui:actions-changed'))
+    }, 5 * 60 * 1000)
+  }
 }
 
 export function useChat(conversationId) {
@@ -81,6 +91,7 @@ export function useChat(conversationId) {
   const saveConversation = useCallback(async (convId, messages) => {
     try {
       await api.post('/api/conversations', { id: convId, title: makeTitle(messages), assistant: 'general', messages })
+      window.dispatchEvent(new CustomEvent('agentdev:conversations-changed'))
     } catch (error) {
       console.error('[chat] 保存对话失败:', error)
     }
@@ -150,6 +161,7 @@ export function useChat(conversationId) {
         dispatch({ type: 'ADD', msg: { id: uid(), role: 'skill', skillName: event.name } })
       },
       onActionPlan: (event) => {
+        for (const action of event.actions || []) schedulePendingActionTimeout(action)
         dispatch({ type: 'ADD_ACTIONS', title: event.dryRun ? '演示模式动作计划' : '动作计划', actions: event.actions || [] })
       },
       onActionUpdate: (event) => {
@@ -196,6 +208,21 @@ export function useChat(conversationId) {
     }
   }, [])
 
+  const handleApproveAction = useCallback(async (id) => {
+    await approveAction(id)
+    window.dispatchEvent(new CustomEvent('aionui:actions-changed'))
+  }, [])
+
+  const handleDenyAction = useCallback(async (id) => {
+    await denyAction(id, '用户拒绝')
+    window.dispatchEvent(new CustomEvent('aionui:actions-changed'))
+  }, [])
+
+  const handleCancelAction = useCallback(async (id) => {
+    await cancelAction(id, '用户取消')
+    window.dispatchEvent(new CustomEvent('aionui:actions-changed'))
+  }, [])
+
   const sendCommand = useCallback(({ command, prompt, referencePath }) => {
     const convId = conversationIdRef.current
     if (!convId) return
@@ -222,5 +249,5 @@ export function useChat(conversationId) {
   }, [])
   const clear = useCallback(() => dispatch({ type: 'CLEAR' }), [])
 
-  return { ...state, agentRunning, sendUserMessage, handleAbort, handleApproveTool, handleDenyTool, sendCommand, addCard, updateCard, addFileCard, clear }
+  return { ...state, agentRunning, sendUserMessage, handleAbort, handleApproveTool, handleDenyTool, handleApproveAction, handleDenyAction, handleCancelAction, sendCommand, addCard, updateCard, addFileCard, clear }
 }

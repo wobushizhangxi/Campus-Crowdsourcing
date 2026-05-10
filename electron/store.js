@@ -141,12 +141,16 @@ const store = {
     return conversationStore.getConversation(id)
   },
 
-  listConversations() {
-    return conversationStore.listConversations()
+  listConversations(search = '') {
+    return conversationStore.listConversations(search)
   },
 
   deleteConversation(id) {
     return conversationStore.deleteConversation(id)
+  },
+
+  renameConversation(id, title) {
+    return conversationStore.renameConversation(id, title)
   },
 
   closeConversationStore() {

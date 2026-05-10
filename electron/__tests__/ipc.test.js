@@ -52,6 +52,8 @@ test('registerAll registers core IPC channels', () => {
     'conversations:list',
     'conversations:get',
     'conversations:upsert',
+    'conversations:rename',
+    'conversations:delete',
     'artifacts:list',
     'files:list',
     'files:search',
@@ -89,6 +91,40 @@ test('conversation upsert and get handlers round trip data', async () => {
   const result = await ipcMain.handlers.get('conversations:get')({}, { id: 'conv-1' })
   expect(result.ok).toBe(true)
   expect(result.conversation.messages).toEqual([{ role: 'user', content: 'hi' }])
+})
+
+test('conversation list, rename, and delete handlers manage chat history', async () => {
+  const ipcMain = createIpcMain()
+  registerAll(ipcMain)
+
+  await ipcMain.handlers.get('conversations:upsert')({}, {
+    id: 'conv-search-1',
+    title: 'Alpha project',
+    messages: [{ role: 'user', content: 'first alpha message' }]
+  })
+  await ipcMain.handlers.get('conversations:upsert')({}, {
+    id: 'conv-search-2',
+    title: 'Beta notes',
+    messages: [{ role: 'user', content: 'first beta message' }]
+  })
+
+  const filtered = await ipcMain.handlers.get('conversations:list')({}, { search: 'alpha' })
+  expect(filtered.ok).toBe(true)
+  expect(filtered.conversations.map(c => c.id)).toEqual(['conv-search-1'])
+  expect(filtered.conversations[0].firstMessagePreview).toBe('first alpha message')
+
+  const renamed = await ipcMain.handlers.get('conversations:rename')({}, { id: 'conv-search-1', title: 'Gamma project' })
+  expect(renamed.ok).toBe(true)
+  expect(renamed.conversation.title).toBe('Gamma project')
+
+  const badRename = await ipcMain.handlers.get('conversations:rename')({}, { id: 'conv-search-1', title: '' })
+  expect(badRename.ok).toBe(false)
+  expect(badRename.error.code).toBe('BAD_REQUEST')
+
+  const deleted = await ipcMain.handlers.get('conversations:delete')({}, { id: 'conv-search-2' })
+  expect(deleted.ok).toBe(true)
+  const missing = await ipcMain.handlers.get('conversations:get')({}, { id: 'conv-search-2' })
+  expect(missing.ok).toBe(false)
 })
 
 test('files:list returns directory entries in full permission mode', async () => {

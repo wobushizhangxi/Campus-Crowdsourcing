@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import Sidebar from './Sidebar.jsx'
 import MainArea from './MainArea.jsx'
-import RightDrawer from './RightDrawer.jsx'
 import BridgeStatusBar from '../BridgeStatusBar.jsx'
+import SettingsPage from '../../pages/SettingsPage.jsx'
+import { useConversations } from '../../hooks/useConversations.js'
 
 const ACTIVE_CONVERSATION_KEY = 'agentdev-active-conversation-id'
 
@@ -21,14 +22,26 @@ function getInitialConversationId() {
 
 export default function Layout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [drawer, setDrawer] = useState(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [conversationId, setConversationId] = useState(getInitialConversationId)
+  const { conversations, refresh, remove, rename } = useConversations()
 
-  function handleNewConversation() {
+  const handleNewConversation = useCallback(() => {
     const next = createConversationId()
     localStorage.setItem(ACTIVE_CONVERSATION_KEY, next)
     setConversationId(next)
-  }
+    setTimeout(() => refresh(), 500)
+  }, [refresh])
+
+  const handleSelectConversation = useCallback((id) => {
+    localStorage.setItem(ACTIVE_CONVERSATION_KEY, id)
+    setConversationId(id)
+  }, [])
+
+  const handleDelete = useCallback(async (id) => {
+    await remove(id)
+    if (id === conversationId) handleNewConversation()
+  }, [conversationId, handleNewConversation, remove])
 
   return (
     <div className="flex flex-col h-full w-full bg-[color:var(--bg-primary)] text-[color:var(--text-primary)]">
@@ -36,13 +49,19 @@ export default function Layout() {
         <Sidebar
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed(v => !v)}
-          onOpenDrawer={setDrawer}
           onNewConversation={handleNewConversation}
+          onSelectConversation={handleSelectConversation}
+          activeConversationId={conversationId}
+          conversations={conversations}
+          onDelete={handleDelete}
+          onRename={rename}
+          onSearch={refresh}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
-        <MainArea conversationId={conversationId} onOpenDrawer={setDrawer} />
-        <RightDrawer view={drawer} onClose={() => setDrawer(null)} />
+        <MainArea conversationId={conversationId} />
       </div>
-      <BridgeStatusBar onNavigateToSettings={(tab) => setDrawer(tab)} />
+      <BridgeStatusBar onNavigateToSettings={() => setSettingsOpen(true)} />
+      {settingsOpen && <SettingsPage onClose={() => setSettingsOpen(false)} />}
     </div>
   )
 }

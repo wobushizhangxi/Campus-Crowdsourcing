@@ -3,7 +3,7 @@ import MessageList from './MessageList.jsx'
 import InputBar from './InputBar.jsx'
 
 export default function ChatArea({ conversationId }) {
-  const { messages, streaming, agentRunning, sendUserMessage, handleAbort, handleApproveTool, handleDenyTool, updateCard, addFileCard } = useChat(conversationId)
+  const { messages, streaming, agentRunning, sendUserMessage, handleAbort, handleApproveTool, handleDenyTool, handleApproveAction, handleDenyAction, handleCancelAction, updateCard, addFileCard } = useChat(conversationId)
 
   function handleSend(text) {
     sendUserMessage(text)
@@ -11,7 +11,16 @@ export default function ChatArea({ conversationId }) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <MessageList messages={messages} onUpdateCard={updateCard} onFileGenerated={addFileCard} onApproveTool={handleApproveTool} onDenyTool={handleDenyTool} />
+      <MessageList
+        messages={messages}
+        onUpdateCard={updateCard}
+        onFileGenerated={addFileCard}
+        onApproveTool={handleApproveTool}
+        onDenyTool={handleDenyTool}
+        onApproveAction={handleApproveAction}
+        onDenyAction={handleDenyAction}
+        onCancelAction={handleCancelAction}
+      />
       <InputBar
         onSend={handleSend}
         disabled={streaming || agentRunning}

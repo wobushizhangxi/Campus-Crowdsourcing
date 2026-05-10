@@ -31,7 +31,7 @@ afterAll(() => {
   conversationStore.__testDbPath = null
 })
 
-const { listConversations, upsertConversation, getConversation, deleteConversation } = conversationStore
+const { listConversations, upsertConversation, getConversation, deleteConversation, renameConversation } = conversationStore
 
 test('listConversations returns empty array when no conversations', () => {
   const list = listConversations()
@@ -67,6 +67,21 @@ test('listConversations returns all conversations', () => {
   expect(ids).toContain('conv-1')
   expect(ids).toContain('conv-2')
   expect(ids).toContain('conv-3')
+  const first = list.find(c => c.id === 'conv-1')
+  expect(first.firstMessagePreview).toBe('hello')
+})
+
+test('listConversations filters by title search', () => {
+  const list = listConversations('sec')
+  expect(list.map(c => c.id)).toEqual(['conv-2'])
+})
+
+test('renameConversation updates the title and timestamp', () => {
+  const before = getConversation('conv-2')
+  const renamed = renameConversation('conv-2', 'Renamed Chat')
+  expect(renamed.title).toBe('Renamed Chat')
+  expect(renamed.updatedAt >= before.updatedAt).toBe(true)
+  expect(listConversations('Renamed').map(c => c.id)).toEqual(['conv-2'])
 })
 
 test('deleteConversation removes the conversation', () => {
@@ -75,4 +90,35 @@ test('deleteConversation removes the conversation', () => {
   expect(conv).toBeNull()
   const list = listConversations()
   expect(list.length).toBe(2)
+})
+
+test('open migrates legacy data.json conversations into sqlite once', () => {
+  conversationStore.close()
+  const originalDbPath = conversationStore.__testDbPath
+  const migrationDir = path.join(testDir, 'migration')
+  const dataDir = path.join(migrationDir, 'agentdev-lite', 'data')
+  fs.mkdirSync(dataDir, { recursive: true })
+  fs.writeFileSync(path.join(dataDir, 'data.json'), JSON.stringify({
+    conversations: [{
+      id: 'legacy-1',
+      title: 'Legacy Chat',
+      assistant: 'deepseek',
+      createdAt: '2026-05-01T00:00:00.000Z',
+      updatedAt: '2026-05-02T00:00:00.000Z',
+      messages: [{ role: 'user', content: 'legacy hello' }]
+    }]
+  }), 'utf8')
+
+  conversationStore.__testDbPath = path.join(migrationDir, 'conversations.db')
+  require('electron').app.getPath.mockReturnValue(migrationDir)
+
+  const list = listConversations()
+  expect(list).toHaveLength(1)
+  expect(list[0]).toMatchObject({ id: 'legacy-1', title: 'Legacy Chat', firstMessagePreview: 'legacy hello' })
+  expect(getConversation('legacy-1').messages).toEqual([{ role: 'user', content: 'legacy hello' }])
+  expect(fs.existsSync(path.join(dataDir, 'data.json.bak'))).toBe(true)
+
+  conversationStore.close()
+  conversationStore.__testDbPath = originalDbPath
+  require('electron').app.getPath.mockReturnValue(testDir)
 })

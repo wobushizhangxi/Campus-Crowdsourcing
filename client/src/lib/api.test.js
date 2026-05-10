@@ -1,5 +1,5 @@
 import { beforeEach, expect, test, vi } from 'vitest'
-import { approveAction, bootstrapRuntime, getRuntimeStatus, listActions, listAuditEvents, listRunOutputs } from './api.js'
+import { api, approveAction, bootstrapRuntime, deleteConversation, getRuntimeStatus, listActions, listAuditEvents, listConversations, listRunOutputs, renameConversation } from './api.js'
 
 beforeEach(() => {
   global.window = {
@@ -25,4 +25,16 @@ test('maps action, audit, and output helpers', async () => {
   expect(window.electronAPI.invoke).toHaveBeenCalledWith('actions:approve', { id: 'act1' })
   expect(window.electronAPI.invoke).toHaveBeenCalledWith('audit:list', { filters: { risk: 'high' } })
   expect(window.electronAPI.invoke).toHaveBeenCalledWith('outputs:list', { filters: { sessionId: 'sess1' } })
+})
+
+test('maps conversation helpers to IPC channels', async () => {
+  await listConversations('alpha')
+  await renameConversation('conv-1', 'Renamed')
+  await deleteConversation('conv-2')
+  await api.get('/api/conversations')
+
+  expect(window.electronAPI.invoke).toHaveBeenCalledWith('conversations:list', { search: 'alpha' })
+  expect(window.electronAPI.invoke).toHaveBeenCalledWith('conversations:rename', { id: 'conv-1', title: 'Renamed' })
+  expect(window.electronAPI.invoke).toHaveBeenCalledWith('conversations:delete', { id: 'conv-2' })
+  expect(window.electronAPI.invoke).toHaveBeenCalledWith('conversations:list', undefined)
 })

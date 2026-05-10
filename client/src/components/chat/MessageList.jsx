@@ -9,7 +9,7 @@ import FileCard from '../cards/FileCard.jsx'
 import ActionCard from '../actions/ActionCard.jsx'
 import AgentToolCard from './AgentToolCard.jsx'
 
-export default function MessageList({ messages, onApproveTool, onDenyTool }) {
+export default function MessageList({ messages, onApproveTool, onDenyTool, onApproveAction, onDenyAction, onCancelAction }) {
   const endRef = useRef(null)
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function MessageList({ messages, onApproveTool, onDenyTool }) {
           return (
             <div key={message.id} className="my-3 max-w-[820px] space-y-2">
               <div className="text-xs font-medium uppercase text-[color:var(--text-muted)]">{message.title || '动作'}</div>
-              {(message.actions || []).map((action) => <ActionCard key={action.id} action={action} compact={false} />)}
+              {(message.actions || []).map((action) => <ActionCard key={action.id} action={action} onApprove={onApproveAction} onDeny={onDenyAction} onCancel={onCancelAction} compact={false} />)}
             </div>
           )
         }
