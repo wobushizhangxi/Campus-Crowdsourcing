@@ -34,10 +34,10 @@ function normalizeTools(tools = []) {
   })
 }
 
-function buildBody({ messages, json = false, temperature = 0.7, stream = false, tools }) {
+function buildBody({ messages, model: modelOverride, json = false, temperature = 0.7, stream = false, tools }) {
   const config = store.getConfig()
   return {
-    model: config.fallbackModel || config.model || 'deepseek-chat',
+    model: modelOverride || config.fallbackModel || config.model || 'deepseek-chat',
     messages,
     temperature,
     stream,
@@ -107,17 +107,17 @@ async function postChat(body, timeout = 60000, signal) {
   return resp
 }
 
-async function chat({ messages, json = false, temperature = 0.7, tools, stream = false, onDelta, signal }) {
-  if (stream) return chatStreamingResult({ messages, temperature, tools, onDelta, signal })
-  const resp = await postChat(buildBody({ messages, json, temperature, stream: false, tools }), 60000, signal)
+async function chat({ messages, model: modelOverride, json = false, temperature = 0.7, tools, stream = false, onDelta, signal }) {
+  if (stream) return chatStreamingResult({ messages, model: modelOverride, temperature, tools, onDelta, signal })
+  const resp = await postChat(buildBody({ messages, model: modelOverride, json, temperature, stream: false, tools }), 60000, signal)
   const data = await resp.json()
   const message = data.choices?.[0]?.message || {}
   if (tools?.length) return messageToChatResult(message)
   return message.content ?? ''
 }
 
-async function chatStreamingResult({ messages, temperature = 0.7, tools, onDelta, signal }) {
-  const resp = await postChat(buildBody({ messages, temperature, stream: true, tools }), 120000, signal)
+async function chatStreamingResult({ messages, model: modelOverride, temperature = 0.7, tools, onDelta, signal }) {
+  const resp = await postChat(buildBody({ messages, model: modelOverride, temperature, stream: true, tools }), 120000, signal)
   const decoder = new TextDecoder()
   let buffer = ''
   let content = ''
