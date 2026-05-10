@@ -4,16 +4,16 @@ function createAgentRunner(opts = {}) {
     return await screenshot()
   })
   const modelConfig = {
-    modelProvider: opts.modelProvider,
-    modelEndpoint: opts.modelEndpoint,
-    modelApiKey: opts.modelApiKey,
-    modelName: opts.modelName,
-    provider: opts.modelProvider,
-    endpoint: opts.modelEndpoint,
-    name: opts.modelName,
-    baseURL: opts.modelEndpoint,
-    apiKey: opts.modelApiKey,
-    model: opts.modelName
+    modelProvider: opts.modelProvider || 'volcengine',
+    modelEndpoint: opts.modelEndpoint || 'https://ark.cn-beijing.volces.com/api/v3',
+    modelApiKey: opts.modelApiKey || '',
+    modelName: opts.modelName || 'ep-20260509193331-bf5px',
+    provider: opts.modelProvider || 'volcengine',
+    endpoint: opts.modelEndpoint || 'https://ark.cn-beijing.volces.com/api/v3',
+    name: opts.modelName || 'ep-20260509193331-bf5px',
+    baseURL: opts.modelEndpoint || 'https://ark.cn-beijing.volces.com/api/v3',
+    apiKey: opts.modelApiKey || '',
+    model: opts.modelName || 'ep-20260509193331-bf5px'
   }
   const guiAgentFactory = opts.guiAgentFactory || ((cfg) => {
     const { GUIAgent } = require('@ui-tars/sdk')

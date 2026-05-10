@@ -77,12 +77,17 @@ class BrowserAgentPool:
 
             result = await agent.run(max_steps=task.max_steps)
 
+            urls = result.urls() if callable(result.urls) else (result.urls or [])
+            final = result.final_result() if callable(result.final_result) else result.final_result
+            steps = result.number_of_steps() if callable(result.number_of_steps) else result.number_of_steps
+            dur = result.total_duration_seconds() if callable(result.total_duration_seconds) else result.total_duration_seconds
+
             return BrowserResult(
                 success=result.is_successful(),
-                summary=str(result.final_result()),
-                final_url=result.urls[-1] if result.urls else "",
-                steps_completed=result.number_of_steps(),
-                duration_ms=int(result.total_duration_seconds() * 1000),
+                summary=str(final),
+                final_url=urls[-1] if urls else "",
+                steps_completed=steps,
+                duration_ms=int(dur * 1000) if dur else 0,
             )
 
         self._current_task = asyncio.ensure_future(_run())
