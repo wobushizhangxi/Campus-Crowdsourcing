@@ -9,12 +9,17 @@ function createIpcMain() {
   return { handlers, handle: vi.fn((channel, handler) => handlers.set(channel, handler)) }
 }
 
-test('chat:send forwards plain stream deltas and done event in default mode', async () => {
+test('chat:send routes plain messages through the unified agent loop', async () => {
   const ipcMain = createIpcMain()
   const send = vi.fn()
+  const runTurn = vi.fn(async ({ onEvent }) => {
+    onEvent('assistant_message', { content: 'hello world', toolCalls: [] })
+    return { finalText: 'hello world', history: [] }
+  })
   const register = createRegister({
     storeRef: { getConfig: () => ({ permissionMode: 'default' }) },
-    deepseek: { chat: async ({ onDelta }) => { onDelta('hello'); onDelta(' world'); return { content: 'hello world', assistant_message: { role: 'assistant', content: 'hello world' }, tool_calls: [] } } },
+    deepseek: { chat: vi.fn() },
+    runTurn,
     userRules: { buildSystemPromptSection: () => '' },
     skillRegistry: { listSkills: () => [], buildSkillIndex: () => '' }
   })
@@ -22,39 +27,38 @@ test('chat:send forwards plain stream deltas and done event in default mode', as
 
   const result = await ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-1', messages: [{ role: 'user', content: 'hi' }] })
   expect(result).toEqual({ ok: true })
-  expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-1', text: 'hello' })
-  expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-1', text: ' world' })
+  expect(runTurn).toHaveBeenCalledWith(expect.objectContaining({
+    messages: expect.arrayContaining([expect.objectContaining({ role: 'user', content: 'hi' })])
+  }))
+  expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-1', text: 'hello world' })
+  expect(send.mock.calls.filter(([event]) => event === 'chat:delta')).toHaveLength(1)
   expect(send).toHaveBeenCalledWith('chat:done', { convId: 'conv-1' })
 })
 
-test('chat:send executes function calls in full mode and sends tool events', async () => {
+test('chat:send forwards unified agent loop tool events', async () => {
   const ipcMain = createIpcMain()
   const send = vi.fn()
-  const chat = vi.fn()
-    .mockImplementationOnce(async () => ({
-      content: '',
-      assistant_message: { role: 'assistant', content: null, tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'read_file', arguments: '{"path":"x"}' } }] },
-      tool_calls: [{ id: 'call-1', name: 'read_file', args: { path: 'x' } }]
-    }))
-    .mockImplementationOnce(async ({ onDelta }) => {
-      onDelta('done')
-      return { content: 'done', assistant_message: { role: 'assistant', content: 'done' }, tool_calls: [] }
-    })
-  const execute = vi.fn(async () => ({ content: 'file text' }))
+  const runTurn = vi.fn(async ({ onEvent }) => {
+    onEvent('assistant_message', { content: 'thinking...', toolCalls: [{ id: 'call-1', name: 'read_file', args: { path: 'x' } }] })
+    onEvent('tool_result', { call: { id: 'call-1', name: 'read_file', args: { path: 'x' } }, result: { content: 'file text' } })
+    onEvent('tool_blocked', { call: { id: 'call-2', name: 'write_file', args: { path: 'C:\\Windows\\evil.txt' } }, reason: '系统路径已被阻止。' })
+    onEvent('assistant_message', { content: 'done', toolCalls: [] })
+    return { finalText: 'done', history: [] }
+  })
   const register = createRegister({
     storeRef: { getConfig: () => ({ permissionMode: 'full' }) },
-    deepseek: { chat },
-    execute,
-    toolSchemas: [{ name: 'read_file', description: '', parameters: { type: 'object' } }],
+    runTurn,
     userRules: { buildSystemPromptSection: () => '' },
     skillRegistry: { listSkills: () => [{ name: 'file-explorer', description: 'files' }], buildSkillIndex: () => 'skill index' }
   })
   register(ipcMain)
 
   await ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-1', messages: [{ role: 'user', content: 'read' }] })
-  expect(execute).toHaveBeenCalledWith('read_file', { path: 'x' }, expect.objectContaining({ convId: 'conv-1' }))
+  expect(runTurn).toHaveBeenCalled()
+  expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-1', text: 'thinking...' })
   expect(send).toHaveBeenCalledWith('chat:tool-start', { convId: 'conv-1', callId: 'call-1', name: 'read_file', args: { path: 'x' } })
   expect(send).toHaveBeenCalledWith('chat:tool-result', { convId: 'conv-1', callId: 'call-1', result: { content: 'file text' } })
+  expect(send).toHaveBeenCalledWith('chat:tool-error', { convId: 'conv-1', callId: 'call-2', error: { code: 'POLICY_BLOCKED', message: '系统路径已被阻止。' } })
   expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-1', text: 'done' })
   expect(send).toHaveBeenCalledWith('chat:done', { convId: 'conv-1' })
 })
@@ -66,14 +70,11 @@ test('buildSystemPrompt includes rules and skill index only in full mode', () =>
   expect(buildSystemPrompt({ permissionMode: 'full' }, deps)).toContain('skills')
 })
 
-test('chat:send routes execute mode through agent loop', async () => {
+test('chat:send ignores legacy mode flags and still uses the unified agent loop', async () => {
   const ipcMain = createIpcMain()
   const send = vi.fn()
   const runTurn = vi.fn(async ({ onEvent }) => {
-    onEvent('assistant_message', { content: 'thinking...', toolCalls: [{ id: 'call-1', name: 'read_file', args: { path: 'x' } }] })
-    onEvent('tool_result', { call: { id: 'call-1', name: 'read_file', args: { path: 'x' } }, result: { content: 'file text' } })
-    onEvent('tool_blocked', { call: { id: 'call-2', name: 'write_file', args: { path: 'C:\\Windows\\evil.txt' } }, reason: '系统路径已被阻止。' })
-    onEvent('assistant_message', { content: 'done', toolCalls: [] })
+    onEvent('assistant_message', { content: 'legacy-compatible', toolCalls: [] })
     return { finalText: 'done', history: [] }
   })
   const register = createRegister({
@@ -86,10 +87,7 @@ test('chat:send routes execute mode through agent loop', async () => {
 
   await ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-1', mode: 'execute', messages: [{ role: 'user', content: 'run tests' }] })
   expect(runTurn).toHaveBeenCalled()
-  expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-1', text: 'thinking...' })
-  expect(send).toHaveBeenCalledWith('chat:tool-start', { convId: 'conv-1', callId: 'call-1', name: 'read_file', args: { path: 'x' } })
-  expect(send).toHaveBeenCalledWith('chat:tool-result', { convId: 'conv-1', callId: 'call-1', result: { content: 'file text' } })
-  expect(send).toHaveBeenCalledWith('chat:tool-error', { convId: 'conv-1', callId: 'call-2', error: { code: 'POLICY_BLOCKED', message: '系统路径已被阻止。' } })
+  expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-1', text: 'legacy-compatible' })
   expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-1', text: 'done' })
   expect(send).toHaveBeenCalledWith('chat:done', { convId: 'conv-1' })
 })

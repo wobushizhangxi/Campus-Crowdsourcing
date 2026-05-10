@@ -6,8 +6,8 @@ const userRules = require('../services/userRules')
 const { runTurn } = require('../services/agentLoop')
 const { requestConfirm } = require('../confirm')
 
-const BASE_PROMPT = '你是 AionUi，一个桌面控制平面助手。请默认使用简体中文，回答要简洁、专业。除非 AionUi 已报告审批通过的执行结果，否则不要暗示本地动作已经运行。'
-const FULL_PROMPT = `${BASE_PROMPT}\n\n旧版完全权限工具仅作为兼容辅助。新的执行任务应使用执行模式，让 Qwen 提案经过 AionUi 策略、确认、适配器和审计日志。`
+const BASE_PROMPT = '你是 AionUi，一个桌面控制平面助手。请默认使用简体中文，回答要简洁、专业。所有用户输入都在同一个 Agent Loop 中处理：普通问题直接回答，需要本地、浏览器或桌面操作时再调用工具。除非 AionUi 已报告审批通过的执行结果，否则不要暗示本地动作已经运行。'
+const FULL_PROMPT = `${BASE_PROMPT}\n\n当前配置允许兼容工具进入候选集，但所有执行仍必须经过 AionUi 策略、确认、适配器和审计日志。`
 const REMEMBER_GUIDANCE = '当用户表达长期偏好，例如“以后”“始终”“下次”或“从现在开始”时，调用 remember_user_rule。不要记住一次性任务细节。'
 
 function buildSystemPrompt(config, deps) {
@@ -28,81 +28,47 @@ async function handleChatSend(evt, payload = {}, deps) {
   const { convId, messages = [] } = payload
   const send = (event, data = {}) => evt.sender.send(event, { convId, ...data })
   const config = deps.storeRef.getConfig()
-  if (payload.mode === 'execute') {
-    try {
-      const execMessages = messages.filter(m => m.role === 'user' || m.role === 'assistant' || m.role === 'tool')
-      const result = await deps.runTurn({
-        messages: execMessages,
-        onEvent: (type, data) => {
-          if (type === 'assistant_message') {
-            if (data.content) send('chat:delta', { text: data.content })
-            if (data.toolCalls?.length) {
-              for (const call of data.toolCalls) {
-                send('chat:tool-start', { callId: call.id, name: call.name, args: call.args })
-              }
-            }
-          } else if (type === 'tool_result') {
-            send('chat:tool-result', { callId: data.call.id, result: data.result })
-          } else if (type === 'tool_blocked') {
-            send('chat:tool-error', { callId: data.call.id, error: { code: 'POLICY_BLOCKED', message: data.reason } })
-          } else if (type === 'approval_request') {
-            send('chat:tool-start', { callId: data.call.id, name: data.call.name, args: data.call.args, needsApproval: true })
-          }
-        },
-        requestApproval: async ({ call, decision }) => {
-          return requestConfirm({ kind: 'agent-tool', payload: { tool: call.name, reason: decision.reason } })
-        }
-      })
-      if (result.finalText) send('chat:delta', { text: result.finalText })
-      send('chat:done', {})
-      return { ok: true }
-    } catch (error) {
-      send('chat:error', { error: { code: error.code || 'AGENT_ERROR', message: error.message || 'Agent 执行失败。' } })
-      return { ok: true }
-    }
+  const agentMessages = [
+    { role: 'system', content: buildSystemPrompt(config, deps) },
+    ...messages.filter(m => m.role === 'user' || m.role === 'assistant' || m.role === 'tool')
+  ]
+  let sentText = ''
+
+  const sendDelta = (text) => {
+    if (!text) return
+    sentText += text
+    send('chat:delta', { text })
   }
-  const isFull = config.permissionMode === 'full'
-  const fullMessages = [{ role: 'system', content: buildSystemPrompt(config, deps) }, ...messages]
 
   try {
-    if (!isFull) {
-      const result = await deps.deepseek.chat({ messages: fullMessages, stream: true, onDelta: (text) => send('chat:delta', { text }) })
-      if (result.content && !result._streamed) {
-        // chat() streams through onDelta; this branch is for mocked implementations.
+    const result = await deps.runTurn({
+      messages: agentMessages,
+      onEvent: (type, data) => {
+        if (type === 'assistant_message') {
+          sendDelta(data.content)
+          if (data.toolCalls?.length) {
+            for (const call of data.toolCalls) {
+              send('chat:tool-start', { callId: call.id, name: call.name, args: call.args })
+            }
+          }
+        } else if (type === 'tool_result') {
+          send('chat:tool-result', { callId: data.call.id, result: data.result })
+          if (data.call.name === 'load_skill' && !data.result?.error) {
+            send('chat:skill-loaded', { name: data.call.args.name })
+          }
+        } else if (type === 'tool_blocked') {
+          send('chat:tool-error', { callId: data.call.id, error: { code: 'POLICY_BLOCKED', message: data.reason } })
+        } else if (type === 'approval_request') {
+          send('chat:tool-start', { callId: data.call.id, name: data.call.name, args: data.call.args, needsApproval: true })
+        }
+      },
+      requestApproval: async ({ call, decision }) => {
+        return deps.requestConfirm({ kind: 'agent-tool', payload: { tool: call.name, reason: decision.reason } })
       }
-      send('chat:done', {})
-      return { ok: true }
-    }
+    })
 
-    for (let iter = 0; iter < 10; iter += 1) {
-      const response = await deps.deepseek.chat({
-        messages: fullMessages,
-        tools: deps.toolSchemas,
-        stream: true,
-        onDelta: (text) => send('chat:delta', { text })
-      })
-      fullMessages.push(response.assistant_message || { role: 'assistant', content: response.content || '' })
-      const calls = response.tool_calls || []
-      if (!calls.length) {
-        send('chat:done', {})
-        return { ok: true }
-      }
-
-      for (const call of calls) {
-        send('chat:tool-start', { callId: call.id, name: call.name, args: call.args })
-        const result = await deps.execute(call.name, call.args, {
-          convId,
-          onLog: (stream, chunk) => send('chat:tool-log', { callId: call.id, stream, chunk })
-        })
-        if (result?.error) send('chat:tool-error', { callId: call.id, error: result.error })
-        else send('chat:tool-result', { callId: call.id, result })
-        if (call.name === 'load_skill' && !result?.error) send('chat:skill-loaded', { name: call.args.name })
-        fullMessages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result), name: call.name })
-      }
-    }
-
-    fullMessages.push({ role: 'system', content: '工具调用次数已达上限。请基于已有工具结果进行总结。' })
-    await deps.deepseek.chat({ messages: fullMessages, stream: true, onDelta: (text) => send('chat:delta', { text }) })
+    const finalText = result.finalText || ''
+    if (finalText && !sentText.trimEnd().endsWith(finalText.trim())) sendDelta(finalText)
     send('chat:done', {})
     return { ok: true }
   } catch (error) {
@@ -122,6 +88,7 @@ function createRegister(overrides = {}) {
     skillRegistry,
     userRules,
     runTurn,
+    requestConfirm,
     ...overrides
   }
   return function register(ipcMain) {

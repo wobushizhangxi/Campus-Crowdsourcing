@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { MessageSquare, Paperclip, Play, Send, Square } from 'lucide-react'
+import { Paperclip, Send, Square } from 'lucide-react'
 
 function insertPath(current, filePath) {
   const trimmed = current.trim()
   return `"${filePath}" ${trimmed}`.trim()
 }
 
-export default function InputBar({ mode = 'chat', onModeChange, onSend, disabled, agentRunning, onCancel }) {
+export default function InputBar({ onSend, disabled, agentRunning, onCancel }) {
   const [text, setText] = useState('')
 
   useEffect(() => {
@@ -40,27 +40,8 @@ export default function InputBar({ mode = 'chat', onModeChange, onSend, disabled
     }
   }
 
-  const isExecute = mode === 'execute'
-
   return (
     <form onSubmit={handleSubmit} className="border-t border-[color:var(--border)] bg-[color:var(--bg-secondary)] px-6 py-4">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="inline-flex rounded-md border border-[color:var(--border)] bg-[color:var(--bg-primary)] p-1">
-          <button type="button" onClick={() => onModeChange?.('chat')} className={`h-8 px-3 rounded text-sm inline-flex items-center gap-1 ${!isExecute ? 'bg-[color:var(--accent)] text-white' : 'text-[color:var(--text-muted)] hover:bg-[color:var(--bg-tertiary)]'}`}>
-            <MessageSquare size={14} /> 聊天
-          </button>
-          <button type="button" onClick={() => onModeChange?.('execute')} className={`h-8 px-3 rounded text-sm inline-flex items-center gap-1 ${isExecute ? 'bg-[color:var(--accent)] text-white' : 'text-[color:var(--text-muted)] hover:bg-[color:var(--bg-tertiary)]'}`}>
-            <Play size={14} /> 执行
-          </button>
-        </div>
-        <div className="text-xs text-[color:var(--text-muted)]">
-          {agentRunning
-            ? 'Agent 正在执行... 工具调用需要审批时会显示审批卡片。'
-            : isExecute
-              ? 'Agent 模式：AI 直接调用工具执行任务，高风险操作会在聊天中请求确认。'
-              : '普通聊天模式：此输入不会直接执行本地操作。'}
-        </div>
-      </div>
       <div className="flex items-end gap-3 bg-[color:var(--bg-primary)] border border-[color:var(--border)] rounded-md px-3 py-2 focus-within:border-[color:var(--accent)]">
         <button type="button" onClick={handleAttachFile} className="h-8 w-8 flex items-center justify-center rounded-md text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--bg-tertiary)]" aria-label="附加文件路径" title="附加本地文件路径">
           <Paperclip size={14} />
@@ -69,7 +50,7 @@ export default function InputBar({ mode = 'chat', onModeChange, onSend, disabled
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={handleKey}
-          placeholder={isExecute ? '描述你希望 AionUi 规划并托管执行的任务。' : '发送消息。Shift+Enter 换行。'}
+          placeholder="输入消息或任务，Enter 发送，Shift+Enter 换行"
           rows={1}
           className="flex-1 resize-none bg-transparent outline-none text-sm max-h-40 py-1"
         />

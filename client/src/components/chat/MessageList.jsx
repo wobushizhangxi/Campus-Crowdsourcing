@@ -20,7 +20,7 @@ export default function MessageList({ messages }) {
     <div className="flex-1 overflow-y-auto px-6 py-4">
       {messages.length === 0 && (
         <div className="h-full flex items-center justify-center text-[color:var(--text-muted)] text-sm text-center">
-          直接描述你的问题或任务。普通聊天只回复内容，执行模式会先生成动作计划并请求必要确认。
+          从一个问题或任务开始。
         </div>
       )}
       {messages.map((message) => {

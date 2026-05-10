@@ -1,5 +1,5 @@
 import { useReducer, useCallback, useRef, useEffect, useState } from 'react'
-import { api, runAgentTurn, approveTool, denyTool, abortAgent } from '../lib/api.js'
+import { api } from '../lib/api.js'
 
 function uid() {
   return Math.random().toString(36).slice(2, 10)
@@ -26,15 +26,6 @@ function reducer(state, action) {
           return { ...message, ...action.patch, logs }
         })
       }
-    case 'UPDATE_AGENT_TOOL': {
-      return {
-        ...state,
-        messages: state.messages.map((message) => {
-          if (message.role !== 'agent-tool' || message.toolCallId !== action.callId) return message
-          return { ...message, ...action.patch }
-        })
-      }
-    }
     case 'ADD_ACTIONS':
       return { ...state, messages: [...state.messages, { id: uid(), role: 'actions', title: action.title, actions: action.actions || [] }] }
     case 'CLEAR':
@@ -55,7 +46,6 @@ export function useChat(conversationId) {
   const conversationIdRef = useRef(conversationId)
   const toolMessageIdsRef = useRef(new Map())
   const [agentRunning, setAgentRunning] = useState(false)
-  const [pendingApproval, setPendingApproval] = useState(null)
 
   useEffect(() => {
     if (!conversationId) return undefined
@@ -66,7 +56,6 @@ export function useChat(conversationId) {
     abortRef.current = null
     toolMessageIdsRef.current = new Map()
     setAgentRunning(false)
-    setPendingApproval(null)
     dispatch({ type: 'CLEAR' })
 
     async function loadConversation() {
@@ -97,12 +86,13 @@ export function useChat(conversationId) {
     }
   }, [])
 
-  const sendUserMessage = useCallback((text, options = {}) => {
+  const sendUserMessage = useCallback((text) => {
     const convId = conversationIdRef.current
     if (!convId) return
 
     abortRef.current?.()
     toolMessageIdsRef.current = new Map()
+    setAgentRunning(true)
 
     const userMessage = { id: uid(), role: 'user', content: text }
     dispatch({ type: 'ADD', msg: userMessage })
@@ -120,20 +110,27 @@ export function useChat(conversationId) {
       if (finished) return
       finished = true
       dispatch({ type: 'FINISH', id: assistantId })
+      setAgentRunning(false)
       saveConversation(convId, [...history, { role: 'assistant', content: assistantContent }])
     }
 
     abortRef.current = api.stream({
       channel: 'chat:send',
-      payload: { convId, messages: history, mode: options.mode || 'chat' },
+      payload: { convId, messages: history },
       onDelta: (delta) => {
         assistantContent += delta
         dispatch({ type: 'APPEND_DELTA', id: assistantId, delta })
       },
       onToolStart: (event) => {
+        const existingId = toolMessageIdsRef.current.get(event.callId)
+        const toolStatus = event.needsApproval ? 'awaiting_approval' : 'running'
+        if (existingId) {
+          dispatch({ type: 'UPDATE_TOOL', id: existingId, patch: { toolStatus, args: event.args } })
+          return
+        }
         const id = uid()
         toolMessageIdsRef.current.set(event.callId, id)
-        dispatch({ type: 'ADD', msg: { id, role: 'tool', toolCallId: event.callId, toolName: event.name, args: event.args, toolStatus: 'running', logs: [] } })
+        dispatch({ type: 'ADD', msg: { id, role: 'tool', toolCallId: event.callId, toolName: event.name, args: event.args, toolStatus, logs: [] } })
       },
       onToolLog: (event) => {
         const id = toolMessageIdsRef.current.get(event.callId)
@@ -162,100 +159,15 @@ export function useChat(conversationId) {
         const errorText = `\n\n[错误] ${error.message}`
         assistantContent += errorText
         dispatch({ type: 'APPEND_DELTA', id: assistantId, delta: errorText })
+        setAgentRunning(false)
         finish()
       }
     })
   }, [state.messages, saveConversation])
 
-  const sendAgentMessage = useCallback((text) => {
-    const convId = conversationIdRef.current
-    if (!convId) return
-
-    abortRef.current?.()
-    setAgentRunning(true)
-    setPendingApproval(null)
-    toolMessageIdsRef.current = new Map()
-
-    const userMessage = { id: uid(), role: 'user', content: text }
-    dispatch({ type: 'ADD', msg: userMessage })
-
-    const assistantId = uid()
-    dispatch({ type: 'ADD', msg: { id: assistantId, role: 'assistant', content: '', streaming: true } })
-
-    const history = [...state.messages, userMessage]
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => ({ role: m.role, content: m.content }))
-
-    let assistantContent = ''
-
-    abortRef.current = runAgentTurn({
-      convId,
-      messages: history,
-      onEvent: (type, data) => {
-        switch (type) {
-          case 'assistant_message': {
-            if (data.content) {
-              assistantContent += data.content
-              dispatch({ type: 'APPEND_DELTA', id: assistantId, delta: data.content })
-            }
-            if (data.toolCalls?.length) {
-              for (const call of data.toolCalls) {
-                const toolId = uid()
-                dispatch({ type: 'ADD', msg: { id: toolId, role: 'agent-tool', toolCallId: call.id, toolName: call.name, args: call.args, toolStatus: 'running' } })
-              }
-            }
-            break
-          }
-          case 'tool_result': {
-            dispatch({ type: 'UPDATE_AGENT_TOOL', callId: data.call.id, patch: { toolStatus: 'ok', result: data.result } })
-            break
-          }
-          case 'tool_blocked': {
-            dispatch({ type: 'UPDATE_AGENT_TOOL', callId: data.call.id, patch: { toolStatus: 'blocked', reason: data.reason } })
-            break
-          }
-          case 'approval_request': {
-            dispatch({ type: 'UPDATE_AGENT_TOOL', callId: data.call.id, patch: { toolStatus: 'awaiting_approval', decision: data.decision } })
-            setPendingApproval({ callId: data.call.id, call: data.call, decision: data.decision })
-            break
-          }
-        }
-      },
-      onDone: (result) => {
-        if (result.finalText && !assistantContent.includes(result.finalText)) {
-          assistantContent += result.finalText
-          dispatch({ type: 'APPEND_DELTA', id: assistantId, delta: result.finalText })
-        }
-        dispatch({ type: 'FINISH', id: assistantId })
-        setAgentRunning(false)
-        setPendingApproval(null)
-        saveConversation(convId, [...history, { role: 'assistant', content: assistantContent }])
-      },
-      onError: (error) => {
-        const errorText = `\n\n[错误] ${error.message}`
-        assistantContent += errorText
-        dispatch({ type: 'APPEND_DELTA', id: assistantId, delta: errorText })
-        dispatch({ type: 'FINISH', id: assistantId })
-        setAgentRunning(false)
-        setPendingApproval(null)
-      }
-    })
-  }, [state.messages, saveConversation])
-
-  const handleApprove = useCallback((callId) => {
-    setPendingApproval(null)
-    approveTool(conversationIdRef.current, callId)
-  }, [])
-
-  const handleDeny = useCallback((callId) => {
-    setPendingApproval(null)
-    denyTool(conversationIdRef.current, callId)
-  }, [])
-
   const handleAbort = useCallback(() => {
     abortRef.current?.()
     setAgentRunning(false)
-    setPendingApproval(null)
   }, [])
 
   const sendCommand = useCallback(({ command, prompt, referencePath }) => {
@@ -264,7 +176,7 @@ export function useChat(conversationId) {
 
     const displayText = referencePath ? `/${command} “${referencePath}” ${prompt}` : `/${command} ${prompt}`
     const userMessage = { id: uid(), role: 'user', content: displayText }
-    const assistantContent = '旧版斜杠命令已移除。请直接用自然语言描述任务；需要执行时请切换到”执行”模式。'
+    const assistantContent = '请直接用自然语言描述你的任务，我会自动判断是否需要执行操作。'
     dispatch({ type: 'ADD', msg: userMessage })
     dispatch({ type: 'ADD', msg: { id: uid(), role: 'assistant', content: assistantContent } })
     const history = [...state.messages, userMessage].filter((message) => message.role === 'user' || message.role === 'assistant').map((message) => ({ role: message.role, content: message.content }))
@@ -284,5 +196,5 @@ export function useChat(conversationId) {
   }, [])
   const clear = useCallback(() => dispatch({ type: 'CLEAR' }), [])
 
-  return { ...state, agentRunning, pendingApproval, sendUserMessage, sendAgentMessage, handleApprove, handleDeny, handleAbort, sendCommand, addCard, updateCard, addFileCard, clear }
+  return { ...state, agentRunning, sendUserMessage, handleAbort, sendCommand, addCard, updateCard, addFileCard, clear }
 }
