@@ -101,6 +101,8 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf-8')
 }
 
+const conversationStore = require('./services/conversationStore')
+
 const store = {
   genId: (prefix = '') => prefix + crypto.randomUUID(),
 
@@ -137,20 +139,23 @@ const store = {
   },
 
   upsertConversation(conversation) {
-    const data = this.getData()
-    const index = data.conversations.findIndex((item) => item.id === conversation.id)
-    if (index === -1) data.conversations.unshift(conversation)
-    else data.conversations[index] = conversation
-    this.saveData(data)
-    return conversation
+    return conversationStore.upsertConversation(conversation.id, conversation)
   },
 
   getConversation(id) {
-    return this.getData().conversations.find((item) => item.id === id)
+    return conversationStore.getConversation(id)
   },
 
   listConversations() {
-    return this.getData().conversations
+    return conversationStore.listConversations()
+  },
+
+  deleteConversation(id) {
+    return conversationStore.deleteConversation(id)
+  },
+
+  closeConversationStore() {
+    return conversationStore.close()
   },
 
   addArtifact(artifact) {
