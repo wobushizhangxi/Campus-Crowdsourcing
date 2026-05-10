@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": [
-    "server/oi-bridge",
     "server/uitars-bridge"
   ],
   "description": "AionUi V2 control-plane agent desktop app",
@@ -49,8 +48,8 @@
         "to": "client/dist"
       },
       {
-        "from": "dist-bridges/oi-bridge",
-        "to": "server/oi-bridge"
+        "from": "dist-bridges/browser-use-bridge",
+        "to": "server/browser-use-bridge"
       },
       {
         "from": "dist-bridges/uitars-bridge",
