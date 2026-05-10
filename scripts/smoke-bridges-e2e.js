@@ -263,6 +263,41 @@ async function main() {
       results.push({ test: 'vision model grounding', passed: false, error: e.message })
     }
 
+    // Test 3: Desktop semantic click (real model → coordinates → real click)
+    console.log('[e2e] Running desktop semantic click (model-driven)...')
+    try {
+      const clickResult = await httpPost(UT_PORT, '/execute', {
+        type: 'mouse.click',
+        payload: { target: 'click on the Windows Start button in the bottom-left corner of the taskbar' },
+        approved: true,
+        actionId: 'e2e-test-3',
+        sessionId: 'e2e'
+      })
+      const clickOk = clickResult.ok === true && typeof clickResult.metadata?.x === 'number'
+      results.push({ test: 'desktop semantic click', passed: clickOk, detail: { x: clickResult.metadata?.x, y: clickResult.metadata?.y } })
+      console.log(`[e2e]   ${clickOk ? 'PASS' : 'FAIL'}: desktop semantic click (x=${clickResult.metadata?.x}, y=${clickResult.metadata?.y})`)
+    } catch (e) {
+      console.error('[e2e]   desktop semantic click error:', e.message)
+      results.push({ test: 'desktop semantic click', passed: false, error: e.message })
+    }
+
+    // Test 4: Desktop type text (keyboard simulation)
+    console.log('[e2e] Running desktop type text...')
+    try {
+      const typeResult = await httpPost(UT_PORT, '/execute', {
+        type: 'keyboard.type',
+        payload: { text: '' },
+        approved: true,
+        actionId: 'e2e-test-4',
+        sessionId: 'e2e'
+      })
+      results.push({ test: 'desktop type text', passed: typeResult.ok === true, detail: typeResult.metadata })
+      console.log(`[e2e]   ${typeResult.ok === true ? 'PASS' : 'FAIL'}: desktop type text`)
+    } catch (e) {
+      console.error('[e2e]   desktop type error:', e.message)
+      results.push({ test: 'desktop type text', passed: false, error: e.message })
+    }
+
   } catch (e) {
     console.error('[e2e] Bridge startup failed:', e.message)
     results.push({ test: 'bridge startup', passed: false, error: e.message })
