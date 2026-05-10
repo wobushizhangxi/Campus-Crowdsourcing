@@ -54,5 +54,29 @@ for (const name of BRIDGES) {
   copyDir(tempDst, finalDst)
 }
 
+// Python bridge: copy source + install Python deps
+const pySrc = path.join(SRC_ROOT, 'browser-use-bridge')
+const pyFinal = path.join(STAGING_ROOT, 'browser-use-bridge')
+if (fs.existsSync(pySrc)) {
+  copyDir(pySrc, pyFinal, ['__tests__', '__pycache__', '.venv', 'venv'])
+  // Install Python dependencies if pip is available
+  const reqPath = path.join(pyFinal, 'requirements.txt')
+  if (fs.existsSync(reqPath)) {
+    try {
+      const { execSync } = require('child_process')
+      execSync(`pip install -r "${reqPath}" --target "${path.join(pyFinal, '.deps')}"`, {
+        encoding: 'utf8',
+        timeout: 120000,
+        stdio: 'pipe'
+      })
+      console.log('[prepare-bridges] Python deps installed for browser-use-bridge')
+    } catch (e) {
+      process.stderr.write(`[prepare-bridges] pip install failed — bridge may need manual dep setup\n`)
+    }
+  }
+} else {
+  process.stderr.write(`[prepare-bridges] missing Python bridge source: ${pySrc}\n`)
+}
+
 rmrf(TEMP_ROOT)
 process.stdout.write('[prepare-bridges] done\n')
