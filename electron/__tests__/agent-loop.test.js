@@ -318,11 +318,15 @@ test('repeated tool approval includes previous failure summary', async () => {
   }
   const policy = mockPolicy({ browser_task: { risk: 'medium', reason: 'browser', allowed: true, requiresApproval: true } })
   const events = []
+  const approvalRequests = []
 
   await runTurn(
     {
       messages: [{ role: 'user', content: 'open example.com' }],
-      requestApproval: async () => true,
+      requestApproval: async (request) => {
+        approvalRequests.push(request)
+        return true
+      },
       onEvent: (type, data) => events.push({ type, ...data })
     },
     { deepseek, tools, policy }
@@ -332,6 +336,12 @@ test('repeated tool approval includes previous failure summary', async () => {
   expect(approvals).toHaveLength(2)
   expect(approvals[0].retry).toBeUndefined()
   expect(approvals[1].retry).toEqual({
+    attempt: 2,
+    previousError: { code: 'BROWSER_TASK_INCOMPLETE', message: 'final_url_about_blank' }
+  })
+  expect(approvalRequests).toHaveLength(2)
+  expect(approvalRequests[0].retry).toBeUndefined()
+  expect(approvalRequests[1].retry).toEqual({
     attempt: 2,
     previousError: { code: 'BROWSER_TASK_INCOMPLETE', message: 'final_url_about_blank' }
   })

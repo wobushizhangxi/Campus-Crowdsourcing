@@ -131,7 +131,7 @@ async function runTurn({ messages, model, signal, onEvent, onStreamEvent, reques
         return null
       }
       onEvent?.('approval_request', { call, decision, ...(retry ? { retry } : {}) })
-      const ok = await requestApproval({ call, decision })
+      const ok = await requestApproval({ call, decision, retry })
       if (!ok) {
         history.push({ role: 'tool', tool_call_id: call.id, content: 'USER_DENIED' })
         emitStream('tool_result', { tool: call.name, summary: '用户拒绝执行。' })

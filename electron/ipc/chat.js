@@ -57,6 +57,13 @@ function settlePendingConfirmation(convId, approved, reason) {
   return true
 }
 
+function sendPendingClarification(send, pending) {
+  const assistantText = buildPendingExplanation(pending)
+  send('chat:delta', { text: assistantText })
+  send('chat:done', {})
+  return { ok: true, status: 'clarification', assistantText }
+}
+
 async function handleConfirmationReply(evt, payload = {}) {
   const { convId, message = '' } = payload
   const pending = pendingConfirmations.get(convId)
@@ -94,6 +101,10 @@ async function handleChatSend(evt, payload = {}, deps) {
   const send = (event, data = {}) => evt.sender.send(event, { convId, ...data })
   if (payload.confirmationReply) {
     return handleConfirmationReply(evt, payload)
+  }
+  const pendingConfirmation = pendingConfirmations.get(convId)
+  if (pendingConfirmation) {
+    return sendPendingClarification(send, pendingConfirmation)
   }
   const config = deps.storeRef.getConfig()
   const ctl = new AbortController()

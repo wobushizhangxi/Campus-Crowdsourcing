@@ -3,6 +3,7 @@ import { createRequire } from 'module'
 
 const require = createRequire(import.meta.url)
 const { createRegister, buildSystemPrompt } = require('../ipc/chat')
+const { CONFIRMATION_TIMEOUT_MS } = require('../ipc/chatConfirmation')
 
 function createIpcMain() {
   const handlers = new Map()
@@ -70,10 +71,11 @@ test('chat:send waits for high-risk confirmation through a natural chat reply', 
   const send = vi.fn()
   const call = { id: 'call-approval', name: 'run_shell_command', args: { command: 'npm install' } }
   const decision = { risk: 'high', reason: 'installs packages' }
+  const retry = { attempt: 2, previousError: { code: 'BROWSER_TASK_INCOMPLETE', message: 'summary_missing' } }
   let approvedValue
   const runTurn = vi.fn(async ({ onEvent, requestApproval }) => {
     onEvent('assistant_message', { content: '', toolCalls: [call] })
-    approvedValue = await requestApproval({ call, decision })
+    approvedValue = await requestApproval({ call, decision, retry })
     return { finalText: approvedValue ? 'approved' : 'denied', history: [] }
   })
   const register = createRegister({
@@ -96,12 +98,17 @@ test('chat:send waits for high-risk confirmation through a natural chat reply', 
       callId: call.id,
       toolName: 'run_shell_command',
       risk: 'high',
-      reason: 'installs packages'
+      reason: 'installs packages',
+      retry
     })
   })
   expect(send).toHaveBeenCalledWith('chat:delta', {
     convId: 'conv-1',
     text: expect.stringContaining('需要确认高风险操作: run_shell_command')
+  })
+  expect(send).toHaveBeenCalledWith('chat:delta', {
+    convId: 'conv-1',
+    text: expect.stringContaining('previous attempt failed: BROWSER_TASK_INCOMPLETE: summary_missing')
   })
   expect(approvedValue).toBeUndefined()
 
@@ -117,6 +124,50 @@ test('chat:send waits for high-risk confirmation through a natural chat reply', 
   expect(send).toHaveBeenCalledWith('chat:confirmation-cleared', { convId: 'conv-1', reason: 'confirmed' })
   expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-1', text: 'approved' })
   expect(send).toHaveBeenCalledWith('chat:done', { convId: 'conv-1' })
+})
+
+test('normal chat:send while confirmation is pending returns clarification without starting a new run', async () => {
+  const ipcMain = createIpcMain()
+  const send = vi.fn()
+  const call = { id: 'call-guard', name: 'delete_path', args: { path: 'C:/Users/g/Desktop/tmp.txt' } }
+  const decision = { risk: 'high', reason: 'deletes a file' }
+  let approvedValue
+  const runTurn = vi.fn(async ({ requestApproval }) => {
+    if (runTurn.mock.calls.length > 1) return { finalText: 'second run', history: [] }
+    approvedValue = await requestApproval({ call, decision })
+    return { finalText: approvedValue ? 'approved' : 'denied', history: [] }
+  })
+  const register = createRegister({
+    storeRef: { getConfig: () => ({ permissionMode: 'default' }) },
+    runTurn,
+    userRules: { buildSystemPromptSection: () => '' },
+    skillRegistry: { listSkills: () => [], buildSkillIndex: () => '', findSkill: () => null }
+  })
+  register(ipcMain)
+
+  const pending = ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-guard', messages: [{ role: 'user', content: 'delete tmp' }] })
+  await Promise.resolve()
+
+  try {
+    const result = await ipcMain.handlers.get('chat:send')({ sender: { send } }, {
+      convId: 'conv-guard',
+      messages: [{ role: 'user', content: 'what is pending?' }]
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.status).toBe('clarification')
+    expect(result.assistantText).toContain('delete_path')
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(approvedValue).toBeUndefined()
+    expect(send.mock.calls.filter(([event]) => event === 'chat:confirmation-cleared')).toHaveLength(0)
+    expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-guard', text: result.assistantText })
+    expect(send).toHaveBeenCalledWith('chat:done', { convId: 'conv-guard' })
+  } finally {
+    if (approvedValue === undefined) {
+      await ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-guard', message: '取消', confirmationReply: true })
+    }
+    await pending
+  }
 })
 
 test('chat confirmation rejection resolves the pending tool as denied', async () => {
@@ -175,6 +226,101 @@ test('chat confirmation clarification leaves the operation pending', async () =>
   expect(approvedValue).toBeUndefined()
 
   await ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-3', message: '取消', confirmationReply: true })
+  await pending
+  expect(approvedValue).toBe(false)
+})
+
+test('chat confirmation timeout clears pending as denied without a duplicate run-ended clear', async () => {
+  vi.useFakeTimers()
+  const ipcMain = createIpcMain()
+  const send = vi.fn()
+  const call = { id: 'call-timeout', name: 'run_shell_command', args: { command: 'npm install' } }
+  const decision = { risk: 'high', reason: 'installs packages' }
+  let approvedValue
+  const runTurn = vi.fn(async ({ requestApproval }) => {
+    approvedValue = await requestApproval({ call, decision })
+    return { finalText: approvedValue ? 'approved' : 'denied', history: [] }
+  })
+  const register = createRegister({
+    storeRef: { getConfig: () => ({ permissionMode: 'default' }) },
+    runTurn,
+    userRules: { buildSystemPromptSection: () => '' },
+    skillRegistry: { listSkills: () => [], buildSkillIndex: () => '', findSkill: () => null }
+  })
+  register(ipcMain)
+
+  try {
+    const pending = ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-timeout', messages: [{ role: 'user', content: 'install deps' }] })
+    await Promise.resolve()
+
+    expect(approvedValue).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(CONFIRMATION_TIMEOUT_MS)
+    await pending
+
+    expect(approvedValue).toBe(false)
+    expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-timeout', text: expect.stringContaining('确认等待超时') })
+    expect(send.mock.calls.filter(([event]) => event === 'chat:confirmation-cleared').map(([, data]) => data))
+      .toEqual([{ convId: 'conv-timeout', reason: 'timeout' }])
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+test('chat:abort clears a pending confirmation as denied', async () => {
+  const ipcMain = createIpcMain()
+  const send = vi.fn()
+  const call = { id: 'call-abort', name: 'delete_path', args: { path: 'C:/Users/g/Desktop/tmp.txt' } }
+  const decision = { risk: 'high', reason: 'deletes a file' }
+  let approvedValue
+  const runTurn = vi.fn(async ({ requestApproval }) => {
+    approvedValue = await requestApproval({ call, decision })
+    return { finalText: approvedValue ? 'approved' : 'denied', history: [] }
+  })
+  const register = createRegister({
+    storeRef: { getConfig: () => ({ permissionMode: 'default' }) },
+    runTurn,
+    userRules: { buildSystemPromptSection: () => '' },
+    skillRegistry: { listSkills: () => [], buildSkillIndex: () => '', findSkill: () => null }
+  })
+  register(ipcMain)
+
+  const pending = ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-abort', messages: [{ role: 'user', content: 'delete tmp' }] })
+  await Promise.resolve()
+  const abort = await ipcMain.handlers.get('chat:abort')({}, { convId: 'conv-abort' })
+
+  expect(abort).toEqual({ ok: true })
+  await pending
+  expect(approvedValue).toBe(false)
+  expect(send).toHaveBeenCalledWith('chat:confirmation-cleared', { convId: 'conv-abort', reason: 'aborted' })
+})
+
+test('chat:approve-tool is deprecated and does not resolve pending confirmation', async () => {
+  const ipcMain = createIpcMain()
+  const send = vi.fn()
+  const call = { id: 'call-legacy', name: 'delete_path', args: { path: 'C:/Users/g/Desktop/tmp.txt' } }
+  const decision = { risk: 'high', reason: 'deletes a file' }
+  let approvedValue
+  const runTurn = vi.fn(async ({ requestApproval }) => {
+    approvedValue = await requestApproval({ call, decision })
+    return { finalText: approvedValue ? 'approved' : 'denied', history: [] }
+  })
+  const register = createRegister({
+    storeRef: { getConfig: () => ({ permissionMode: 'default' }) },
+    runTurn,
+    userRules: { buildSystemPromptSection: () => '' },
+    skillRegistry: { listSkills: () => [], buildSkillIndex: () => '', findSkill: () => null }
+  })
+  register(ipcMain)
+
+  const pending = ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-legacy', messages: [{ role: 'user', content: 'delete tmp' }] })
+  await Promise.resolve()
+  const response = await ipcMain.handlers.get('chat:approve-tool')({}, { convId: 'conv-legacy', callId: call.id, approved: true })
+
+  expect(response).toEqual({ ok: false, error: { code: 'DEPRECATED', message: 'Use chat confirmation replies.' } })
+  expect(approvedValue).toBeUndefined()
+  expect(send.mock.calls.filter(([event]) => event === 'chat:confirmation-cleared')).toHaveLength(0)
+
+  await ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-legacy', message: '取消', confirmationReply: true })
   await pending
   expect(approvedValue).toBe(false)
 })
