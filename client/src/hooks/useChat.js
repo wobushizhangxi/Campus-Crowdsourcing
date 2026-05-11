@@ -1,5 +1,5 @@
 import { useReducer, useCallback, useRef, useEffect, useState } from 'react'
-import { abortChat, api, approveAction, approveChatTool, cancelAction, denyAction, denyChatTool } from '../lib/api.js'
+import { abortChat, api, cancelAction } from '../lib/api.js'
 
 function uid() {
   return Math.random().toString(36).slice(2, 10)
@@ -17,17 +17,6 @@ function reducer(state, action) {
       return { ...state, streaming: false, messages: state.messages.map((message) => message.id === action.id ? { ...message, streaming: false } : message) }
     case 'UPDATE_CARD':
       return { ...state, messages: state.messages.map((message) => message.id === action.id ? { ...message, cardState: action.cardState, cardData: action.cardData ?? message.cardData } : message) }
-    case 'UPDATE_TOOL':
-      return {
-        ...state,
-        messages: state.messages.map((message) => {
-          if (message.id !== action.id) return message
-          const logs = action.log ? [...(message.logs || []), action.log] : message.logs
-          return { ...message, ...action.patch, logs }
-        })
-      }
-    case 'ADD_ACTIONS':
-      return { ...state, messages: [...state.messages, { id: uid(), role: 'actions', title: action.title, actions: action.actions || [] }] }
     case 'CLEAR':
       return initialState
     default:
@@ -50,22 +39,35 @@ function schedulePendingActionTimeout(action) {
   }
 }
 
+function appendActionSummary(actions = []) {
+  if (!actions.length) return 'Action update received.'
+  return actions.map((action) => {
+    const title = action.title || action.name || action.id
+    const status = action.status || 'pending'
+    return `- ${title}: ${status}`
+  }).join('\n')
+}
+
 export function useChat(conversationId) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const abortRef = useRef(null)
   const conversationIdRef = useRef(conversationId)
-  const toolMessageIdsRef = useRef(new Map())
   const [agentRunning, setAgentRunning] = useState(false)
+  const [pendingConfirmation, setPendingConfirmation] = useState(null)
 
   useEffect(() => {
     if (!conversationId) return undefined
 
     let ignored = false
+    const previousConvId = conversationIdRef.current
+    if (previousConvId && previousConvId !== conversationId) {
+      abortChat(previousConvId).catch(() => {})
+    }
     conversationIdRef.current = conversationId
     abortRef.current?.()
     abortRef.current = null
-    toolMessageIdsRef.current = new Map()
     setAgentRunning(false)
+    setPendingConfirmation(null)
     dispatch({ type: 'CLEAR' })
 
     async function loadConversation() {
@@ -85,6 +87,7 @@ export function useChat(conversationId) {
       ignored = true
       abortRef.current?.()
       abortRef.current = null
+      setPendingConfirmation(null)
     }
   }, [conversationId])
 
@@ -119,8 +122,29 @@ export function useChat(conversationId) {
     const convId = conversationIdRef.current
     if (!convId) return
 
+    if (pendingConfirmation) {
+      const userMessage = { id: uid(), role: 'user', content: text }
+      dispatch({ type: 'ADD', msg: userMessage })
+
+      api.invoke('chat:send', { convId, message: text, confirmationReply: true }).then((result) => {
+        if (result.status === 'confirmed' || result.status === 'rejected' || result.status === 'missing') {
+          setPendingConfirmation(null)
+        }
+        if (result.assistantText) {
+          const assistantMessage = { id: uid(), role: 'assistant', content: result.assistantText }
+          dispatch({ type: 'ADD', msg: assistantMessage })
+          const history = [...state.messages, userMessage, assistantMessage]
+            .filter((message) => message.role === 'user' || message.role === 'assistant')
+            .map((message) => ({ role: message.role, content: message.content }))
+          saveConversation(convId, history)
+        }
+      }).catch((error) => {
+        dispatch({ type: 'ADD', msg: { id: uid(), role: 'assistant', content: `[确认失败] ${error.message}` } })
+      })
+      return
+    }
+
     abortRef.current?.()
-    toolMessageIdsRef.current = new Map()
     setAgentRunning(true)
 
     const userMessage = { id: uid(), role: 'user', content: text }
@@ -145,47 +169,34 @@ export function useChat(conversationId) {
 
     abortRef.current = api.stream({
       channel: 'chat:send',
-      payload: { convId, messages: history, message: text, model, pluginMode: options.pluginMode || null },
+      payload: {
+        convId,
+        messages: history,
+        message: text,
+        model,
+        pluginMode: options.pluginMode || null,
+        forcedSkill: options.forcedSkill || null
+      },
       onDelta: (delta) => {
         assistantContent += delta
         dispatch({ type: 'APPEND_DELTA', id: assistantId, delta })
-      },
-      onToolStart: (event) => {
-        const existingId = toolMessageIdsRef.current.get(event.callId)
-        const toolStatus = event.needsApproval ? 'awaiting_approval' : 'running'
-        const patch = { toolStatus, args: event.args }
-        if (event.decision) patch.decision = event.decision
-        if (event.retry) patch.retry = event.retry
-        if (existingId) {
-          dispatch({ type: 'UPDATE_TOOL', id: existingId, patch })
-          return
-        }
-        const id = uid()
-        toolMessageIdsRef.current.set(event.callId, id)
-        dispatch({ type: 'ADD', msg: { id, role: 'tool', toolCallId: event.callId, toolName: event.name, args: event.args, toolStatus, decision: event.decision, retry: event.retry, logs: [] } })
-      },
-      onToolLog: (event) => {
-        const id = toolMessageIdsRef.current.get(event.callId)
-        if (id) dispatch({ type: 'UPDATE_TOOL', id, log: { stream: event.stream, chunk: event.chunk } })
-      },
-      onToolResult: (event) => {
-        const id = toolMessageIdsRef.current.get(event.callId)
-        if (id) dispatch({ type: 'UPDATE_TOOL', id, patch: { toolStatus: 'ok', result: event.result } })
-      },
-      onToolError: (event) => {
-        const id = toolMessageIdsRef.current.get(event.callId)
-        if (id) dispatch({ type: 'UPDATE_TOOL', id, patch: { toolStatus: 'error', error: event.error } })
       },
       onSkillLoaded: (event) => {
         dispatch({ type: 'ADD', msg: { id: uid(), role: 'skill', skillName: event.name } })
       },
       onActionPlan: (event) => {
         for (const action of event.actions || []) schedulePendingActionTimeout(action)
-        dispatch({ type: 'ADD_ACTIONS', title: event.dryRun ? '演示模式动作计划' : '动作计划', actions: event.actions || [] })
+        dispatch({ type: 'ADD', msg: { id: uid(), role: 'assistant', type: 'action_plan', stream: true, content: appendActionSummary(event.actions || []) } })
       },
       onActionUpdate: (event) => {
         window.dispatchEvent(new CustomEvent('aionui:actions-changed'))
-        dispatch({ type: 'ADD_ACTIONS', title: '动作进展', actions: event.actions || [] })
+        dispatch({ type: 'ADD', msg: { id: uid(), role: 'assistant', type: 'action_update', stream: true, content: appendActionSummary(event.actions || []) } })
+      },
+      onConfirmationRequest: (event) => {
+        setPendingConfirmation(event.pending)
+      },
+      onConfirmationCleared: () => {
+        setPendingConfirmation(null)
       },
       onDone: finish,
       onError: (error) => {
@@ -196,50 +207,14 @@ export function useChat(conversationId) {
         finish()
       }
     })
-  }, [state.messages, saveConversation])
+  }, [pendingConfirmation, state.messages, saveConversation])
 
   const handleAbort = useCallback(() => {
     const convId = conversationIdRef.current
     abortRef.current?.()
     if (convId) abortChat(convId).catch((error) => console.error('[chat] 取消请求失败:', error))
+    setPendingConfirmation(null)
     setAgentRunning(false)
-  }, [])
-
-  const handleApproveTool = useCallback((callId) => {
-    const convId = conversationIdRef.current
-    const id = toolMessageIdsRef.current.get(callId)
-    if (id) dispatch({ type: 'UPDATE_TOOL', id, patch: { toolStatus: 'running' } })
-    if (convId) {
-      approveChatTool(convId, callId).catch((error) => {
-        if (id) dispatch({ type: 'UPDATE_TOOL', id, patch: { toolStatus: 'error', error: { code: error.code || 'APPROVAL_ERROR', message: error.message } } })
-      })
-    }
-  }, [])
-
-  const handleDenyTool = useCallback((callId) => {
-    const convId = conversationIdRef.current
-    const id = toolMessageIdsRef.current.get(callId)
-    if (id) dispatch({ type: 'UPDATE_TOOL', id, patch: { toolStatus: 'error', error: { code: 'USER_DENIED', message: '用户已拒绝执行。' } } })
-    if (convId) {
-      denyChatTool(convId, callId).catch((error) => {
-        if (id) dispatch({ type: 'UPDATE_TOOL', id, patch: { toolStatus: 'error', error: { code: error.code || 'APPROVAL_ERROR', message: error.message } } })
-      })
-    }
-  }, [])
-
-  const handleApproveAction = useCallback(async (id) => {
-    await approveAction(id)
-    window.dispatchEvent(new CustomEvent('aionui:actions-changed'))
-  }, [])
-
-  const handleDenyAction = useCallback(async (id) => {
-    await denyAction(id, '用户拒绝')
-    window.dispatchEvent(new CustomEvent('aionui:actions-changed'))
-  }, [])
-
-  const handleCancelAction = useCallback(async (id) => {
-    await cancelAction(id, '用户取消')
-    window.dispatchEvent(new CustomEvent('aionui:actions-changed'))
   }, [])
 
   const sendCommand = useCallback(({ command, prompt, referencePath }) => {
@@ -268,5 +243,5 @@ export function useChat(conversationId) {
   }, [])
   const clear = useCallback(() => dispatch({ type: 'CLEAR' }), [])
 
-  return { ...state, agentRunning, sendUserMessage, handleAbort, handleApproveTool, handleDenyTool, handleApproveAction, handleDenyAction, handleCancelAction, sendCommand, addCard, updateCard, addFileCard, clear }
+  return { ...state, agentRunning, pendingConfirmation, sendUserMessage, handleAbort, sendCommand, addCard, updateCard, addFileCard, clear }
 }

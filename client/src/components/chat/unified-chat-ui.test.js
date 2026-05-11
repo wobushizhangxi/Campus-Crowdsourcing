@@ -13,7 +13,7 @@ describe('unified chat UI wiring', () => {
   test('InputBar has no chat/execute mode toggle', () => {
     const source = readProjectFile('client/src/components/chat/InputBar.jsx')
 
-    expect(source).toContain('export default function InputBar({ onSend, disabled, agentRunning, onCancel, selectedModel, onModelChange, pluginMode, onPluginModeChange })')
+    expect(source).toContain('export default function InputBar({ onSend, disabled, agentRunning, pendingConfirmation, onCancel, selectedModel, onModelChange, pluginMode, onPluginModeChange })')
     expect(source).toContain('输入消息或任务')
     expect(source).not.toContain('onModeChange')
     expect(source).not.toContain('MessageSquare')
@@ -24,7 +24,9 @@ describe('unified chat UI wiring', () => {
     const source = readProjectFile('client/src/components/chat/ChatArea.jsx')
 
     expect(source).toContain('export default function ChatArea({ conversationId })')
-    expect(source).toContain("sendUserMessage(text, pluginMode === 'browser' ? 'browser-use' : selectedModel, { pluginMode })")
+    expect(source).toContain('parseSkillCommandLine(text, skills)')
+    expect(source).toContain('sendUserMessage(messageText, pluginMode ===')
+    expect(source).toContain('forcedSkill')
     expect(source).not.toContain('sendAgentMessage')
     expect(source).not.toContain('onModeChange')
   })
@@ -49,23 +51,15 @@ describe('unified chat UI wiring', () => {
     expect(messageList).not.toContain('执行模式')
   })
 
-  test('ToolCard exposes inline approval controls for pending tools', () => {
-    const toolCard = readProjectFile('client/src/components/chat/ToolCard.jsx')
-    const messageList = readProjectFile('client/src/components/chat/MessageList.jsx')
+  test('chat confirmation replaces inline approval controls for pending tools', () => {
     const chatArea = readProjectFile('client/src/components/chat/ChatArea.jsx')
     const useChat = readProjectFile('client/src/hooks/useChat.js')
 
-    expect(toolCard).toContain('onApproveTool')
-    expect(toolCard).toContain('useEffect')
-    expect(toolCard).toContain('awaiting_approval')
-    expect(toolCard).toContain('retry')
-    expect(toolCard).toContain('上次失败')
-    expect(toolCard).toContain('批准')
-    expect(toolCard).toContain('拒绝')
-    expect(messageList).toContain('onApproveTool')
-    expect(chatArea).toContain('handleApproveTool')
-    expect(useChat).toContain('approveChatTool')
-    expect(useChat).toContain('event.retry')
+    expect(chatArea).toContain('pendingConfirmation')
+    expect(chatArea).not.toContain('handleApproveTool')
+    expect(useChat).not.toContain('approveChatTool')
+    expect(useChat).not.toContain('denyChatTool')
+    expect(useChat).toContain('onConfirmationRequest')
   })
 
   test('layout uses chat history sidebar without legacy drawer navigation', () => {
@@ -139,20 +133,17 @@ describe('unified chat UI wiring', () => {
     expect(settings).toContain('Vision enabled')
   })
 
-  test('action cards are risk-aware and wired through chat callbacks', () => {
-    const actionCard = readProjectFile('client/src/components/actions/ActionCard.jsx')
+  test('action updates are summarized in chat instead of rendered as action cards', () => {
     const messageList = readProjectFile('client/src/components/chat/MessageList.jsx')
     const chatArea = readProjectFile('client/src/components/chat/ChatArea.jsx')
     const useChat = readProjectFile('client/src/hooks/useChat.js')
 
-    expect(actionCard).toContain("risk === 'high'")
-    expect(actionCard).toContain('确认执行')
-    expect(actionCard).toContain('自动执行中')
-    expect(actionCard).toContain('onCancel')
-    expect(messageList).toContain('onApproveAction')
-    expect(messageList).toContain('onCancelAction')
-    expect(chatArea).toContain('handleApproveAction')
+    expect(messageList).not.toContain("message.role === 'actions'")
+    expect(messageList).not.toContain("import ActionCard")
+    expect(chatArea).not.toContain('handleApproveAction')
+    expect(chatArea).not.toContain('onApproveAction')
     expect(useChat).toContain('cancelAction')
+    expect(useChat).toContain('appendActionSummary')
     expect(useChat).toContain('5 * 60 * 1000')
   })
 
@@ -271,5 +262,52 @@ describe('unified chat UI wiring', () => {
     expect(parseSkillCommandLine('/missing do work', skills)).toBeNull()
     expect(parseSkillCommandLine('/superpowers', skills)).toBeNull()
     expect(parseSkillCommandLine('normal text', skills)).toBeNull()
+  })
+
+  test('renderer routes confirmation replies through chat input', () => {
+    const useChat = readProjectFile('client/src/hooks/useChat.js')
+    const api = readProjectFile('client/src/lib/api.js')
+
+    expect(useChat).toContain('pendingConfirmation')
+    expect(useChat).toContain('confirmationReply: true')
+    expect(useChat).toContain('onConfirmationRequest')
+    expect(useChat).toContain('onConfirmationCleared')
+    expect(useChat).toContain('setPendingConfirmation(null)')
+    expect(useChat).not.toContain('approveChatTool')
+    expect(useChat).not.toContain('denyChatTool')
+    expect(api).toContain('onConfirmationRequest')
+    expect(api).toContain("listen('chat:confirmation-request'")
+    expect(api).toContain("listen('chat:confirmation-cleared'")
+  })
+
+  test('InputBar exposes pending confirmation status and installed skill slash picker', () => {
+    const input = readProjectFile('client/src/components/chat/InputBar.jsx')
+    const chatArea = readProjectFile('client/src/components/chat/ChatArea.jsx')
+
+    expect(input).toContain('pendingConfirmation')
+    expect(input).toContain('CommandPalette')
+    expect(input).toContain('useCommand(skills)')
+    expect(input).toContain('Waiting for confirmation')
+    expect(input).toContain('listSkills')
+    expect(chatArea).toContain('pendingConfirmation')
+    expect(chatArea).toContain('parseSkillCommandLine')
+    expect(chatArea).toContain('forcedSkill')
+  })
+
+  test('MessageList renders chat stream entries instead of approval tool and action cards', () => {
+    const messageList = readProjectFile('client/src/components/chat/MessageList.jsx')
+    const useChat = readProjectFile('client/src/hooks/useChat.js')
+
+    expect(messageList).not.toContain("import ToolCard")
+    expect(messageList).not.toContain("import ShellCard")
+    expect(messageList).not.toContain("import ActionCard")
+    expect(messageList).not.toContain("message.role === 'tool'")
+    expect(messageList).not.toContain("message.role === 'actions'")
+    expect(messageList).toContain("message.cardType === 'word'")
+    expect(messageList).toContain("message.cardType === 'ppt'")
+    expect(messageList).toContain("message.cardType === 'file'")
+    expect(useChat).not.toContain("case 'UPDATE_TOOL'")
+    expect(useChat).not.toContain("case 'ADD_ACTIONS'")
+    expect(useChat).toContain('appendActionSummary')
   })
 })

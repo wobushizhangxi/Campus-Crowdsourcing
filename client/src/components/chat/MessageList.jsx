@@ -1,15 +1,11 @@
 import { useEffect, useRef } from 'react'
 import MessageBubble from './MessageBubble.jsx'
-import ToolCard from './ToolCard.jsx'
-import ShellCard from './ShellCard.jsx'
 import SkillBadge from './SkillBadge.jsx'
 import WordCard from '../cards/WordCard.jsx'
 import PptCard from '../cards/PptCard.jsx'
 import FileCard from '../cards/FileCard.jsx'
-import ActionCard from '../actions/ActionCard.jsx'
-import AgentToolCard from './AgentToolCard.jsx'
 
-export default function MessageList({ messages, onApproveTool, onDenyTool, onApproveAction, onDenyAction, onCancelAction }) {
+export default function MessageList({ messages }) {
   const endRef = useRef(null)
 
   useEffect(() => {
@@ -27,24 +23,8 @@ export default function MessageList({ messages, onApproveTool, onDenyTool, onApp
         if (message.role === 'user' || message.role === 'assistant') {
           return <MessageBubble key={message.id} message={message} role={message.role} content={message.content} streaming={message.streaming} />
         }
-        if (message.role === 'tool') {
-          return message.toolName === 'run_shell_command'
-            ? <ShellCard key={message.id} message={message} onApproveTool={onApproveTool} onDenyTool={onDenyTool} />
-            : <ToolCard key={message.id} message={message} onApproveTool={onApproveTool} onDenyTool={onDenyTool} />
-        }
-        if (message.role === 'agent-tool') {
-          return <AgentToolCard key={message.id} message={message} />
-        }
         if (message.role === 'skill') {
           return <SkillBadge key={message.id} name={message.skillName} />
-        }
-        if (message.role === 'actions') {
-          return (
-            <div key={message.id} className="my-3 max-w-[820px] space-y-2">
-              <div className="text-xs font-medium uppercase text-[color:var(--text-muted)]">{message.title || '动作'}</div>
-              {(message.actions || []).map((action) => <ActionCard key={action.id} action={action} onApprove={onApproveAction} onDeny={onDenyAction} onCancel={onCancelAction} compact={false} />)}
-            </div>
-          )
         }
         if (message.role === 'card') {
           if (message.cardType === 'word') return <WordCard key={message.id} msg={message} />

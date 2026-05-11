@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronRight, Grid2X2, Globe2, Paperclip, Plus, Send, Sparkles, Square } from 'lucide-react'
+import { useCommand } from '../../hooks/useCommand.js'
+import { listSkills } from '../../lib/api.js'
+import CommandPalette from './CommandPalette.jsx'
 import ModelSelector, { STORAGE_KEY } from './ModelSelector.jsx'
 
 function insertPath(current, filePath) {
@@ -17,10 +20,12 @@ const PLUGIN_ITEMS = [
   { name: 'GitHub' },
 ]
 
-export default function InputBar({ onSend, disabled, agentRunning, onCancel, selectedModel, onModelChange, pluginMode, onPluginModeChange }) {
+export default function InputBar({ onSend, disabled, agentRunning, pendingConfirmation, onCancel, selectedModel, onModelChange, pluginMode, onPluginModeChange }) {
   const [text, setText] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [pluginsOpen, setPluginsOpen] = useState(false)
+  const [skills, setSkills] = useState([])
+  const command = useCommand(skills)
   const menuRef = useRef(null)
 
   useEffect(() => {
@@ -30,6 +35,20 @@ export default function InputBar({ onSend, disabled, agentRunning, onCancel, sel
     }
     window.addEventListener('agentdev:file-selected', handleFileSelected)
     return () => window.removeEventListener('agentdev:file-selected', handleFileSelected)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    listSkills()
+      .then((result) => {
+        if (!cancelled) setSkills(result.skills || [])
+      })
+      .catch(() => {
+        if (!cancelled) setSkills([])
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -73,6 +92,10 @@ export default function InputBar({ onSend, disabled, agentRunning, onCancel, sel
   }
 
   function handleKey(event) {
+    if (command.handleKeyDown(event, (item) => {
+      setText(`${item.label} `)
+    })) return
+
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       handleSubmit(event)
@@ -81,6 +104,12 @@ export default function InputBar({ onSend, disabled, agentRunning, onCancel, sel
 
   return (
     <form onSubmit={handleSubmit} className="border-t border-[color:var(--border)] bg-[color:var(--bg-secondary)] px-6 py-4">
+      {pendingConfirmation && (
+        <div className="mb-2 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <span className="min-w-0 truncate">Waiting for confirmation: {pendingConfirmation.toolName}</span>
+          <span className="shrink-0 text-amber-700">确认 / 可以 / 同意 / 继续</span>
+        </div>
+      )}
       <div className="flex items-end gap-3 bg-[color:var(--bg-primary)] border border-[color:var(--border)] rounded-md px-3 py-2 focus-within:border-[color:var(--accent)]">
         <div ref={menuRef} className="relative">
           <button
@@ -146,15 +175,31 @@ export default function InputBar({ onSend, disabled, agentRunning, onCancel, sel
           )}
         </div>
         <ModelSelector value={selectedModel} onChange={handleModelChange} pluginMode={pluginMode} />
-        <textarea
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={handleKey}
-          placeholder="输入消息或任务，Enter 发送，Shift+Enter 换行"
-          rows={1}
-          className="flex-1 resize-none bg-transparent outline-none text-sm max-h-40 py-1"
-        />
-        {agentRunning ? (
+        <div className="relative flex-1">
+          <CommandPalette
+            matches={command.matches}
+            index={command.index}
+            onHover={command.setIndex}
+            onSelect={(item) => {
+              setText(`${item.label} `)
+              command.close()
+            }}
+          />
+          <textarea
+            value={text}
+            onChange={(event) => {
+              const value = event.target.value
+              setText(value)
+              command.update(value)
+            }}
+            onKeyDown={handleKey}
+            placeholder="输入消息或任务，Enter 发送，Shift+Enter 换行"
+            aria-label="Type a message or /skill-name"
+            rows={1}
+            className="w-full resize-none bg-transparent outline-none text-sm max-h-40 py-1"
+          />
+        </div>
+        {agentRunning && !pendingConfirmation ? (
           <button type="button" onClick={onCancel} className="h-8 w-8 flex items-center justify-center rounded-md bg-red-500 text-white hover:bg-red-600" aria-label="停止执行">
             <Square size={14} />
           </button>

@@ -1,16 +1,38 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useChat } from '../../hooks/useChat.js'
+import { listSkills } from '../../lib/api.js'
+import { parseSkillCommandLine } from '../../lib/commands.js'
 import MessageList from './MessageList.jsx'
 import InputBar from './InputBar.jsx'
 import { loadModel } from './ModelSelector.jsx'
 
 export default function ChatArea({ conversationId }) {
-  const { messages, streaming, agentRunning, sendUserMessage, handleAbort, handleApproveTool, handleDenyTool, handleApproveAction, handleDenyAction, handleCancelAction, updateCard, addFileCard } = useChat(conversationId)
+  const { messages, streaming, agentRunning, pendingConfirmation, sendUserMessage, handleAbort, updateCard, addFileCard } = useChat(conversationId)
   const [selectedModel, setSelectedModel] = useState(loadModel)
   const [pluginMode, setPluginMode] = useState(null)
+  const [skills, setSkills] = useState([])
+
+  useEffect(() => {
+    let cancelled = false
+    listSkills()
+      .then((result) => {
+        if (!cancelled) setSkills(result.skills || [])
+      })
+      .catch(() => {
+        if (!cancelled) setSkills([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   function handleSend(text) {
-    sendUserMessage(text, pluginMode === 'browser' ? 'browser-use' : selectedModel, { pluginMode })
+    const parsed = parseSkillCommandLine(text, skills)
+    const messageText = parsed?.message || text
+    sendUserMessage(messageText, pluginMode === 'browser' ? 'browser-use' : selectedModel, {
+      pluginMode,
+      forcedSkill: parsed?.forcedSkill || null
+    })
   }
 
   return (
@@ -19,16 +41,12 @@ export default function ChatArea({ conversationId }) {
         messages={messages}
         onUpdateCard={updateCard}
         onFileGenerated={addFileCard}
-        onApproveTool={handleApproveTool}
-        onDenyTool={handleDenyTool}
-        onApproveAction={handleApproveAction}
-        onDenyAction={handleDenyAction}
-        onCancelAction={handleCancelAction}
       />
       <InputBar
         onSend={handleSend}
-        disabled={streaming || agentRunning}
+        disabled={!pendingConfirmation && (streaming || agentRunning)}
         agentRunning={agentRunning}
+        pendingConfirmation={pendingConfirmation}
         onCancel={handleAbort}
         selectedModel={selectedModel}
         onModelChange={setSelectedModel}

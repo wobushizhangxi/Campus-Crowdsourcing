@@ -54,7 +54,22 @@ function stream(arg, legacyBody, legacyOnDelta, legacyOnDone, legacyOnError) {
     ? { channel: arg === '/api/chat' ? 'chat:send' : arg, payload: legacyBody, onDelta: legacyOnDelta, onDone: legacyOnDone, onError: legacyOnError }
     : arg
 
-  const { channel, payload, onDelta, onDone, onError, onToolStart, onToolLog, onToolResult, onToolError, onSkillLoaded, onActionPlan, onActionUpdate } = options
+  const {
+    channel,
+    payload,
+    onDelta,
+    onDone,
+    onError,
+    onToolStart,
+    onToolLog,
+    onToolResult,
+    onToolError,
+    onSkillLoaded,
+    onActionPlan,
+    onActionUpdate,
+    onConfirmationRequest,
+    onConfirmationCleared
+  } = options
   const electron = electronAPI()
   const cleanupFns = []
   let closed = false
@@ -78,6 +93,8 @@ function stream(arg, legacyBody, legacyOnDelta, legacyOnDone, legacyOnError) {
   listen('chat:skill-loaded', (data) => onSkillLoaded?.(data))
   listen('chat:action-plan', (data) => onActionPlan?.(data))
   listen('chat:action-update', (data) => onActionUpdate?.(data))
+  listen('chat:confirmation-request', (data) => onConfirmationRequest?.(data))
+  listen('chat:confirmation-cleared', (data) => onConfirmationCleared?.(data))
   listen('chat:done', () => { cleanup(); onDone?.() })
   listen('chat:error', (data) => {
     cleanup()
