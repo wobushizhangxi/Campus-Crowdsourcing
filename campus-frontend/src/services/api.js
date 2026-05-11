@@ -1,11 +1,14 @@
 import axios from 'axios';
 import { readAuthToken } from '../utils/authSession';
-import { resolveApiBaseUrlCandidates } from '../config/apiBaseUrl';
+import { readSavedApiBaseUrl, resolveApiBaseUrlCandidates } from '../config/apiBaseUrl';
+import { buildApiRequestHeaders } from './apiHeaders';
 
-const apiBaseUrlCandidates = resolveApiBaseUrlCandidates({
-  configuredApiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
-  isDev: import.meta.env.DEV,
-});
+const bundledApiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '';
+const getApiBaseUrlCandidates = () =>
+  resolveApiBaseUrlCandidates({
+    configuredApiBaseUrl: bundledApiBaseUrl,
+    savedApiBaseUrl: readSavedApiBaseUrl(),
+  });
 
 const shouldRetryApiRequest = (error) => {
   const statusCode = error.response?.status;
@@ -20,19 +23,18 @@ const shouldRetryApiRequest = (error) => {
 
 const requestApi = async (method, path, data, config = {}) => {
   let lastError;
+  const apiBaseUrlCandidates = getApiBaseUrlCandidates();
 
   for (let index = 0; index < apiBaseUrlCandidates.length; index += 1) {
     const baseUrl = apiBaseUrlCandidates[index];
 
     try {
       const token = readAuthToken();
-      const headers = {
-        ...(config.headers || {}),
-      };
-
-      if (token && !headers.Authorization) {
-        headers.Authorization = `Bearer ${token}`;
-      }
+      const headers = buildApiRequestHeaders({
+        path,
+        token,
+        headers: config.headers || {},
+      });
 
       return await axios({
         method,

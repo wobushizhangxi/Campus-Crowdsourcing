@@ -7,6 +7,9 @@ export default function AuthScreen({
   authForms,
   authLoading,
   authMode,
+  apiBaseUrlDraft,
+  apiBaseUrlLabel,
+  apiBaseUrlMessage,
   autoLoginEnabled,
   handleAuthSubmit,
   handleSavedAccountSelect,
@@ -17,7 +20,10 @@ export default function AuthScreen({
   setAuthError,
   setAuthMode,
   setAutoLoginEnabled,
+  setApiBaseUrlDraft,
   setRememberAccount,
+  onResetApiBaseUrl,
+  onSaveApiBaseUrl,
   updateAuthForm,
 }) {
   const authForm = authForms[authMode];
@@ -102,6 +108,41 @@ export default function AuthScreen({
                     ? '使用用户名和密码继续。'
                     : '注册新账号后即可开始使用平台。'}
                 </p>
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">服务器地址</p>
+                    <p className="mt-1 text-xs text-slate-500">当前：{apiBaseUrlLabel}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onResetApiBaseUrl}
+                    className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-slate-500 shadow-sm transition hover:text-slate-900"
+                  >
+                    恢复默认
+                  </button>
+                </div>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="url"
+                    value={apiBaseUrlDraft}
+                    onChange={(event) => setApiBaseUrlDraft(event.target.value)}
+                    className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                    placeholder="例如：http://172.27.209.60:8080"
+                  />
+                  <button
+                    type="button"
+                    onClick={onSaveApiBaseUrl}
+                    className="rounded-2xl bg-cyan-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-cyan-700"
+                  >
+                    保存
+                  </button>
+                </div>
+                {apiBaseUrlMessage ? (
+                  <p className="mt-2 text-xs font-medium text-cyan-700">{apiBaseUrlMessage}</p>
+                ) : null}
               </div>
 
               <form onSubmit={handleAuthSubmit} className="mt-8 space-y-4">

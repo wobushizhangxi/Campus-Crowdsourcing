@@ -121,6 +121,10 @@ npm run dev
 .\run-software.ps1 -NoBrowser
 ```
 
+## 大作业验收建议
+
+如果用于课程大作业提交，建议先阅读 [大作业提交与演示说明](docs/student-submission-guide.md)。该文档整理了推荐演示流程、已完成能力、工程亮点、验收命令、已知不足和提交物清单，便于答辩时向老师说明项目完成度。
+
 ## 常用命令
 
 前端：
@@ -151,6 +155,13 @@ cd campus-backend
 
 建议把数据库密码、JWT 密钥、管理员账号等敏感信息放在 `config/application-local.properties` 或环境变量中。该文件已被 `.gitignore` 忽略，不应提交到仓库。
 
+当使用 `prod` 或 `production` profile 启动时，后端会检查 JWT 密钥和管理员密码，拒绝使用默认值或过短密钥。正式部署前至少需要配置：
+
+```powershell
+$env:APP_SECURITY_JWT_SECRET="replace-with-a-long-random-production-secret"
+$env:APP_SECURITY_ADMIN_PASSWORD="replace-with-a-strong-admin-password"
+```
+
 前端可通过 `VITE_API_BASE_URL` 指定 API 地址。开发模式下通常直接使用 Vite 代理即可。
 
 ## 测试
@@ -166,6 +177,7 @@ cd campus-backend
 
 ```powershell
 cd campus-frontend
+npm run test
 npm run lint
 npm run build
 ```
@@ -188,4 +200,3 @@ npm run build
 - `release/`、前端日志和本地配置文件已被 `.gitignore` 忽略。
 - 打包前先执行前端构建，后端 Maven 构建会把 `campus-frontend/dist` 复制到后端静态资源目录。
 - 如果需要公网演示，可参考 `start-public-access.ps1` 和 `stop-public-access.ps1`。
-

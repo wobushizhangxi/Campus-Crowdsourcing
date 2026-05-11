@@ -1,6 +1,6 @@
 # Android APK Build
 
-This project uses Capacitor to package the existing React frontend as an Android debug APK. The APK does not contain the Spring Boot backend or the MySQL database. It connects to a backend URL baked into the frontend build through `VITE_API_BASE_URL`.
+This project uses Capacitor to package the existing React frontend as an Android debug APK. The APK does not contain the Spring Boot backend or the MySQL database. It uses `VITE_API_BASE_URL` as the default backend URL, and the login screen can save a different server address later without rebuilding the APK.
 
 ## Database Location
 
@@ -31,6 +31,8 @@ The script outputs:
 ```text
 release/CampusCrowdPlatform-android-debug.apk
 ```
+
+After installing the APK, if the backend IP changes, edit the server address on the login screen and save it. The app clears the old login session after changing the address, so sign in again.
 
 ## Requirements
 

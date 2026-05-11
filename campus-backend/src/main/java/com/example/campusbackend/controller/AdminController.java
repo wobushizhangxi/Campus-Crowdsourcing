@@ -86,7 +86,7 @@ public class AdminController {
                 .sorted(Comparator.comparing(User::getUsername))
                 .map(this::buildUserSummary)
                 .toList();
-        return buildResponse(HttpStatus.OK, "Success", users);
+        return buildResponse(HttpStatus.OK, "成功", users);
     }
 
     @GetMapping("/users/{id}")
@@ -94,12 +94,12 @@ public class AdminController {
         requireViewUsersActor(authentication);
         User user = userRepository.findById(id).orElse(null);
         if (user == null) {
-            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
+            return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
         }
 
         Map<String, Object> data = buildUserSummary(user);
         data.put("records", buildBalanceRecordsData(balanceRecordRepository.findTop50ByUsernameOrderByCreatedAtDesc(user.getUsername())));
-        return buildResponse(HttpStatus.OK, "Success", data);
+        return buildResponse(HttpStatus.OK, "成功", data);
     }
 
     @PostMapping("/users/{id}/balance-adjustments")
@@ -112,24 +112,24 @@ public class AdminController {
         User actor = requireAdjustBalanceActor(authentication);
         User user = userRepository.findById(id).orElse(null);
         if (user == null) {
-            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
+            return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
         }
 
         BigDecimal amount;
         try {
             amount = new BigDecimal(String.valueOf(request.getAmount()));
         } catch (Exception error) {
-            return buildResponse(HttpStatus.BAD_REQUEST, "Invalid amount format", null);
+            return buildResponse(HttpStatus.BAD_REQUEST, "金额格式不正确", null);
         }
 
         if (request.getReason() == null || request.getReason().trim().isEmpty()) {
-            return buildResponse(HttpStatus.BAD_REQUEST, "Adjustment reason is required", null);
+            return buildResponse(HttpStatus.BAD_REQUEST, "调整原因不能为空", null);
         }
 
         BigDecimal currentBalance = user.getBalance() == null ? BigDecimal.ZERO : user.getBalance();
         BigDecimal nextBalance = currentBalance.add(amount);
         if (nextBalance.compareTo(BigDecimal.ZERO) < 0) {
-            return buildResponse(HttpStatus.CONFLICT, "Balance cannot be negative", null);
+            return buildResponse(HttpStatus.CONFLICT, "余额不能为负数", null);
         }
 
         user.setBalance(nextBalance);
@@ -138,7 +138,7 @@ public class AdminController {
 
         Map<String, Object> data = buildUserSummary(user);
         data.put("records", buildBalanceRecordsData(balanceRecordRepository.findTop50ByUsernameOrderByCreatedAtDesc(user.getUsername())));
-        return buildResponse(HttpStatus.OK, "Balance adjusted", data);
+        return buildResponse(HttpStatus.OK, "余额已调整", data);
     }
 
     @PostMapping("/users/{id}/permissions")
@@ -161,19 +161,19 @@ public class AdminController {
         requirePermissionGrantActor(authentication);
         User user = userRepository.findById(id).orElse(null);
         if (user == null) {
-            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
+            return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
         }
 
         try {
             user.setPermissions(adminPermissionService.normalizePermissions(request.getPermissions()));
         } catch (IllegalArgumentException error) {
-            return buildResponse(HttpStatus.BAD_REQUEST, "Invalid permission set", null);
+            return buildResponse(HttpStatus.BAD_REQUEST, "权限配置不正确", null);
         }
 
         User savedUser = userRepository.save(user);
         Map<String, Object> data = buildUserSummary(savedUser);
         data.put("records", buildBalanceRecordsData(balanceRecordRepository.findTop50ByUsernameOrderByCreatedAtDesc(savedUser.getUsername())));
-        return buildResponse(HttpStatus.OK, "Permissions updated", data);
+        return buildResponse(HttpStatus.OK, "权限已更新", data);
     }
 
     @PostMapping("/users/{id}/ban")
@@ -182,15 +182,15 @@ public class AdminController {
         requireViewUsersActor(authentication);
         User target = userRepository.findById(id).orElse(null);
         if (target == null) {
-            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
+            return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
         }
         if (target.getRole() == UserRole.ADMIN) {
-            return buildResponse(HttpStatus.FORBIDDEN, "Admin account cannot be banned", null);
+            return buildResponse(HttpStatus.FORBIDDEN, "管理员账号不能被封禁", null);
         }
 
         target.setBanned(true);
         User saved = userRepository.save(target);
-        return buildResponse(HttpStatus.OK, "User banned", buildUserSummary(saved));
+        return buildResponse(HttpStatus.OK, "账号已封禁", buildUserSummary(saved));
     }
 
     @PostMapping("/users/{id}/unban")
@@ -199,15 +199,15 @@ public class AdminController {
         requireViewUsersActor(authentication);
         User target = userRepository.findById(id).orElse(null);
         if (target == null) {
-            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
+            return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
         }
         if (target.getRole() == UserRole.ADMIN) {
-            return buildResponse(HttpStatus.FORBIDDEN, "Admin account cannot be unbanned", null);
+            return buildResponse(HttpStatus.FORBIDDEN, "管理员账号不能执行解封操作", null);
         }
 
         target.setBanned(false);
         User saved = userRepository.save(target);
-        return buildResponse(HttpStatus.OK, "User unbanned", buildUserSummary(saved));
+        return buildResponse(HttpStatus.OK, "账号已解封", buildUserSummary(saved));
     }
 
     @DeleteMapping("/users/{id}")
@@ -216,18 +216,18 @@ public class AdminController {
         User actor = requireViewUsersActor(authentication);
         User target = userRepository.findById(id).orElse(null);
         if (target == null) {
-            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
+            return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
         }
         if (actor.getId().equals(target.getId())) {
-            return buildResponse(HttpStatus.FORBIDDEN, "Cannot delete current account", null);
+            return buildResponse(HttpStatus.FORBIDDEN, "不能删除当前登录账号", null);
         }
         if (target.getRole() == UserRole.ADMIN) {
-            return buildResponse(HttpStatus.FORBIDDEN, "Admin account cannot be deleted", null);
+            return buildResponse(HttpStatus.FORBIDDEN, "管理员账号不能被删除", null);
         }
 
         String placeholder = userDeletionService.deleteRegularUser(target);
 
-        return buildResponse(HttpStatus.OK, "User deleted", Map.of("id", id, "placeholder", placeholder));
+        return buildResponse(HttpStatus.OK, "账号已删除", Map.of("id", id, "placeholder", placeholder));
     }
 
     @PostMapping("/tasks/{id}/resolve")
@@ -244,7 +244,7 @@ public class AdminController {
                     request == null ? null : request.getResolution(),
                     request == null ? null : request.getNote()
             );
-            return buildResponse(HttpStatus.OK, "Task dispute resolved", Map.of("task", task));
+            return buildResponse(HttpStatus.OK, "纠纷任务已处理", Map.of("task", task));
         } catch (ResponseStatusException error) {
             return buildResponse(
                     HttpStatus.valueOf(error.getStatusCode().value()),
@@ -262,7 +262,7 @@ public class AdminController {
                 .stream()
                 .map(this::buildUserSummary)
                 .toList();
-        return buildResponse(HttpStatus.OK, "Success", users);
+        return buildResponse(HttpStatus.OK, "成功", users);
     }
 
     @PostMapping("/verifications/{userId}/approve")
@@ -275,7 +275,7 @@ public class AdminController {
         User actor = requireAdminAccessActor(authentication);
         User target = userRepository.findById(userId).orElse(null);
         if (target == null) {
-            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
+            return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
         }
 
         target.setVerificationStatus(VerificationStatus.VERIFIED);
@@ -283,7 +283,7 @@ public class AdminController {
         target.setVerificationReviewedAt(LocalDateTime.now());
         target.setVerificationReviewer(actor.getUsername());
         User saved = userRepository.save(target);
-        return buildResponse(HttpStatus.OK, "Verification approved", buildUserSummary(saved));
+        return buildResponse(HttpStatus.OK, "认证申请已通过", buildUserSummary(saved));
     }
 
     @PostMapping("/verifications/{userId}/reject")
@@ -296,12 +296,12 @@ public class AdminController {
         User actor = requireAdminAccessActor(authentication);
         User target = userRepository.findById(userId).orElse(null);
         if (target == null) {
-            return buildResponse(HttpStatus.NOT_FOUND, "User not found", null);
+            return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
         }
 
         String note = normalizeOptional(request == null ? null : request.getNote());
         if (note == null) {
-            return buildResponse(HttpStatus.BAD_REQUEST, "Rejection note is required", null);
+            return buildResponse(HttpStatus.BAD_REQUEST, "驳回原因不能为空", null);
         }
 
         target.setVerificationStatus(VerificationStatus.REJECTED);
@@ -309,7 +309,7 @@ public class AdminController {
         target.setVerificationReviewedAt(LocalDateTime.now());
         target.setVerificationReviewer(actor.getUsername());
         User saved = userRepository.save(target);
-        return buildResponse(HttpStatus.OK, "Verification rejected", buildUserSummary(saved));
+        return buildResponse(HttpStatus.OK, "认证申请已驳回", buildUserSummary(saved));
     }
 
     private Map<String, Object> buildUserSummary(User user) {
@@ -360,8 +360,8 @@ public class AdminController {
         balanceRecord.setAmount(amount);
         balanceRecord.setBalanceAfter(balanceAfter);
         balanceRecord.setType("admin_adjustment");
-        balanceRecord.setTitle("admin balance adjustment");
-        balanceRecord.setDescription("operator: " + actorUsername + "; reason: " + reason);
+        balanceRecord.setTitle("管理员余额调整");
+        balanceRecord.setDescription("操作人：" + actorUsername + "；原因：" + reason);
         balanceRecord.setCreatedAt(LocalDateTime.now());
         balanceRecordRepository.save(balanceRecord);
     }
@@ -377,7 +377,7 @@ public class AdminController {
     private User requireAdminAccessActor(Authentication authentication) {
         User actor = currentUserService.requireCurrentUser(authentication);
         if (!adminPermissionService.canAccessAdminPanel(actor)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "没有权限执行此操作");
         }
         return actor;
     }
@@ -385,7 +385,7 @@ public class AdminController {
     private User requireViewUsersActor(Authentication authentication) {
         User actor = requireAdminAccessActor(authentication);
         if (!adminPermissionService.canViewUsers(actor)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "没有权限执行此操作");
         }
         return actor;
     }
@@ -393,7 +393,7 @@ public class AdminController {
     private User requireAdjustBalanceActor(Authentication authentication) {
         User actor = requireAdminAccessActor(authentication);
         if (!adminPermissionService.canAdjustBalance(actor)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "没有权限执行此操作");
         }
         return actor;
     }
@@ -401,7 +401,7 @@ public class AdminController {
     private User requirePermissionGrantActor(Authentication authentication) {
         User actor = requireAdminAccessActor(authentication);
         if (!adminPermissionService.canGrantPermissions(actor)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "没有权限执行此操作");
         }
         return actor;
     }

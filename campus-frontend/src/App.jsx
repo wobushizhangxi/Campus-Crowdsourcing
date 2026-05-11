@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import AuthScreen from './components/AuthScreen';
 import AppHeader from './components/layout/AppHeader';
 import BottomNav from './components/layout/BottomNav';
@@ -12,6 +12,7 @@ import OrdersView from './components/pages/OrdersView';
 import PostTaskView from './components/pages/PostTaskView';
 import ProfileView from './components/pages/ProfileView';
 import WalletView from './components/pages/WalletView';
+import { normalizeApiBaseUrl, readSavedApiBaseUrl, writeSavedApiBaseUrl } from './config/apiBaseUrl';
 import useAccountMemory from './hooks/useAccountMemory';
 import useChat from './hooks/useChat';
 import useWorkspaceData from './hooks/useWorkspaceData';
@@ -24,6 +25,7 @@ import { createInitialAuthForms, emptyUser, mapUserDataToCurrentUser } from './u
 
 const authBrandImageUrl =
   'https://images.unsplash.com/photo-1741637335289-c99652d3155f?auto=format&fit=crop&fm=jpg&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&q=80&w=1600';
+const bundledApiBaseUrl = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL ?? '');
 
 const emptyPostForm = {
   title: '',
@@ -44,6 +46,8 @@ export default function App() {
   const [authForms, setAuthForms] = useState(() => createInitialAuthForms());
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+  const [apiBaseUrlDraft, setApiBaseUrlDraft] = useState(() => readSavedApiBaseUrl() || bundledApiBaseUrl);
+  const [apiBaseUrlMessage, setApiBaseUrlMessage] = useState('');
   const [currentUser, setCurrentUser] = useState(emptyUser);
   const [selectedTask, setSelectedTask] = useState(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -71,11 +75,34 @@ export default function App() {
     typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches,
   );
 
-  const hasAttemptedSessionRestoreRef = useRef(false);
   const canAccessAdminPanel = hasAdminPermission(currentUser, 'ADMIN_ACCESS');
   const canViewAdminUsers = hasAdminPermission(currentUser, 'USER_VIEW');
   const canAdjustAdminBalance = hasAdminPermission(currentUser, 'BALANCE_ADJUST');
   const canGrantAdminPermissions = hasAdminPermission(currentUser, 'PERMISSION_GRANT');
+  const savedApiBaseUrl = readSavedApiBaseUrl();
+  const apiBaseUrlLabel = savedApiBaseUrl || bundledApiBaseUrl || '当前站点';
+
+  const handleSaveApiBaseUrl = () => {
+    const nextApiBaseUrl = normalizeApiBaseUrl(apiBaseUrlDraft);
+    if (nextApiBaseUrl && !/^https?:\/\//i.test(nextApiBaseUrl)) {
+      setApiBaseUrlMessage('服务器地址需要以 http:// 或 https:// 开头。');
+      return;
+    }
+
+    writeSavedApiBaseUrl(nextApiBaseUrl);
+    clearAuthSession();
+    setApiBaseUrlDraft(nextApiBaseUrl || bundledApiBaseUrl);
+    setApiBaseUrlMessage(nextApiBaseUrl ? '服务器地址已保存，请重新登录。' : '已恢复默认服务器地址，请重新登录。');
+    setAuthError('');
+  };
+
+  const handleResetApiBaseUrl = () => {
+    writeSavedApiBaseUrl('');
+    clearAuthSession();
+    setApiBaseUrlDraft(bundledApiBaseUrl);
+    setApiBaseUrlMessage('已恢复默认服务器地址，请重新登录。');
+    setAuthError('');
+  };
 
   const handleSessionExpired = () => {
     clearAuthSession();
@@ -205,11 +232,6 @@ export default function App() {
   }, [canAccessAdminPanel, profileSection]);
 
   useEffect(() => {
-    if (hasAttemptedSessionRestoreRef.current) {
-      return;
-    }
-
-    hasAttemptedSessionRestoreRef.current = true;
     const token = readAuthToken();
     if (!token) {
       return;
@@ -1244,6 +1266,9 @@ export default function App() {
         authForms={authForms}
         authLoading={authLoading}
         authMode={authMode}
+        apiBaseUrlDraft={apiBaseUrlDraft}
+        apiBaseUrlLabel={apiBaseUrlLabel}
+        apiBaseUrlMessage={apiBaseUrlMessage}
         autoLoginEnabled={autoLoginEnabled}
         handleAuthSubmit={handleAuthSubmit}
         handleSavedAccountSelect={handleSavedAccountSelect}
@@ -1254,7 +1279,10 @@ export default function App() {
         setAuthError={setAuthError}
         setAuthMode={setAuthMode}
         setAutoLoginEnabled={setAutoLoginEnabled}
+        setApiBaseUrlDraft={setApiBaseUrlDraft}
         setRememberAccount={setRememberAccount}
+        onResetApiBaseUrl={handleResetApiBaseUrl}
+        onSaveApiBaseUrl={handleSaveApiBaseUrl}
         updateAuthForm={(mode, field, value) => {
           setAuthForms((prev) => ({
             ...prev,

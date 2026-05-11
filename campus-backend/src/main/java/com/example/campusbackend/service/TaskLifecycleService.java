@@ -132,7 +132,7 @@ public class TaskLifecycleService {
             return taskRepository.save(task);
         }
 
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "处理结果必须为 refund 或 complete");
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "处理结果必须为退款或结算");
     }
 
     private Task requireTask(Long id) {
@@ -142,7 +142,7 @@ public class TaskLifecycleService {
 
     private void requireActiveUser(User actor) {
         if (actor.isBanned()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Account is banned");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "账号已被封禁");
         }
     }
 

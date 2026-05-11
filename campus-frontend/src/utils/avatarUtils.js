@@ -34,14 +34,14 @@ export const readFileAsDataUrl = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(reader.error || new Error('Unable to read image'));
+    reader.onerror = () => reject(reader.error || new Error('无法读取头像图片'));
     reader.readAsDataURL(file);
   });
 
 export const createCroppedAvatarDataUrl = (sourceDataUrl, zoom = minAvatarZoom) =>
   new Promise((resolve, reject) => {
     if (!isSupportedAvatarDataUrl(sourceDataUrl)) {
-      reject(new Error('Unsupported avatar image'));
+      reject(new Error('不支持的头像图片格式'));
       return;
     }
 
@@ -52,7 +52,7 @@ export const createCroppedAvatarDataUrl = (sourceDataUrl, zoom = minAvatarZoom) 
       canvas.height = avatarOutputSize;
       const context = canvas.getContext('2d');
       if (!context) {
-        reject(new Error('Canvas is unavailable'));
+        reject(new Error('当前浏览器无法处理头像图片'));
         return;
       }
 
@@ -70,6 +70,6 @@ export const createCroppedAvatarDataUrl = (sourceDataUrl, zoom = minAvatarZoom) 
       );
       resolve(canvas.toDataURL('image/png', 0.92));
     };
-    image.onerror = () => reject(new Error('Unable to load image'));
+    image.onerror = () => reject(new Error('无法加载头像图片'));
     image.src = sourceDataUrl;
   });

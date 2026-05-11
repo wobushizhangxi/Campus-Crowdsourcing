@@ -20,7 +20,7 @@ export default function AppHeader({ pageMeta, currentUser, onOpenProfile }) {
             />
           ) : (
             <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-600 text-sm font-black text-white">
-              {(currentUser.name || currentUser.studentId || 'U').slice(0, 1).toUpperCase()}
+              {(currentUser.name || currentUser.studentId || '用').slice(0, 1).toUpperCase()}
             </span>
           )}
           <span className="text-right">

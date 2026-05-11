@@ -59,7 +59,7 @@ public class MessageController {
     public ResponseEntity<Map<String, Object>> sendMessage(@RequestBody Message request, Authentication authentication) {
         User actor = currentUserService.requireCurrentUser(authentication);
         if (actor.isBanned()) {
-            return buildResponse(HttpStatus.FORBIDDEN, "Account is banned", null);
+            return buildResponse(HttpStatus.FORBIDDEN, "账号已被封禁", null);
         }
         Long taskId = request.getTaskId();
         if (taskId == null) {

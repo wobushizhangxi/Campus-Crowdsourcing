@@ -143,7 +143,7 @@ public class UserController {
     ) {
         User actor = currentUserService.requireCurrentUser(authentication);
         if (actor.isBanned()) {
-            return buildResponse(HttpStatus.FORBIDDEN, "Account is banned", null);
+            return buildResponse(HttpStatus.FORBIDDEN, "账号已被封禁", null);
         }
         String campus = normalizeRequired(request == null ? null : request.getCampus());
         String studentId = normalizeRequired(request == null ? null : request.getStudentId());
@@ -171,7 +171,7 @@ public class UserController {
     ) {
         User actor = currentUserService.requireCurrentUser(authentication);
         if (actor.isBanned()) {
-            return buildResponse(HttpStatus.FORBIDDEN, "Account is banned", null);
+            return buildResponse(HttpStatus.FORBIDDEN, "账号已被封禁", null);
         }
         User target = userRepository.findById(id).orElse(null);
         if (target == null) {
@@ -188,7 +188,7 @@ public class UserController {
     public ResponseEntity<Map<String, Object>> updateProfile(Authentication authentication, @RequestBody AuthRequest request) {
         User actor = currentUserService.requireCurrentUser(authentication);
         if (actor.isBanned()) {
-            return buildResponse(HttpStatus.FORBIDDEN, "Account is banned", null);
+            return buildResponse(HttpStatus.FORBIDDEN, "账号已被封禁", null);
         }
         return updateUserProfile(actor, request);
     }
@@ -200,17 +200,17 @@ public class UserController {
     ) {
         User actor = currentUserService.requireCurrentUser(authentication);
         if (actor.isBanned()) {
-            return buildResponse(HttpStatus.FORBIDDEN, "Account is banned", null);
+            return buildResponse(HttpStatus.FORBIDDEN, "账号已被封禁", null);
         }
 
         String avatarDataUrl = normalizeAvatarDataUrl(request == null ? null : request.getAvatarDataUrl());
         if (avatarDataUrl == null) {
-            return buildResponse(HttpStatus.BAD_REQUEST, "Invalid avatar image", null);
+            return buildResponse(HttpStatus.BAD_REQUEST, "头像图片不正确", null);
         }
 
         actor.setAvatarUrl(avatarDataUrl);
         User savedUser = userRepository.save(actor);
-        return buildResponse(HttpStatus.OK, "Avatar updated", buildUserData(savedUser));
+        return buildResponse(HttpStatus.OK, "头像已更新", buildUserData(savedUser));
     }
 
     @DeleteMapping("/me")

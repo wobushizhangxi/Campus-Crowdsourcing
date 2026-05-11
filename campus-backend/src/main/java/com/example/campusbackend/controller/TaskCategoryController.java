@@ -47,7 +47,7 @@ public class TaskCategoryController {
 
     @GetMapping("/categories")
     public ResponseEntity<Map<String, Object>> listCategories() {
-        return buildResponse(HttpStatus.OK, "Success", taskCategoryRepository.findAllByOrderByCreatedAtAsc());
+        return buildResponse(HttpStatus.OK, "成功", taskCategoryRepository.findAllByOrderByCreatedAtAsc());
     }
 
     @PostMapping("/admin/categories")
@@ -59,10 +59,10 @@ public class TaskCategoryController {
         requireAdmin(authentication);
         String name = normalizeName(request == null ? null : request.getName());
         if (name == null) {
-            return buildResponse(HttpStatus.BAD_REQUEST, "Category name is required", null);
+            return buildResponse(HttpStatus.BAD_REQUEST, "分类名称不能为空", null);
         }
         if (taskCategoryRepository.existsByNameIgnoreCase(name)) {
-            return buildResponse(HttpStatus.CONFLICT, "Category already exists", null);
+            return buildResponse(HttpStatus.CONFLICT, "分类已存在", null);
         }
 
         TaskCategory category = new TaskCategory();
@@ -70,7 +70,7 @@ public class TaskCategoryController {
         TaskCategory savedCategory = taskCategoryRepository.save(category);
         return ResponseEntity
                 .created(URI.create("/api/admin/categories/" + savedCategory.getId()))
-                .body(buildBody(HttpStatus.CREATED, "Category created", savedCategory));
+                .body(buildBody(HttpStatus.CREATED, "分类已创建", savedCategory));
     }
 
     @PutMapping("/admin/categories/{id}")
@@ -83,19 +83,19 @@ public class TaskCategoryController {
         requireAdmin(authentication);
         TaskCategory category = taskCategoryRepository.findById(id).orElse(null);
         if (category == null) {
-            return buildResponse(HttpStatus.NOT_FOUND, "Category not found", null);
+            return buildResponse(HttpStatus.NOT_FOUND, "分类不存在", null);
         }
         String name = normalizeName(request == null ? null : request.getName());
         if (name == null) {
-            return buildResponse(HttpStatus.BAD_REQUEST, "Category name is required", null);
+            return buildResponse(HttpStatus.BAD_REQUEST, "分类名称不能为空", null);
         }
         TaskCategory existing = taskCategoryRepository.findByNameIgnoreCase(name).orElse(null);
         if (existing != null && !existing.getId().equals(id)) {
-            return buildResponse(HttpStatus.CONFLICT, "Category already exists", null);
+            return buildResponse(HttpStatus.CONFLICT, "分类已存在", null);
         }
 
         category.setName(name);
-        return buildResponse(HttpStatus.OK, "Category updated", taskCategoryRepository.save(category));
+        return buildResponse(HttpStatus.OK, "分类已更新", taskCategoryRepository.save(category));
     }
 
     @DeleteMapping("/admin/categories/{id}")
@@ -104,20 +104,20 @@ public class TaskCategoryController {
         requireAdmin(authentication);
         TaskCategory category = taskCategoryRepository.findById(id).orElse(null);
         if (category == null) {
-            return buildResponse(HttpStatus.NOT_FOUND, "Category not found", null);
+            return buildResponse(HttpStatus.NOT_FOUND, "分类不存在", null);
         }
         if (taskRepository.existsByCategoryIgnoreCase(category.getName())) {
-            return buildResponse(HttpStatus.CONFLICT, "Category is used by existing tasks", null);
+            return buildResponse(HttpStatus.CONFLICT, "分类已被任务使用，不能删除", null);
         }
 
         taskCategoryRepository.delete(category);
-        return buildResponse(HttpStatus.OK, "Category deleted", Map.of("id", id));
+        return buildResponse(HttpStatus.OK, "分类已删除", Map.of("id", id));
     }
 
     private User requireAdmin(Authentication authentication) {
         User actor = currentUserService.requireCurrentUser(authentication);
         if (!adminPermissionService.canAccessAdminPanel(actor)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "没有权限执行此操作");
         }
         return actor;
     }

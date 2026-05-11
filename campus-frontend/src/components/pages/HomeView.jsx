@@ -396,11 +396,17 @@ export default function HomeView({
                 const isSelected = desktopSelectedTask?.id === task.id;
 
                 return (
-                  <button
+                  <article
                     key={task.id}
-                    type="button"
-                    aria-pressed={desktopSelectedTask?.id === task.id}
+                    aria-current={isSelected ? 'true' : undefined}
+                    tabIndex={0}
                     onClick={() => setSelectedTask(task)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedTask(task);
+                      }
+                    }}
                     className={`w-full rounded-3xl border bg-white p-5 text-left shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 ${
                       isSelected ? 'border-cyan-300 ring-1 ring-cyan-100' : 'border-slate-200 hover:border-cyan-200'
                     }`}
@@ -427,7 +433,7 @@ export default function HomeView({
                       </span>
                       <span>任务 #{task.id}</span>
                     </div>
-                  </button>
+                  </article>
                 );
               })}
             </div>

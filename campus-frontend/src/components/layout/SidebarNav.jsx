@@ -1,14 +1,14 @@
 import { ClipboardList, Home, MessageSquare, PlusCircle, User } from 'lucide-react';
 
 const navItems = [
-  { id: 'home', label: 'Home', icon: Home },
-  { id: 'tasks', label: 'Tasks', icon: ClipboardList },
-  { id: 'post', label: 'Post', icon: PlusCircle, featured: true },
-  { id: 'messages', label: 'Messages', icon: MessageSquare },
-  { id: 'profile', label: 'Profile', icon: User },
+  { id: 'home', label: '首页', description: '浏览任务大厅', icon: Home },
+  { id: 'tasks', label: '订单', description: '跟踪任务进度', icon: ClipboardList },
+  { id: 'post', label: '发布', description: '创建新任务', icon: PlusCircle, featured: true },
+  { id: 'messages', label: '消息', description: '查看未读会话', icon: MessageSquare },
+  { id: 'profile', label: '我的', description: '管理个人资料', icon: User },
 ];
 
-function SidebarItem({ activeTab, featured = false, hasUnreadMessages, icon, id, label, onSelectTab }) {
+function SidebarItem({ activeTab, description, featured = false, hasUnreadMessages, icon, id, label, onSelectTab }) {
   const isActive = activeTab === id;
   const IconComponent = icon;
 
@@ -47,24 +47,14 @@ function SidebarItem({ activeTab, featured = false, hasUnreadMessages, icon, id,
 
       <span className="min-w-0 flex-1">
         <span className="hidden text-sm font-semibold tracking-tight xl:block xl:text-[15px]">{label}</span>
-        <span className="hidden text-xs text-slate-500 xl:block">
-          {featured
-            ? 'Create a new task'
-            : id === 'home'
-              ? 'Browse the task feed'
-              : id === 'tasks'
-                ? 'Track assigned work'
-                : id === 'messages'
-                  ? 'Review unread conversations'
-                  : 'Manage your profile'}
-        </span>
+        <span className="hidden text-xs text-slate-500 xl:block">{description}</span>
       </span>
     </button>
   );
 }
 
 export default function SidebarNav({ activeTab, currentUser, hasUnreadMessages, onSelectTab }) {
-  const name = currentUser?.name || currentUser?.studentId || 'User';
+  const name = currentUser?.name || currentUser?.studentId || '用户';
   const initial = name.slice(0, 1).toUpperCase();
 
   return (
@@ -75,7 +65,7 @@ export default function SidebarNav({ activeTab, currentUser, hasUnreadMessages, 
             {initial}
           </div>
           <div className="min-w-0 md:hidden xl:block">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/55">Campus</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/55">校园</p>
             <p className="truncate text-sm font-semibold text-white">{name}</p>
           </div>
         </div>
@@ -85,6 +75,7 @@ export default function SidebarNav({ activeTab, currentUser, hasUnreadMessages, 
             <SidebarItem
               key={item.id}
               activeTab={activeTab}
+              description={item.description}
               featured={item.featured}
               hasUnreadMessages={hasUnreadMessages}
               id={item.id}

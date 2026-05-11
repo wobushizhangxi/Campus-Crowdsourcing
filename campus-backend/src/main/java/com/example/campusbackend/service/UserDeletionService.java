@@ -38,7 +38,7 @@ public class UserDeletionService {
     @Transactional
     public String deleteRegularUser(User target) {
         if (target.getRole() == UserRole.ADMIN) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin account cannot be deleted");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "管理员账号不能被删除");
         }
 
         String placeholder = "deleted-user-" + target.getId();
