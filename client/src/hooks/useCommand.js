@@ -1,14 +1,14 @@
 import { useCallback, useState } from 'react'
-import { matchCommands } from '../lib/commands.js'
+import { matchSkillCommands } from '../lib/commands.js'
 
-export function useCommand() {
+export function useCommand(skills = []) {
   const [active, setActive] = useState(false)
   const [matches, setMatches] = useState([])
   const [index, setIndex] = useState(0)
 
   const update = useCallback((text) => {
     if (text.startsWith('/')) {
-      const nextMatches = matchCommands(text)
+      const nextMatches = matchSkillCommands(text, skills)
       setActive(nextMatches.length > 0)
       setMatches(nextMatches)
       setIndex(0)
@@ -18,7 +18,7 @@ export function useCommand() {
     setActive(false)
     setMatches([])
     setIndex(0)
-  }, [])
+  }, [skills])
 
   const close = useCallback(() => {
     setActive(false)

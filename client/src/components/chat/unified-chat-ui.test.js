@@ -233,4 +233,21 @@ describe('unified chat UI wiring', () => {
     expect(source).toContain('tool_progress')
     expect(source).toContain('stream')
   })
+
+  test('slash commands are backed by installed skills instead of legacy cards', () => {
+    const commands = readProjectFile('client/src/lib/commands.js')
+    const useCommand = readProjectFile('client/src/hooks/useCommand.js')
+    const palette = readProjectFile('client/src/components/chat/CommandPalette.jsx')
+
+    expect(commands).toContain('parseSkillCommandLine')
+    expect(commands).toContain('matchSkillCommands')
+    expect(commands).not.toContain("id: 'paper'")
+    expect(commands).not.toContain("id: 'plan'")
+    expect(commands).not.toContain("id: 'schedule'")
+    expect(commands).not.toContain("cardType: 'paper'")
+    expect(useCommand).toContain('skills = []')
+    expect(useCommand).toContain('matchSkillCommands(text, skills)')
+    expect(palette).toContain('Sparkles')
+    expect(palette).not.toContain('const Icon = command.icon')
+  })
 })
