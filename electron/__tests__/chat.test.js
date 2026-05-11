@@ -414,6 +414,43 @@ test('chat:send forwards valid forcedSkill and convId to runTurn', async () => {
   }))
 })
 
+test('chat:send does not emit skill-loaded for empty already-loaded skill result', async () => {
+  const ipcMain = createIpcMain()
+  const send = vi.fn()
+  const loadSkillResult = { name: 'superpowers', already_loaded: true, content: '' }
+  const runTurn = vi.fn(async ({ onEvent }) => {
+    onEvent('tool_result', {
+      call: { id: 'call-skill', name: 'load_skill', args: { name: 'superpowers' } },
+      result: loadSkillResult
+    })
+    return { finalText: 'Unable to load forced skill superpowers: cached skill content is unavailable.', history: [] }
+  })
+  const register = createRegister({
+    storeRef: { getConfig: () => ({ permissionMode: 'full' }) },
+    runTurn,
+    userRules: { buildSystemPromptSection: () => '' },
+    skillRegistry: {
+      listSkills: () => [{ name: 'superpowers', description: 'workflow' }],
+      buildSkillIndex: () => 'skills',
+      findSkill: (name) => (name === 'superpowers' ? { name, description: 'workflow' } : null)
+    }
+  })
+  register(ipcMain)
+
+  await ipcMain.handlers.get('chat:send')({ sender: { send } }, {
+    convId: 'conv-skill-empty-cache',
+    forcedSkill: 'superpowers',
+    messages: [{ role: 'user', content: 'do work' }]
+  })
+
+  expect(send).toHaveBeenCalledWith('chat:tool-result', {
+    convId: 'conv-skill-empty-cache',
+    callId: 'call-skill',
+    result: loadSkillResult
+  })
+  expect(send.mock.calls.some(([event]) => event === 'chat:skill-loaded')).toBe(false)
+})
+
 test('browser plugin mode marks user message for browser task routing', async () => {
   const ipcMain = createIpcMain()
   const send = vi.fn()

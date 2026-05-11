@@ -65,6 +65,17 @@ function sendPendingClarification(send, pending) {
   return { ok: true, status: 'clarification', assistantText }
 }
 
+function hasUsefulSkillLoadResult(result) {
+  if (!result || result.error) return false
+  if (typeof result === 'string') return Boolean(result.trim())
+  if (typeof result !== 'object') return true
+
+  const content = String(result.content || '').trim()
+  if (result.already_loaded) return Boolean(content)
+  if (Object.prototype.hasOwnProperty.call(result, 'content')) return Boolean(content)
+  return true
+}
+
 async function handleConfirmationReply(evt, payload = {}) {
   const { convId, message = '' } = payload
   const pending = pendingConfirmations.get(convId)
@@ -151,7 +162,7 @@ async function handleChatSend(evt, payload = {}, deps) {
           }
         } else if (type === 'tool_result') {
           send('chat:tool-result', { callId: data.call.id, result: data.result })
-          if (data.call.name === 'load_skill' && !data.result?.error) {
+          if (data.call.name === 'load_skill' && hasUsefulSkillLoadResult(data.result)) {
             send('chat:skill-loaded', { name: data.call.args.name })
           }
         } else if (type === 'tool_error') {
