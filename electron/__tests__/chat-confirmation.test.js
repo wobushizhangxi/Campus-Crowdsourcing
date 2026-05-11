@@ -52,6 +52,7 @@ describe('chat confirmation helpers', () => {
 
     expect(text).toContain('delete_path')
     expect(text).toContain('deletes a file')
+    expect(text).toContain('C:/Users/g/Desktop/tmp.txt')
     expect(text).toContain('确认 / 可以 / 同意 / 继续')
     expect(text).toContain('取消 / 拒绝 / 不行 / 不要')
   })
