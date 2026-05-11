@@ -2,7 +2,7 @@ import { test, expect, vi } from 'vitest'
 import { createRequire } from 'module'
 
 const require = createRequire(import.meta.url)
-const { runTurn } = require('../services/agentLoop')
+const { getProvider, runTurn } = require('../services/agentLoop')
 
 function mockDeepseek(responses) {
   let call = 0
@@ -45,6 +45,34 @@ test('no tool calls → returns immediately', async () => {
 
   expect(result.finalText).toBe('Hello!')
   expect(deepseek).toBeDefined()
+})
+
+test('Doubao model aliases use configured Ark endpoint model from settings', () => {
+  const doubao = { chat: vi.fn() }
+
+  expect(getProvider('doubao-vision', { doubao })).toEqual({ model: undefined, chat: doubao.chat })
+  expect(getProvider('doubao-seed-1-6-vision', { doubao })).toEqual({ model: undefined, chat: doubao.chat })
+  expect(getProvider('ep-20260510143244-hjcjf', { doubao })).toEqual({ model: 'ep-20260510143244-hjcjf', chat: doubao.chat })
+})
+
+test('runTurn sends Doubao alias without overriding configured Ark endpoint model', async () => {
+  const doubao = {
+    chat: vi.fn(async ({ model }) => ({
+      content: `model:${model || 'configured'}`,
+      assistant_message: { role: 'assistant', content: `model:${model || 'configured'}` },
+      tool_calls: []
+    }))
+  }
+  const tools = { getAgentLoopToolSchemas: vi.fn(() => []) }
+  const policy = mockPolicy({})
+
+  const result = await runTurn(
+    { messages: [{ role: 'user', content: 'hi' }], model: 'doubao-vision' },
+    { doubao, tools, policy }
+  )
+
+  expect(doubao.chat).toHaveBeenCalledWith(expect.objectContaining({ model: undefined }))
+  expect(result.finalText).toBe('model:configured')
 })
 
 test('single tool call → executed → result fed back → finishes', async () => {
@@ -228,6 +256,85 @@ test('tool throws non-abort error → error appended, loop continues', async () 
   )
 
   expect(result.finalText).toBe('Failed to write.')
+})
+
+test('tool returning ok false emits tool_error and feeds diagnostic error to model', async () => {
+  const deepseek = mockDeepseek([
+    {
+      content: null,
+      assistant_message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'browser_task', arguments: '{"goal":"Open https://example.com","start_url":"https://example.com"}' } }] },
+      tool_calls: [{ id: 'c1', name: 'browser_task', args: { goal: 'Open https://example.com', start_url: 'https://example.com' }, raw: {} }]
+    },
+    { content: 'Browser task did not return a usable result.', assistant_message: { role: 'assistant', content: 'Browser task did not return a usable result.' }, tool_calls: [] }
+  ])
+  const failedResult = {
+    ok: false,
+    summary: 'browser-use did not return a usable page result.',
+    final_url: 'about:blank',
+    error: { code: 'BROWSER_TASK_INCOMPLETE', message: 'summary_missing, final_url_about_blank' },
+    diagnostics: { issues: ['summary_missing', 'final_url_about_blank'] }
+  }
+  const tools = {
+    execute: vi.fn(async () => failedResult),
+    getAgentLoopToolSchemas: vi.fn(() => [])
+  }
+  const policy = mockPolicy({ browser_task: { risk: 'medium', reason: 'browser', allowed: true, requiresApproval: false } })
+  const events = []
+
+  const result = await runTurn(
+    { messages: [{ role: 'user', content: 'open example.com' }], onEvent: (type, data) => events.push({ type, ...data }) },
+    { deepseek, tools, policy }
+  )
+
+  expect(events.some(e => e.type === 'tool_error' && e.error.code === 'BROWSER_TASK_INCOMPLETE')).toBe(true)
+  expect(events.some(e => e.type === 'tool_result')).toBe(false)
+  expect(result.history[2].role).toBe('tool')
+  expect(result.history[2].content).toContain('ERROR: BROWSER_TASK_INCOMPLETE')
+  expect(result.finalText).toBe('Browser task did not return a usable result.')
+})
+
+test('repeated tool approval includes previous failure summary', async () => {
+  const toolCallArgs = { goal: 'Open https://example.com', start_url: 'https://example.com' }
+  const deepseek = mockDeepseek([
+    {
+      content: null,
+      assistant_message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'browser_task', arguments: JSON.stringify(toolCallArgs) } }] },
+      tool_calls: [{ id: 'c1', name: 'browser_task', args: toolCallArgs, raw: {} }]
+    },
+    {
+      content: null,
+      assistant_message: { role: 'assistant', content: null, tool_calls: [{ id: 'c2', type: 'function', function: { name: 'browser_task', arguments: JSON.stringify(toolCallArgs) } }] },
+      tool_calls: [{ id: 'c2', name: 'browser_task', args: toolCallArgs, raw: {} }]
+    },
+    { content: 'Still failed.', assistant_message: { role: 'assistant', content: 'Still failed.' }, tool_calls: [] }
+  ])
+  const failedResult = {
+    ok: false,
+    error: { code: 'BROWSER_TASK_INCOMPLETE', message: 'final_url_about_blank' }
+  }
+  const tools = {
+    execute: vi.fn(async () => failedResult),
+    getAgentLoopToolSchemas: vi.fn(() => [])
+  }
+  const policy = mockPolicy({ browser_task: { risk: 'medium', reason: 'browser', allowed: true, requiresApproval: true } })
+  const events = []
+
+  await runTurn(
+    {
+      messages: [{ role: 'user', content: 'open example.com' }],
+      requestApproval: async () => true,
+      onEvent: (type, data) => events.push({ type, ...data })
+    },
+    { deepseek, tools, policy }
+  )
+
+  const approvals = events.filter(e => e.type === 'approval_request')
+  expect(approvals).toHaveLength(2)
+  expect(approvals[0].retry).toBeUndefined()
+  expect(approvals[1].retry).toEqual({
+    attempt: 2,
+    previousError: { code: 'BROWSER_TASK_INCOMPLETE', message: 'final_url_about_blank' }
+  })
 })
 
 test('preserves conversation history through tool turns', async () => {

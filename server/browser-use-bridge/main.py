@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from browser_agent import BrowserTask, get_pool
+from browser_agent import BrowserTask, env_bool, get_pool
 
 app = FastAPI(title="browser-use-bridge", version="0.1.0")
 
@@ -22,7 +22,8 @@ class ExecuteRequest(BaseModel):
     goal: str
     max_steps: int = 15
     start_url: str | None = None
-    headless: bool = True
+    headless: bool | None = None
+    keep_alive: bool | None = None
 
 
 @app.get("/health")
@@ -61,7 +62,8 @@ async def execute(req: ExecuteRequest):
             goal=req.goal,
             max_steps=req.max_steps,
             start_url=req.start_url,
-            headless=req.headless,
+            headless=req.headless if req.headless is not None else env_bool("BROWSER_USE_HEADLESS", True),
+            keep_alive=req.keep_alive,
         )
 
         result = await pool.run_task(task)

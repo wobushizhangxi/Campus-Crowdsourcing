@@ -137,13 +137,14 @@ export function useChat(conversationId) {
         const toolStatus = event.needsApproval ? 'awaiting_approval' : 'running'
         const patch = { toolStatus, args: event.args }
         if (event.decision) patch.decision = event.decision
+        if (event.retry) patch.retry = event.retry
         if (existingId) {
           dispatch({ type: 'UPDATE_TOOL', id: existingId, patch })
           return
         }
         const id = uid()
         toolMessageIdsRef.current.set(event.callId, id)
-        dispatch({ type: 'ADD', msg: { id, role: 'tool', toolCallId: event.callId, toolName: event.name, args: event.args, toolStatus, decision: event.decision, logs: [] } })
+        dispatch({ type: 'ADD', msg: { id, role: 'tool', toolCallId: event.callId, toolName: event.name, args: event.args, toolStatus, decision: event.decision, retry: event.retry, logs: [] } })
       },
       onToolLog: (event) => {
         const id = toolMessageIdsRef.current.get(event.callId)

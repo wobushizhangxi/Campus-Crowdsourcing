@@ -42,6 +42,7 @@ test('chat:send forwards unified agent loop tool events', async () => {
     onEvent('assistant_message', { content: 'thinking...', toolCalls: [{ id: 'call-1', name: 'read_file', args: { path: 'x' } }] })
     onEvent('tool_result', { call: { id: 'call-1', name: 'read_file', args: { path: 'x' } }, result: { content: 'file text' } })
     onEvent('tool_blocked', { call: { id: 'call-2', name: 'write_file', args: { path: 'C:\\Windows\\evil.txt' } }, reason: '系统路径已被阻止。' })
+    onEvent('tool_error', { call: { id: 'call-3', name: 'browser_task', args: { goal: 'open' } }, error: { code: 'BROWSER_TASK_INCOMPLETE', message: 'summary_missing' } })
     onEvent('assistant_message', { content: 'done', toolCalls: [] })
     return { finalText: 'done', history: [] }
   })
@@ -59,6 +60,7 @@ test('chat:send forwards unified agent loop tool events', async () => {
   expect(send).toHaveBeenCalledWith('chat:tool-start', { convId: 'conv-1', callId: 'call-1', name: 'read_file', args: { path: 'x' } })
   expect(send).toHaveBeenCalledWith('chat:tool-result', { convId: 'conv-1', callId: 'call-1', result: { content: 'file text' } })
   expect(send).toHaveBeenCalledWith('chat:tool-error', { convId: 'conv-1', callId: 'call-2', error: { code: 'POLICY_BLOCKED', message: '系统路径已被阻止。' } })
+  expect(send).toHaveBeenCalledWith('chat:tool-error', { convId: 'conv-1', callId: 'call-3', error: { code: 'BROWSER_TASK_INCOMPLETE', message: 'summary_missing' } })
   expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-1', text: 'done' })
   expect(send).toHaveBeenCalledWith('chat:done', { convId: 'conv-1' })
 })
@@ -68,10 +70,11 @@ test('chat:send waits for inline tool approval over chat IPC', async () => {
   const send = vi.fn()
   const call = { id: 'call-approval', name: 'run_shell_command', args: { command: 'npm install' } }
   const decision = { risk: 'high', reason: '安装命令需要明确确认。' }
+  const retry = { attempt: 2, previousError: { code: 'BROWSER_TASK_INCOMPLETE', message: 'summary_missing' } }
   let approvedValue
   const runTurn = vi.fn(async ({ onEvent, requestApproval }) => {
     onEvent('assistant_message', { content: '', toolCalls: [call] })
-    onEvent('approval_request', { call, decision })
+    onEvent('approval_request', { call, decision, retry })
     approvedValue = await requestApproval({ call, decision })
     return { finalText: approvedValue ? 'approved' : 'denied', history: [] }
   })
@@ -86,7 +89,7 @@ test('chat:send waits for inline tool approval over chat IPC', async () => {
   const pending = ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-1', messages: [{ role: 'user', content: 'install deps' }] })
   await Promise.resolve()
 
-  expect(send).toHaveBeenCalledWith('chat:tool-start', { convId: 'conv-1', callId: call.id, name: call.name, args: call.args, needsApproval: true, decision })
+  expect(send).toHaveBeenCalledWith('chat:tool-start', { convId: 'conv-1', callId: call.id, name: call.name, args: call.args, needsApproval: true, decision, retry })
   expect(approvedValue).toBeUndefined()
 
   const approval = await ipcMain.handlers.get('chat:approve-tool')({}, { convId: 'conv-1', callId: call.id, approved: true })

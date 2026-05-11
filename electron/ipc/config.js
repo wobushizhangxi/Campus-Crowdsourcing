@@ -16,6 +16,20 @@ function sanitizeConfigPatch(input = {}) {
   if (typeof input.doubaoVisionApiKey === 'string' && input.doubaoVisionApiKey && !input.doubaoVisionApiKey.includes('***')) patch.doubaoVisionApiKey = input.doubaoVisionApiKey.trim()
   if (typeof input.doubaoVisionEndpoint === 'string' && input.doubaoVisionEndpoint) patch.doubaoVisionEndpoint = input.doubaoVisionEndpoint.trim()
   if (typeof input.doubaoVisionModel === 'string' && input.doubaoVisionModel) patch.doubaoVisionModel = input.doubaoVisionModel.trim()
+  if (typeof input.browserUseApiKey === 'string' && !input.browserUseApiKey.includes('***')) {
+    const browserUseApiKey = input.browserUseApiKey.trim()
+    if (browserUseApiKey) patch.browserUseApiKey = browserUseApiKey
+  }
+  if (typeof input.browserUseEndpoint === 'string') {
+    const browserUseEndpoint = input.browserUseEndpoint.trim()
+    if (browserUseEndpoint) patch.browserUseEndpoint = browserUseEndpoint
+  }
+  if (typeof input.browserUseModel === 'string') {
+    const browserUseModel = input.browserUseModel.trim()
+    if (browserUseModel) patch.browserUseModel = browserUseModel
+  }
+  if (typeof input.browserUseVisionEnabled === 'boolean') patch.browserUseVisionEnabled = input.browserUseVisionEnabled
+  if (typeof input.browserUseHeadless === 'boolean') patch.browserUseHeadless = input.browserUseHeadless
   if (typeof input.dryRunEnabled === 'boolean') patch.dryRunEnabled = input.dryRunEnabled
   if (typeof input.auditRetentionDays === 'number') patch.auditRetentionDays = input.auditRetentionDays
   if (typeof input.outputRetentionDays === 'number') patch.outputRetentionDays = input.outputRetentionDays

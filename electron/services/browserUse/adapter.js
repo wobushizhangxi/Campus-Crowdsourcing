@@ -14,14 +14,26 @@ async function healthCheck() {
   }
 }
 
+function defaultHeadless() {
+  try {
+    const { store } = require('../../store')
+    return store.getConfig().browserUseHeadless !== false
+  } catch {
+    return true
+  }
+}
+
 async function execute(action, context = {}) {
   try {
-    const { goal, max_steps = 15, start_url, headless = true } = action.payload || action
+    const payload = action.payload || action
+    const { goal, max_steps = 15, start_url } = payload
+    const headless = typeof payload.headless === 'boolean' ? payload.headless : defaultHeadless()
+    const keep_alive = typeof payload.keep_alive === 'boolean' ? payload.keep_alive : !headless
 
     const resp = await fetch(`${endpoint()}/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal, max_steps, start_url, headless }),
+      body: JSON.stringify({ goal, max_steps, start_url, headless, keep_alive }),
       signal: context.signal,
     })
 
@@ -36,20 +48,58 @@ async function execute(action, context = {}) {
 
     const resultEvent = events.find(e => e.type === 'result')
     if (resultEvent) {
-      return {
-        ok: resultEvent.data?.success !== false,
-        summary: resultEvent.data?.summary || '',
-        final_url: resultEvent.data?.final_url || '',
-        steps_completed: resultEvent.data?.steps_completed || 0,
-        duration_ms: resultEvent.data?.duration_ms || 0,
-        error: resultEvent.data?.error,
-      }
+      return normalizeBridgeResult(resultEvent.data || {}, { start_url })
     }
 
     return { ok: false, error: { code: 'NO_RESULT', message: 'browser-use 未返回结果事件。' } }
   } catch (err) {
     return { ok: false, error: { code: 'BRIDGE_UNREACHABLE', message: `browser-use bridge 不可达: ${err.message}` } }
   }
+}
+
+function isMissingSummary(summary) {
+  const value = String(summary ?? '').trim().toLowerCase()
+  return !value || value === 'none' || value === 'null'
+}
+
+function isBlankFinalUrl(finalUrl) {
+  const value = String(finalUrl ?? '').trim().toLowerCase()
+  return !value || value === 'about:blank'
+}
+
+function normalizeBridgeError(rawError, summary) {
+  if (!rawError) return undefined
+  const message = String(rawError)
+  const code = message.startsWith('BROWSER_TASK_INCOMPLETE') ? 'BROWSER_TASK_INCOMPLETE' : 'BROWSER_TASK_FAILED'
+  return { code, message: summary || message }
+}
+
+function normalizeBridgeResult(data, action = {}) {
+  const summary = data.summary || ''
+  const finalUrl = data.final_url || ''
+  const issues = []
+  if (isMissingSummary(summary)) issues.push('summary_missing')
+  if (action.start_url && isBlankFinalUrl(finalUrl)) issues.push('final_url_about_blank')
+
+  const result = {
+    ok: data.success !== false && issues.length === 0,
+    summary,
+    final_url: finalUrl,
+    steps_completed: data.steps_completed || 0,
+    duration_ms: data.duration_ms || 0,
+    error: normalizeBridgeError(data.error, summary),
+    diagnostics: { raw: data, issues },
+  }
+
+  if (issues.length) {
+    result.error = {
+      code: 'BROWSER_TASK_INCOMPLETE',
+      message: `browser-use did not return a usable page result: ${issues.join(', ')}`,
+      detail: { issues, raw: data },
+    }
+  }
+
+  return result
 }
 
 async function cancel() {
@@ -92,4 +142,4 @@ function parseSSE(text) {
   return events
 }
 
-module.exports = { healthCheck, execute, cancel, endpoint, PORT, parseSSE }
+module.exports = { healthCheck, execute, cancel, endpoint, PORT, parseSSE, normalizeBridgeResult }

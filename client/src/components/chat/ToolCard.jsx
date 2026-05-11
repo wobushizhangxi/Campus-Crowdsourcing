@@ -31,6 +31,7 @@ export default function ToolCard({ message, onApproveTool, onDenyTool }) {
   const [open, setOpen] = useState(message.toolStatus === 'error' || message.toolStatus === 'awaiting_approval')
   const status = message.toolStatus || 'running'
   const logs = message.logs || []
+  const retry = message.retry
   const canDecide = status === 'awaiting_approval' && message.toolCallId && onApproveTool && onDenyTool
 
   useEffect(() => {
@@ -51,6 +52,11 @@ export default function ToolCard({ message, onApproveTool, onDenyTool }) {
           {status === 'awaiting_approval' && message.decision && (
             <div className="rounded-md border border-yellow-300 bg-yellow-50 px-3 py-2 text-xs text-yellow-800">
               风险等级：{message.decision.risk} · {message.decision.reason}
+            </div>
+          )}
+          {retry && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              第 {retry.attempt} 次尝试 · 上次失败：{retry.previousError?.code || 'TOOL_ERROR'} · {retry.previousError?.message || '工具未返回有效结果。'}
             </div>
           )}
           {logs.length > 0 && <JsonBlock label="日志" value={logs.map((item) => `[${item.stream}] ${item.chunk}`).join('')} />}

@@ -32,6 +32,7 @@ export default function BridgeStatusBar({ onNavigateToSettings }) {
         const b = bridges[key] || {}
         const running = b.state === 'running'
         const failed = b.state === 'failed'
+        const lastError = b.lastError || b.diagnostics?.lastError || ''
         const dotColor = running ? 'bg-[color:var(--success)]' : failed ? 'bg-red-500' : 'bg-amber-500'
         const textColor = running ? 'text-[color:var(--success)]' : failed ? 'text-red-500' : 'text-amber-500'
         const label2 = running ? 'Running' : failed ? 'Failed — click for details' : '...'
@@ -40,8 +41,9 @@ export default function BridgeStatusBar({ onNavigateToSettings }) {
           <button
             key={key}
             type="button"
-            onClick={() => failed && onNavigateToSettings?.('runtimes')}
+            onClick={() => failed && onNavigateToSettings?.('runtime')}
             className={`flex items-center gap-1 hover:opacity-80 ${failed ? 'cursor-pointer' : 'cursor-default'}`}
+            title={failed ? `${label}: ${lastError || 'Failed'}` : `${label}: ${label2}`}
           >
             <span className={`inline-block w-2 h-2 rounded-full ${dotColor}`} />
             <span>{label}:</span>

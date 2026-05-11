@@ -104,10 +104,12 @@ async function handleChatSend(evt, payload = {}, deps) {
           if (data.call.name === 'load_skill' && !data.result?.error) {
             send('chat:skill-loaded', { name: data.call.args.name })
           }
+        } else if (type === 'tool_error') {
+          send('chat:tool-error', { callId: data.call.id, error: data.error })
         } else if (type === 'tool_blocked') {
           send('chat:tool-error', { callId: data.call.id, error: { code: 'POLICY_BLOCKED', message: data.reason } })
         } else if (type === 'approval_request') {
-          send('chat:tool-start', { callId: data.call.id, name: data.call.name, args: data.call.args, needsApproval: true, decision: data.decision })
+          send('chat:tool-start', { callId: data.call.id, name: data.call.name, args: data.call.args, needsApproval: true, decision: data.decision, ...(data.retry ? { retry: data.retry } : {}) })
         }
       },
       requestApproval: async ({ call, decision }) => {

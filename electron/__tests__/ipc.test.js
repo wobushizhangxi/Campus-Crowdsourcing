@@ -78,6 +78,35 @@ test('config handlers read and patch config', async () => {
   expect(store.getConfig().apiKey).toBe('sk-test')
 })
 
+test('config handlers persist Browser-Use settings and mask key', async () => {
+  const ipcMain = createIpcMain()
+  registerAll(ipcMain)
+
+  const setResult = await ipcMain.handlers.get('config:set')({}, {
+    browserUseApiKey: '  sk-ai-v1-browser-use  ',
+    browserUseEndpoint: '  https://zenmux.ai/api/v1  ',
+    browserUseModel: '  openai/gpt-5.5  ',
+    browserUseVisionEnabled: true
+  })
+
+  expect(setResult.ok).toBe(true)
+  expect(setResult.config.browserUseApiKey).toBe('sk-ai***-use')
+  expect(store.getConfig().browserUseApiKey).toBe('sk-ai-v1-browser-use')
+  expect(store.getConfig().browserUseEndpoint).toBe('https://zenmux.ai/api/v1')
+  expect(store.getConfig().browserUseModel).toBe('openai/gpt-5.5')
+  expect(store.getConfig().browserUseVisionEnabled).toBe(true)
+
+  await ipcMain.handlers.get('config:set')({}, {
+    browserUseApiKey: '   ',
+    browserUseEndpoint: '   ',
+    browserUseModel: '   '
+  })
+
+  expect(store.getConfig().browserUseApiKey).toBe('sk-ai-v1-browser-use')
+  expect(store.getConfig().browserUseEndpoint).toBe('https://zenmux.ai/api/v1')
+  expect(store.getConfig().browserUseModel).toBe('openai/gpt-5.5')
+})
+
 test('conversation upsert and get handlers round trip data', async () => {
   const ipcMain = createIpcMain()
   registerAll(ipcMain)

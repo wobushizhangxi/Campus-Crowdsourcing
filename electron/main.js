@@ -13,6 +13,7 @@ let supervisor = null
 
 const rootDir = isDev ? path.join(__dirname, '..') : process.resourcesPath
 const devUrl = process.env.AGENTDEV_DEV_SERVER_URL || 'http://localhost:5173'
+const shouldOpenDevTools = isDev && process.env.AIONUI_OPEN_DEVTOOLS === '1'
 
 function renderLoadFailure(reason) {
   if (!mainWindow || mainWindow.isDestroyed()) return
@@ -76,7 +77,7 @@ function createWindow() {
     renderLoadFailure(error?.message || '渲染器加载失败。')
   })
 
-  if (isDev) mainWindow.webContents.openDevTools()
+  if (shouldOpenDevTools) mainWindow.webContents.openDevTools()
 
   // First-run: auto-open welcome wizard
   const config = store.getConfig()

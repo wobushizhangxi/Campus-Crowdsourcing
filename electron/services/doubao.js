@@ -20,6 +20,41 @@ function mapErrorCode(status) {
   return 'DOUBAO_UNKNOWN'
 }
 
+function parseToolArgs(raw) {
+  if (!raw) return {}
+  if (typeof raw === 'object') return raw
+  try { return JSON.parse(raw) } catch { return {} }
+}
+
+function stringifyToolArgs(raw) {
+  if (typeof raw === 'string') return raw
+  if (raw && typeof raw === 'object') return JSON.stringify(raw)
+  return '{}'
+}
+
+function normalizeAssistantToolCalls(toolCalls = []) {
+  return toolCalls.map((call, index) => {
+    const name = call.function?.name || call.name
+    if (!name) return null
+    return {
+      id: call.id || `call_${index}`,
+      type: call.type || 'function',
+      function: {
+        name,
+        arguments: stringifyToolArgs(call.function?.arguments ?? call.args)
+      }
+    }
+  }).filter(Boolean)
+}
+
+function normalizeToolCalls(toolCalls = []) {
+  return normalizeAssistantToolCalls(toolCalls).map((call) => ({
+    id: call.id,
+    name: call.function.name,
+    args: parseToolArgs(call.function.arguments)
+  }))
+}
+
 async function chat({ messages, model: modelOverride, tools, signal }) {
   const config = store.getConfig()
   const apiKey = config.doubaoVisionApiKey
@@ -67,14 +102,11 @@ async function chat({ messages, model: modelOverride, tools, signal }) {
   const message = data.choices?.[0]?.message || {}
 
   if (tools?.length) {
-    const toolCalls = (message.tool_calls || []).map((call, index) => ({
-      id: call.id || `call_${index}`,
-      name: call.function?.name,
-      args: typeof call.function?.arguments === 'string' ? JSON.parse(call.function.arguments) : (call.function?.arguments || {})
-    })).filter(c => c.name)
+    const assistantToolCalls = normalizeAssistantToolCalls(message.tool_calls || [])
+    const toolCalls = normalizeToolCalls(assistantToolCalls)
     return {
       content: message.content || '',
-      assistant_message: { role: 'assistant', content: message.content || null, ...(toolCalls.length ? { tool_calls: toolCalls } : {}) },
+      assistant_message: { role: 'assistant', content: message.content || null, ...(assistantToolCalls.length ? { tool_calls: assistantToolCalls } : {}) },
       tool_calls: toolCalls
     }
   }
@@ -82,4 +114,4 @@ async function chat({ messages, model: modelOverride, tools, signal }) {
   return message.content || ''
 }
 
-module.exports = { DoubaoError, chat }
+module.exports = { DoubaoError, chat, normalizeAssistantToolCalls, normalizeToolCalls }

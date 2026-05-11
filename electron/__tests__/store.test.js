@@ -30,6 +30,11 @@ test('getConfig returns defaults including new fields', () => {
   expect(config.doubaoVisionEndpoint).toBe('https://ark.cn-beijing.volces.com/api/v3')
   expect(config.doubaoVisionApiKey).toBe('')
   expect(config.doubaoVisionModel).toBe('doubao-seed-1-6-vision-250815')
+  expect(config.browserUseEndpoint).toBe('https://zenmux.ai/api/v1')
+  expect(config.browserUseApiKey).toBe('')
+  expect(config.browserUseModel).toBe('openai/gpt-5.5')
+  expect(config.browserUseVisionEnabled).toBe(true)
+  expect(config.browserUseHeadless).toBe(false)
 })
 
 test('config has visionLoopEnabled default true', () => {
@@ -41,4 +46,9 @@ test('setConfig persists patches', () => {
   store.setConfig({ apiKey: 'sk-x', workspace_root: 'D:\\work' })
   expect(store.getConfig().apiKey).toBe('sk-x')
   expect(store.getConfig().workspace_root).toBe('D:\\work')
+})
+
+test('getMaskedConfig masks Browser-Use API key', () => {
+  store.setConfig({ browserUseApiKey: 'sk-ai-v1-abcdef1234567890' })
+  expect(store.getMaskedConfig().browserUseApiKey).toBe('sk-ai***7890')
 })

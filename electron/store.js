@@ -41,6 +41,11 @@ const DEFAULT_CONFIG = {
   doubaoVisionEndpoint: 'https://ark.cn-beijing.volces.com/api/v3',
   doubaoVisionApiKey: '',
   doubaoVisionModel: 'doubao-seed-1-6-vision-250815',
+  browserUseEndpoint: 'https://zenmux.ai/api/v1',
+  browserUseApiKey: '',
+  browserUseModel: 'openai/gpt-5.5',
+  browserUseVisionEnabled: true,
+  browserUseHeadless: false,
   dryRunEnabled: true,
   visionLoopEnabled: true,
   auditRetentionDays: 30,
@@ -116,12 +121,18 @@ const store = {
   getMaskedConfig() {
     const config = this.getConfig()
     const mask = (key = '') => key.length > 10 ? `${key.slice(0, 6)}***${key.slice(-4)}` : (key ? '***' : '')
+    const maskBrowserUse = (key = '') => {
+      if (!key) return ''
+      if (key.length <= 10) return '***'
+      return `${key.slice(0, 6).replace(/-+$/, '')}***${key.slice(-4)}`
+    }
     return {
       ...config,
       apiKey: mask(config.apiKey || ''),
       qwenApiKey: mask(config.qwenApiKey || ''),
       deepseekApiKey: mask(config.deepseekApiKey || ''),
-      doubaoVisionApiKey: mask(config.doubaoVisionApiKey || '')
+      doubaoVisionApiKey: mask(config.doubaoVisionApiKey || ''),
+      browserUseApiKey: maskBrowserUse(config.browserUseApiKey || '')
     }
   },
 

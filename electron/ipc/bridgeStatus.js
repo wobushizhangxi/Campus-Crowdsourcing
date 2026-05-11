@@ -12,6 +12,7 @@ function register(ipcMain) {
         state: s.state,
         ready: s.ready,
         lastError: s.lastError || null,
+        diagnostics: s.diagnostics || null,
         restarts: s.restarts || 0,
       }
     }

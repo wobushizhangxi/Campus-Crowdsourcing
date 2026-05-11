@@ -23,8 +23,14 @@ function getInitialConversationId() {
 export default function Layout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsInitialTab, setSettingsInitialTab] = useState('models')
   const [conversationId, setConversationId] = useState(getInitialConversationId)
   const { conversations, refresh, remove, rename } = useConversations()
+
+  const openSettings = useCallback((initialTab = 'models') => {
+    setSettingsInitialTab(initialTab)
+    setSettingsOpen(true)
+  }, [])
 
   const handleNewConversation = useCallback(() => {
     const next = createConversationId()
@@ -56,12 +62,12 @@ export default function Layout() {
           onDelete={handleDelete}
           onRename={rename}
           onSearch={refresh}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={() => openSettings('models')}
         />
         <MainArea conversationId={conversationId} />
       </div>
-      <BridgeStatusBar onNavigateToSettings={() => setSettingsOpen(true)} />
-      {settingsOpen && <SettingsPage onClose={() => setSettingsOpen(false)} />}
+      <BridgeStatusBar onNavigateToSettings={(initialTab) => openSettings(initialTab)} />
+      {settingsOpen && <SettingsPage initialTab={settingsInitialTab} onClose={() => setSettingsOpen(false)} />}
     </div>
   )
 }
