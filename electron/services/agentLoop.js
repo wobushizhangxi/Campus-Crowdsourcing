@@ -99,6 +99,71 @@ function createForcedSkillCall(forcedSkill) {
   }
 }
 
+function parseJsonObject(value) {
+  if (value && typeof value === 'object') return value
+  if (typeof value !== 'string') return null
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function loadSkillNameFromToolCall(call) {
+  const functionName = call?.function?.name || call?.name
+  if (functionName !== 'load_skill') return null
+  const args = call.args || parseJsonObject(call.function?.arguments)
+  return args?.name || null
+}
+
+function toolMessageHasUsableSkillContent(content) {
+  const text = String(content || '').trim()
+  if (!text || text.startsWith('ERROR:') || text.startsWith('POLICY_BLOCKED') || text === 'USER_DENIED') return false
+  const parsed = parseJsonObject(text)
+  if (!parsed) return true
+  if (parsed.error) return false
+  if (Object.prototype.hasOwnProperty.call(parsed, 'content')) return Boolean(String(parsed.content || '').trim())
+  if (parsed.already_loaded) return false
+  return true
+}
+
+function historyHasPriorLoadedSkillContent(history, forcedSkill) {
+  const loadSkillCallIds = new Set()
+  for (const message of history) {
+    const toolCalls = message?.tool_calls || message?.toolCalls
+    if (message?.role === 'assistant' && Array.isArray(toolCalls)) {
+      for (const call of toolCalls) {
+        if (loadSkillNameFromToolCall(call) === forcedSkill) loadSkillCallIds.add(call.id)
+      }
+    }
+    if (
+      message?.role === 'tool' &&
+      loadSkillCallIds.has(message.tool_call_id) &&
+      toolMessageHasUsableSkillContent(message.content)
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+function forcedSkillStopReason(forcedSkill, outcome, priorHistory) {
+  if (!outcome) return 'skill load did not return a result.'
+  if (outcome.failure) return outcome.failure.message || outcome.failure.code || 'skill load failed.'
+  const result = outcome.result
+  if (
+    result &&
+    typeof result === 'object' &&
+    result.already_loaded &&
+    !String(result.content || '').trim() &&
+    !historyHasPriorLoadedSkillContent(priorHistory, forcedSkill)
+  ) {
+    return 'cached skill content is unavailable.'
+  }
+  return null
+}
+
 function summarizeToolResult(result, failure) {
   if (failure) return `${failure.code}: ${failure.message}`
   if (typeof result === 'string') return result.slice(0, 180)
@@ -114,6 +179,7 @@ async function runTurn({ messages, model, signal, onEvent, onStreamEvent, reques
   const history = [...messages]
   const inFlight = new Set()
   const toolAttempts = new Map()
+  const toolOutcomes = new Map()
   const emitStream = (type, patch = {}) => onStreamEvent?.(createStreamEvent(type, patch))
 
   signal?.addEventListener('abort', () => {
@@ -133,6 +199,7 @@ async function runTurn({ messages, model, signal, onEvent, onStreamEvent, reques
       onEvent?.('tool_blocked', { call, reason: decision.reason })
       emitStream('tool_result', { tool: call.name, summary: `已阻止：${decision.reason}` })
       toolAttempts.set(attemptKey, { count: attempt, lastError: { code: 'POLICY_BLOCKED', message: decision.reason } })
+      toolOutcomes.set(call.id, { failure: { code: 'POLICY_BLOCKED', message: decision.reason } })
       return null
     }
 
@@ -147,6 +214,7 @@ async function runTurn({ messages, model, signal, onEvent, onStreamEvent, reques
         onEvent?.('tool_blocked', { call, reason: '审批回调缺失' })
         emitStream('tool_result', { tool: call.name, summary: `审批回调缺失：${decision.reason}` })
         toolAttempts.set(attemptKey, { count: attempt, lastError: { code: 'POLICY_BLOCKED', message: decision.reason } })
+        toolOutcomes.set(call.id, { failure: { code: 'POLICY_BLOCKED', message: decision.reason } })
         return null
       }
       onEvent?.('approval_request', { call, decision, ...(retry ? { retry } : {}) })
@@ -155,6 +223,7 @@ async function runTurn({ messages, model, signal, onEvent, onStreamEvent, reques
         history.push({ role: 'tool', tool_call_id: call.id, content: 'USER_DENIED' })
         emitStream('tool_result', { tool: call.name, summary: '用户拒绝执行。' })
         toolAttempts.set(attemptKey, { count: attempt, lastError: { code: 'USER_DENIED', message: 'User denied tool execution.' } })
+        toolOutcomes.set(call.id, { failure: { code: 'USER_DENIED', message: 'User denied tool execution.' } })
         return null
       }
     }
@@ -173,10 +242,12 @@ async function runTurn({ messages, model, signal, onEvent, onStreamEvent, reques
       history.push({ role: 'tool', tool_call_id: call.id, content })
       if (failure) {
         toolAttempts.set(attemptKey, { count: attempt, lastError: { code: failure.code, message: failure.message } })
+        toolOutcomes.set(call.id, { result, failure })
         onEvent?.('tool_error', { call, error: failure, result })
         emitStream('tool_result', { tool: call.name, summary: summarizeToolResult(result, failure) })
       } else {
         toolAttempts.set(attemptKey, { count: attempt })
+        toolOutcomes.set(call.id, { result, failure: null })
         onEvent?.('tool_result', { call, result })
         emitStream('tool_result', { tool: call.name, summary: summarizeToolResult(result) })
       }
@@ -188,6 +259,7 @@ async function runTurn({ messages, model, signal, onEvent, onStreamEvent, reques
       const error = { code: err.code || 'TOOL_ERROR', message: err.message }
       history.push({ role: 'tool', tool_call_id: call.id, content: `ERROR: ${err.message}` })
       toolAttempts.set(attemptKey, { count: attempt, lastError: error })
+      toolOutcomes.set(call.id, { failure: error })
       onEvent?.('tool_error', { call, error })
       emitStream('tool_result', { tool: call.name, summary: summarizeToolResult(null, error) })
     } finally {
@@ -198,6 +270,7 @@ async function runTurn({ messages, model, signal, onEvent, onStreamEvent, reques
 
   const forcedSkillCall = createForcedSkillCall(forcedSkill)
   if (forcedSkillCall) {
+    const historyBeforeForcedSkill = [...history]
     emitStream('reasoning_summary', {
       text: `Loading skill ${forcedSkill} before continuing.`,
     })
@@ -205,6 +278,10 @@ async function runTurn({ messages, model, signal, onEvent, onStreamEvent, reques
     onEvent?.('assistant_message', { content: '', toolCalls: [forcedSkillCall] })
     const forcedSkillResult = await processToolCall(forcedSkillCall)
     if (forcedSkillResult) return forcedSkillResult
+    const stopReason = forcedSkillStopReason(forcedSkill, toolOutcomes.get(forcedSkillCall.id), historyBeforeForcedSkill)
+    if (stopReason) {
+      return { finalText: `Unable to load forced skill ${forcedSkill}: ${stopReason}`, history }
+    }
   }
 
   const forcedCall = createForcedToolCall(forceTool, history)

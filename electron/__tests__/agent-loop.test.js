@@ -447,8 +447,10 @@ test('browser plugin mode creates a browser_task tool call', async () => {
 
 test('forcedSkill loads the skill before the normal model turn', async () => {
   const calls = []
+  let chatMessages = null
   const deepseek = {
     chat: vi.fn(async ({ messages }) => {
+      chatMessages = messages
       calls.push(['chat', messages.map((message) => message.role)])
       return { content: 'Used skill.', assistant_message: { role: 'assistant', content: 'Used skill.' }, tool_calls: [] }
     })
@@ -469,7 +471,102 @@ test('forcedSkill loads the skill before the normal model turn', async () => {
 
   expect(calls[0]).toEqual(['tool', 'load_skill', { name: 'superpowers' }, 'conv-skill'])
   expect(calls[1][0]).toBe('chat')
+  const skillCallMessage = chatMessages.find((message) => (
+    message.role === 'assistant' &&
+    message.tool_calls?.[0]?.function?.name === 'load_skill'
+  ))
+  expect(skillCallMessage).toBeDefined()
+  const skillToolMessage = chatMessages.find((message) => (
+    message.role === 'tool' &&
+    message.tool_call_id === skillCallMessage.tool_calls[0].id
+  ))
+  expect(skillToolMessage).toBeDefined()
+  expect(skillToolMessage.content).toContain('# Skill body')
   expect(result.finalText).toBe('Used skill.')
+})
+
+test('forcedSkill load failure stops before model and browser work', async () => {
+  const events = []
+  const deepseek = {
+    chat: vi.fn(async () => ({
+      content: 'should not run',
+      assistant_message: { role: 'assistant', content: 'should not run' },
+      tool_calls: []
+    }))
+  }
+  const tools = {
+    execute: vi.fn(async (name) => {
+      if (name === 'load_skill') return { error: { code: 'PATH_NOT_FOUND', message: 'missing skill' } }
+      return { ok: true, summary: 'Example Domain' }
+    }),
+    getAgentLoopToolSchemas: vi.fn(() => [])
+  }
+  const policy = mockPolicy({
+    load_skill: { risk: 'low', reason: 'skill', allowed: true, requiresApproval: false },
+    browser_task: { risk: 'medium', reason: 'browser', allowed: true, requiresApproval: false }
+  })
+
+  const result = await runTurn(
+    {
+      convId: 'conv-skill-fail',
+      messages: [{ role: 'user', content: 'open https://example.com' }],
+      forcedSkill: 'superpowers',
+      forceTool: 'browser_task',
+      onEvent: (type, data) => events.push({ type, ...data })
+    },
+    { deepseek, tools, policy }
+  )
+
+  expect(result.finalText).toBe('Unable to load forced skill superpowers: missing skill')
+  expect(deepseek.chat).not.toHaveBeenCalled()
+  expect(tools.execute).toHaveBeenCalledTimes(1)
+  expect(tools.execute).toHaveBeenCalledWith('load_skill', { name: 'superpowers' }, expect.any(Object))
+  expect(events.some((event) => event.type === 'tool_error' && event.error.code === 'PATH_NOT_FOUND')).toBe(true)
+  expect(result.history.some((message) => message.role === 'tool' && message.content.includes('PATH_NOT_FOUND'))).toBe(true)
+})
+
+test('forcedSkill already_loaded without prior skill history stops before model work', async () => {
+  const loadSkillResults = [
+    { name: 'superpowers', content: '# Skill body' },
+    { name: 'superpowers', already_loaded: true, content: '' }
+  ]
+  const deepseek = {
+    chat: vi.fn(async () => {
+      const content = deepseek.chat.mock.calls.length === 1 ? 'First done.' : 'should not run'
+      return {
+        content,
+        assistant_message: { role: 'assistant', content },
+        tool_calls: []
+      }
+    })
+  }
+  const tools = {
+    execute: vi.fn(async () => loadSkillResults.shift()),
+    getAgentLoopToolSchemas: vi.fn(() => [])
+  }
+  const policy = mockPolicy({ load_skill: { risk: 'low', reason: 'skill', allowed: true, requiresApproval: false } })
+
+  const first = await runTurn(
+    {
+      convId: 'conv-skill-cache',
+      messages: [{ role: 'user', content: 'first task' }],
+      forcedSkill: 'superpowers'
+    },
+    { deepseek, tools, policy }
+  )
+  const result = await runTurn(
+    {
+      convId: 'conv-skill-cache',
+      messages: [{ role: 'user', content: 'second task' }],
+      forcedSkill: 'superpowers'
+    },
+    { deepseek, tools, policy }
+  )
+
+  expect(first.finalText).toBe('First done.')
+  expect(result.finalText).toBe('Unable to load forced skill superpowers: cached skill content is unavailable.')
+  expect(deepseek.chat).toHaveBeenCalledTimes(1)
+  expect(tools.execute).toHaveBeenCalledWith('load_skill', { name: 'superpowers' }, expect.any(Object))
 })
 
 test('forcedSkill and browser forceTool run in skill then browser order', async () => {
