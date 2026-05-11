@@ -5,7 +5,7 @@ const CONFIRMATION_TIMEOUT_MS = 5 * 60 * 1000
 function normalizeReply(text) {
   return String(text || '')
     .trim()
-    .replace(/[。！？!?.\s]+$/g, '')
+    .replace(/[。！!.\s]+$/g, '')
     .toLowerCase()
 }
 

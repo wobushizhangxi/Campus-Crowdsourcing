@@ -43,6 +43,12 @@ describe('chat confirmation helpers', () => {
     expect(classifyConfirmationReply('不要紧')).toBe('clarification')
   })
 
+  test('treats question-marked decision replies as clarification', () => {
+    for (const text of ['确认？', '可以？', '取消？', '不要？']) {
+      expect(classifyConfirmationReply(text)).toBe('clarification')
+    }
+  })
+
   test('builds a chat prompt for high-risk confirmation', () => {
     const text = buildConfirmationPrompt({
       call: { id: 'call-1', name: 'run_shell_command', args: { command: 'npm install react' } },

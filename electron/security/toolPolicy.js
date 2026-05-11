@@ -45,7 +45,7 @@ function codeRisk(code) {
   if (blocked.risk === RISK_LEVELS.BLOCKED) return blocked
   if ((EXFIL_PATTERN.test(code) || CODE_EXFIL_PATTERN.test(code)) && CREDENTIAL_PATTERN.test(code)) return { risk: RISK_LEVELS.BLOCKED, reason: '疑似凭据外传已被阻止。' }
   if (/writeFile|unlink|rm\s|Remove-Item|child_process|subprocess|os\.system/i.test(code)) return { risk: RISK_LEVELS.HIGH, reason: '代码可能修改文件或启动命令。' }
-  return { risk: RISK_LEVELS.MEDIUM, reason: '代码执行需要确认，除非能证明为只读。' }
+  return { risk: RISK_LEVELS.MEDIUM, reason: '代码执行可能影响本地环境。' }
 }
 
 function fileRisk(toolName, args, ctx) {

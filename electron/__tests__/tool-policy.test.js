@@ -192,6 +192,7 @@ test('generate_pptx is medium risk without approval', () => {
 test('code_execute benign is medium risk without approval', () => {
   const r = evaluateToolCall('code_execute', { language: 'python', code: 'print("hello")' }, ctx)
   expect(r.risk).toBe('medium')
+  expect(r.reason).not.toContain('确认')
   expect(r.requiresApproval).toBe(false)
 })
 
