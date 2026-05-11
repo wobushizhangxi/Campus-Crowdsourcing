@@ -136,7 +136,7 @@ function evaluateToolCallWithMeta(name, args, ctx) {
     risk,
     reason: classification.reason,
     allowed: risk !== RISK_LEVELS.BLOCKED,
-    requiresApproval: risk === RISK_LEVELS.MEDIUM || risk === RISK_LEVELS.HIGH
+    requiresApproval: risk === RISK_LEVELS.HIGH
   }
 }
 

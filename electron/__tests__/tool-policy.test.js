@@ -26,14 +26,14 @@ test('read_file on system path → blocked', () => {
 
 // --- write_file ---
 
-test('write_file to allowed root → medium risk', () => {
+test('write_file to allowed root is medium risk without approval', () => {
   const r = evaluateToolCall('write_file', { path: path.join(home, 'Desktop', 'hello.txt'), content: 'hi' }, ctx)
   expect(r.risk).toBe('medium')
   expect(r.allowed).toBe(true)
-  expect(r.requiresApproval).toBe(true)
+  expect(r.requiresApproval).toBe(false)
 })
 
-test('write_file with overwrite → high risk', () => {
+test('write_file with overwrite is high risk and requires approval', () => {
   const r = evaluateToolCall('write_file', { path: path.join(home, 'Desktop', 'hello.txt'), content: 'hi', overwrite: true }, ctx)
   expect(r.risk).toBe('high')
   expect(r.requiresApproval).toBe(true)
@@ -169,21 +169,24 @@ test('forget_user_rule → low', () => {
 
 // --- doc generation ---
 
-test('generate_docx → medium', () => {
+test('generate_docx is medium risk without approval', () => {
   const r = evaluateToolCall('generate_docx', { outline: [{ heading: 'Title', content: 'text' }] }, ctx)
   expect(r.risk).toBe('medium')
+  expect(r.requiresApproval).toBe(false)
 })
 
-test('generate_pptx → medium', () => {
+test('generate_pptx is medium risk without approval', () => {
   const r = evaluateToolCall('generate_pptx', { slides: [{ title: 'Title', content: 'text' }] }, ctx)
   expect(r.risk).toBe('medium')
+  expect(r.requiresApproval).toBe(false)
 })
 
 // --- code_execute (future tool, not yet registered) ---
 
-test('code_execute benign → medium', () => {
+test('code_execute benign is medium risk without approval', () => {
   const r = evaluateToolCall('code_execute', { language: 'python', code: 'print("hello")' }, ctx)
   expect(r.risk).toBe('medium')
+  expect(r.requiresApproval).toBe(false)
 })
 
 test('code_execute with fs operations → high', () => {
