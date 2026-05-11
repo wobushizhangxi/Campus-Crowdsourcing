@@ -28,11 +28,11 @@ test('browser_task is registered in tool registry', () => {
   expect(browserTaskSchema.parameters.required).toContain('goal')
 })
 
-test('browser_task tool policy returns medium risk', () => {
+test('browser_task tool policy returns medium risk without approval', () => {
   const decision = toolPolicy.evaluateToolCall('browser_task', { goal: 'test' })
   expect(decision.risk).toBe('medium')
   expect(decision.allowed).toBe(true)
-  expect(decision.requiresApproval).toBe(true)
+  expect(decision.requiresApproval).toBe(false)
 })
 
 test('browser_task rejects empty goal', async () => {

@@ -23,10 +23,24 @@ describe('chat confirmation helpers', () => {
     }
   })
 
+  test('classifies explicit confirmation phrase variants', () => {
+    for (const text of ['可以的', '确认执行']) {
+      expect(classifyConfirmationReply(text)).toBe('confirm')
+    }
+  })
+
+  test('classifies explicit rejection phrase variants', () => {
+    for (const text of ['取消吧', '不要了']) {
+      expect(classifyConfirmationReply(text)).toBe('reject')
+    }
+  })
+
   test('treats questions and unrelated text as clarification', () => {
     expect(classifyConfirmationReply('这会删除哪个文件？')).toBe('clarification')
     expect(classifyConfirmationReply('先解释一下风险')).toBe('clarification')
     expect(classifyConfirmationReply('hello')).toBe('clarification')
+    expect(classifyConfirmationReply('不可以')).toBe('clarification')
+    expect(classifyConfirmationReply('不要紧')).toBe('clarification')
   })
 
   test('builds a chat prompt for high-risk confirmation', () => {
@@ -60,12 +74,15 @@ describe('chat confirmation helpers', () => {
   test('builds a missing skill message with installed suggestions', () => {
     const text = buildMissingSkillMessage('missing-skill', [
       { name: 'superpowers', description: 'workflow' },
-      { name: 'frontend-design', description: 'ui' }
+      { name: 'frontend-design', description: 'ui' },
+      { name: 'minimal-skill' }
     ])
 
     expect(text).toContain('missing-skill')
     expect(text).toContain('/superpowers')
     expect(text).toContain('/frontend-design')
+    expect(text).toContain('/minimal-skill')
+    expect(text).not.toContain('undefined')
   })
 
   test('uses a finite confirmation timeout', () => {

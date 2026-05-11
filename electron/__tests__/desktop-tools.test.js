@@ -42,10 +42,10 @@ test('desktop_click policy is HIGH risk (requires approval)', () => {
   expect(d.requiresApproval).toBe(true)
 })
 
-test('desktop_type policy is MEDIUM risk (requires approval)', () => {
+test('desktop_type policy is MEDIUM risk without approval', () => {
   const d = toolPolicy.evaluateToolCall('desktop_type', { text: 'hello' })
   expect(d.risk).toBe('medium')
-  expect(d.requiresApproval).toBe(true)
+  expect(d.requiresApproval).toBe(false)
 })
 
 test('desktop_observe returns screenshot on success', async () => {

@@ -1,5 +1,5 @@
-const CONFIRM_WORDS = new Set(['确认', '可以', '同意', '继续'])
-const REJECT_WORDS = new Set(['取消', '拒绝', '不行', '不要'])
+const CONFIRM_WORDS = new Set(['确认', '可以', '同意', '继续', '可以的', '确认执行'])
+const REJECT_WORDS = new Set(['取消', '拒绝', '不行', '不要', '取消吧', '不要了'])
 const CONFIRMATION_TIMEOUT_MS = 5 * 60 * 1000
 
 function normalizeReply(text) {
@@ -56,7 +56,9 @@ function buildNoPendingMessage() {
 }
 
 function buildMissingSkillMessage(name, skills = []) {
-  const suggestions = skills.slice(0, 8).map((skill) => `/${skill.name} - ${skill.description}`).join('\n')
+  const suggestions = skills.slice(0, 8).map((skill) => (
+    skill.description ? `/${skill.name} - ${skill.description}` : `/${skill.name}`
+  )).join('\n')
   return suggestions
     ? `未安装或未启用技能: ${name}\n可用技能:\n${suggestions}`
     : `未安装或未启用技能: ${name}\n当前没有可用技能。`
