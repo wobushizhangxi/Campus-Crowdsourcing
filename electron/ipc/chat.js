@@ -5,6 +5,13 @@ const skillRegistry = require('../skills/registry')
 const userRules = require('../services/userRules')
 const { runTurn } = require('../services/agentLoop')
 const { requestConfirm } = require('../confirm')
+const {
+  CONFIRMATION_TIMEOUT_MS,
+  classifyConfirmationReply,
+  buildConfirmationPrompt,
+  buildPendingExplanation,
+  buildNoPendingMessage
+} = require('./chatConfirmation')
 
 const BASE_PROMPT = '你是 AionUi，一个桌面控制平面助手。请默认使用简体中文，回答要简洁、专业。所有用户输入都在同一个 Agent Loop 中处理：普通问题直接回答，需要本地、浏览器或桌面操作时再调用工具。除非 AionUi 已报告审批通过的执行结果，否则不要暗示本地动作已经运行。'
 const FULL_PROMPT = `${BASE_PROMPT}\n\n当前配置允许兼容工具进入候选集，但所有执行仍必须经过 AionUi 策略、确认、适配器和审计日志。`
@@ -27,30 +34,44 @@ const TOOL_CALL_RULES = `
 
 如果用户说”帮我打开X”或”点击X”，你不能回复”好的我来做”然后什么都不做。
 你必须调用对应工具。工具执行结果会返回给你，你再据此回复用户。`
-const pendingApprovals = new Map()
+const pendingConfirmations = new Map()
 const activeControllers = new Map()
 
-function approvalKey(convId, callId) {
-  return `${convId}:${callId}`
-}
-
-function resolvePendingApproval(convId, callId, approved) {
-  const key = approvalKey(convId, callId)
-  const pending = pendingApprovals.get(key)
+function clearPendingConfirmation(convId, reason = 'cleared') {
+  const pending = pendingConfirmations.get(convId)
   if (!pending) return false
-  pendingApprovals.delete(key)
-  pending(Boolean(approved))
+  clearTimeout(pending.timer)
+  pendingConfirmations.delete(convId)
+  pending.send?.('chat:confirmation-cleared', { reason })
+  pending.resolve(false)
   return true
 }
 
-function clearPendingApprovals(convId) {
-  const prefix = `${convId}:`
-  for (const [key, resolve] of pendingApprovals) {
-    if (key.startsWith(prefix)) {
-      resolve(false)
-      pendingApprovals.delete(key)
-    }
+function settlePendingConfirmation(convId, approved, reason) {
+  const pending = pendingConfirmations.get(convId)
+  if (!pending) return false
+  clearTimeout(pending.timer)
+  pendingConfirmations.delete(convId)
+  pending.send?.('chat:confirmation-cleared', { reason })
+  pending.resolve(Boolean(approved))
+  return true
+}
+
+async function handleConfirmationReply(evt, payload = {}) {
+  const { convId, message = '' } = payload
+  const pending = pendingConfirmations.get(convId)
+  if (!pending) return { ok: true, status: 'missing', assistantText: buildNoPendingMessage() }
+
+  const classification = classifyConfirmationReply(message)
+  if (classification === 'confirm') {
+    settlePendingConfirmation(convId, true, 'confirmed')
+    return { ok: true, status: 'confirmed' }
   }
+  if (classification === 'reject') {
+    settlePendingConfirmation(convId, false, 'rejected')
+    return { ok: true, status: 'rejected' }
+  }
+  return { ok: true, status: 'clarification', assistantText: buildPendingExplanation(pending) }
 }
 
 function buildSystemPrompt(config, deps) {
@@ -71,6 +92,9 @@ function buildSystemPrompt(config, deps) {
 async function handleChatSend(evt, payload = {}, deps) {
   const { convId, messages = [], model, pluginMode } = payload
   const send = (event, data = {}) => evt.sender.send(event, { convId, ...data })
+  if (payload.confirmationReply) {
+    return handleConfirmationReply(evt, payload)
+  }
   const config = deps.storeRef.getConfig()
   const ctl = new AbortController()
   activeControllers.set(convId, ctl)
@@ -117,14 +141,37 @@ async function handleChatSend(evt, payload = {}, deps) {
           send('chat:tool-start', { callId: data.call.id, name: data.call.name, args: data.call.args, needsApproval: true, decision: data.decision, ...(data.retry ? { retry: data.retry } : {}) })
         }
       },
-      requestApproval: async ({ call, decision }) => {
+      requestApproval: async ({ call, decision, retry }) => {
+        clearPendingConfirmation(convId, 'replaced')
+        const prompt = buildConfirmationPrompt({ call, decision, retry })
+        sendDelta(prompt)
+
         const approved = await new Promise((resolve) => {
-          pendingApprovals.set(approvalKey(convId, call.id), resolve)
+          const timer = setTimeout(() => {
+            if (pendingConfirmations.get(convId)?.call.id === call.id) {
+              pendingConfirmations.delete(convId)
+              send('chat:confirmation-cleared', { reason: 'timeout' })
+              sendDelta('\n确认等待超时，已取消该高风险操作。\n')
+              resolve(false)
+            }
+          }, CONFIRMATION_TIMEOUT_MS)
+
+          const pending = { call, decision, retry, resolve, timer, send }
+          pendingConfirmations.set(convId, pending)
+          send('chat:confirmation-request', {
+            pending: {
+              callId: call.id,
+              toolName: call.name,
+              args: call.args,
+              risk: decision.risk,
+              reason: decision.reason,
+              retry
+            }
+          })
         })
-        if (approved) {
-          send('chat:tool-start', { callId: call.id, name: call.name, args: call.args, needsApproval: false })
-        } else {
-          send('chat:tool-error', { callId: call.id, error: { code: 'USER_DENIED', message: '用户已拒绝执行。' } })
+
+        if (!approved) {
+          send('chat:tool-error', { callId: call.id, error: { code: 'USER_DENIED', message: 'User denied tool execution.' } })
         }
         return approved
       }
@@ -140,7 +187,7 @@ async function handleChatSend(evt, payload = {}, deps) {
     return { ok: true }
   } finally {
     activeControllers.delete(convId)
-    clearPendingApprovals(convId)
+    clearPendingConfirmation(convId, 'run-ended')
   }
 }
 
@@ -159,14 +206,11 @@ function createRegister(overrides = {}) {
   }
   return function register(ipcMain) {
     ipcMain.handle('chat:send', (evt, payload) => handleChatSend(evt, payload, deps))
-    ipcMain.handle('chat:approve-tool', async (_evt, payload = {}) => {
-      resolvePendingApproval(payload.convId, payload.callId, payload.approved)
-      return { ok: true }
-    })
+    ipcMain.handle('chat:approve-tool', async () => ({ ok: false, error: { code: 'DEPRECATED', message: 'Use chat confirmation replies.' } }))
     ipcMain.handle('chat:abort', async (_evt, payload = {}) => {
       const ctl = activeControllers.get(payload.convId)
       if (ctl) ctl.abort()
-      clearPendingApprovals(payload.convId)
+      clearPendingConfirmation(payload.convId, 'aborted')
       return { ok: true }
     })
   }

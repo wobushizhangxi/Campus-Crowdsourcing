@@ -65,16 +65,14 @@ test('chat:send forwards unified agent loop tool events', async () => {
   expect(send).toHaveBeenCalledWith('chat:done', { convId: 'conv-1' })
 })
 
-test('chat:send waits for inline tool approval over chat IPC', async () => {
+test('chat:send waits for high-risk confirmation through a natural chat reply', async () => {
   const ipcMain = createIpcMain()
   const send = vi.fn()
   const call = { id: 'call-approval', name: 'run_shell_command', args: { command: 'npm install' } }
-  const decision = { risk: 'high', reason: '安装命令需要明确确认。' }
-  const retry = { attempt: 2, previousError: { code: 'BROWSER_TASK_INCOMPLETE', message: 'summary_missing' } }
+  const decision = { risk: 'high', reason: 'installs packages' }
   let approvedValue
   const runTurn = vi.fn(async ({ onEvent, requestApproval }) => {
     onEvent('assistant_message', { content: '', toolCalls: [call] })
-    onEvent('approval_request', { call, decision, retry })
     approvedValue = await requestApproval({ call, decision })
     return { finalText: approvedValue ? 'approved' : 'denied', history: [] }
   })
@@ -82,24 +80,103 @@ test('chat:send waits for inline tool approval over chat IPC', async () => {
     storeRef: { getConfig: () => ({ permissionMode: 'default' }) },
     runTurn,
     userRules: { buildSystemPromptSection: () => '' },
-    skillRegistry: { listSkills: () => [], buildSkillIndex: () => '' }
+    skillRegistry: { listSkills: () => [], buildSkillIndex: () => '', findSkill: () => null }
   })
   register(ipcMain)
 
-  const pending = ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-1', messages: [{ role: 'user', content: 'install deps' }] })
+  const pending = ipcMain.handlers.get('chat:send')({ sender: { send } }, {
+    convId: 'conv-1',
+    messages: [{ role: 'user', content: 'install deps' }]
+  })
   await Promise.resolve()
 
-  expect(send).toHaveBeenCalledWith('chat:tool-start', { convId: 'conv-1', callId: call.id, name: call.name, args: call.args, needsApproval: true, decision, retry })
+  expect(send).toHaveBeenCalledWith('chat:confirmation-request', {
+    convId: 'conv-1',
+    pending: expect.objectContaining({
+      callId: call.id,
+      toolName: 'run_shell_command',
+      risk: 'high',
+      reason: 'installs packages'
+    })
+  })
+  expect(send).toHaveBeenCalledWith('chat:delta', {
+    convId: 'conv-1',
+    text: expect.stringContaining('需要确认高风险操作: run_shell_command')
+  })
   expect(approvedValue).toBeUndefined()
 
-  const approval = await ipcMain.handlers.get('chat:approve-tool')({}, { convId: 'conv-1', callId: call.id, approved: true })
-  expect(approval).toEqual({ ok: true })
-  await pending
+  const reply = await ipcMain.handlers.get('chat:send')({ sender: { send } }, {
+    convId: 'conv-1',
+    message: '可以',
+    confirmationReply: true
+  })
+  expect(reply).toEqual({ ok: true, status: 'confirmed' })
 
+  await pending
   expect(approvedValue).toBe(true)
-  expect(send).toHaveBeenCalledWith('chat:tool-start', { convId: 'conv-1', callId: call.id, name: call.name, args: call.args, needsApproval: false })
+  expect(send).toHaveBeenCalledWith('chat:confirmation-cleared', { convId: 'conv-1', reason: 'confirmed' })
   expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-1', text: 'approved' })
   expect(send).toHaveBeenCalledWith('chat:done', { convId: 'conv-1' })
+})
+
+test('chat confirmation rejection resolves the pending tool as denied', async () => {
+  const ipcMain = createIpcMain()
+  const send = vi.fn()
+  const call = { id: 'call-deny', name: 'delete_path', args: { path: 'C:/Users/g/Desktop/tmp.txt' } }
+  const decision = { risk: 'high', reason: 'deletes a file' }
+  let approvedValue
+  const runTurn = vi.fn(async ({ requestApproval }) => {
+    approvedValue = await requestApproval({ call, decision })
+    return { finalText: approvedValue ? 'approved' : 'denied', history: [] }
+  })
+  const register = createRegister({
+    storeRef: { getConfig: () => ({ permissionMode: 'default' }) },
+    runTurn,
+    userRules: { buildSystemPromptSection: () => '' },
+    skillRegistry: { listSkills: () => [], buildSkillIndex: () => '', findSkill: () => null }
+  })
+  register(ipcMain)
+
+  const pending = ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-2', messages: [{ role: 'user', content: 'delete tmp' }] })
+  await Promise.resolve()
+  const reply = await ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-2', message: '不要', confirmationReply: true })
+
+  expect(reply).toEqual({ ok: true, status: 'rejected' })
+  await pending
+  expect(approvedValue).toBe(false)
+  expect(send).toHaveBeenCalledWith('chat:confirmation-cleared', { convId: 'conv-2', reason: 'rejected' })
+})
+
+test('chat confirmation clarification leaves the operation pending', async () => {
+  const ipcMain = createIpcMain()
+  const send = vi.fn()
+  const call = { id: 'call-question', name: 'delete_path', args: { path: 'C:/Users/g/Desktop/tmp.txt' } }
+  const decision = { risk: 'high', reason: 'deletes a file' }
+  let approvedValue
+  const runTurn = vi.fn(async ({ requestApproval }) => {
+    approvedValue = await requestApproval({ call, decision })
+    return { finalText: approvedValue ? 'approved' : 'denied', history: [] }
+  })
+  const register = createRegister({
+    storeRef: { getConfig: () => ({ permissionMode: 'default' }) },
+    runTurn,
+    userRules: { buildSystemPromptSection: () => '' },
+    skillRegistry: { listSkills: () => [], buildSkillIndex: () => '', findSkill: () => null }
+  })
+  register(ipcMain)
+
+  const pending = ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-3', messages: [{ role: 'user', content: 'delete tmp' }] })
+  await Promise.resolve()
+  const reply = await ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-3', message: '这会删除哪个文件？', confirmationReply: true })
+
+  expect(reply.ok).toBe(true)
+  expect(reply.status).toBe('clarification')
+  expect(reply.assistantText).toContain('delete_path')
+  expect(approvedValue).toBeUndefined()
+
+  await ipcMain.handlers.get('chat:send')({ sender: { send } }, { convId: 'conv-3', message: '取消', confirmationReply: true })
+  await pending
+  expect(approvedValue).toBe(false)
 })
 
 test('buildSystemPrompt includes rules and skill index only in full mode', () => {
