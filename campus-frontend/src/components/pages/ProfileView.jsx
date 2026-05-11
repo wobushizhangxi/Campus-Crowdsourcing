@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Camera, ChevronRight, LoaderCircle, RefreshCw, ShieldCheck, Trash2, Upload, Wallet, X } from 'lucide-react';
-import { createCroppedAvatarDataUrl, isSupportedAvatarDataUrl, readFileAsDataUrl } from '../../utils/avatarUtils';
+import { isSupportedAvatarFile } from '../../utils/avatarUtils';
 import { formatRating, getVerificationMeta } from '../../utils/formatters';
 
 export default function ProfileView({
@@ -39,52 +39,39 @@ export default function ProfileView({
     note: currentUser.verificationNote || '',
   });
 
-  const [avatarEditor, setAvatarEditor] = useState({
-    sourceDataUrl: '',
-    zoom: 1,
-    isUploading: false,
-    error: '',
-  });
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState('');
+  const [isAvatarUploading, setIsAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
 
-  const handleAvatarFileChange = async (event) => {
+  const handleAvatarFileChange = (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file) {
+    if (!file) return;
+
+    if (!isSupportedAvatarFile(file)) {
+      setAvatarError('请选择 PNG、JPG 或 WebP 图片（不超过 5MB）。');
       return;
     }
 
-    try {
-      const sourceDataUrl = await readFileAsDataUrl(file);
-      if (!isSupportedAvatarDataUrl(sourceDataUrl)) {
-        throw new Error('请选择 PNG、JPG 或 WebP 图片。');
-      }
-      setAvatarEditor({ sourceDataUrl, zoom: 1, isUploading: false, error: '' });
-    } catch (error) {
-      setAvatarEditor((prev) => ({
-        ...prev,
-        sourceDataUrl: '',
-        isUploading: false,
-        error: error.message || '头像读取失败。',
-      }));
-    }
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+    setAvatarError('');
   };
 
   const handleSaveAvatar = async () => {
-    if (!avatarEditor.sourceDataUrl || !onSaveAvatar) {
-      return;
-    }
-
+    if (!avatarFile || !onSaveAvatar) return;
     try {
-      setAvatarEditor((prev) => ({ ...prev, isUploading: true, error: '' }));
-      const avatarDataUrl = await createCroppedAvatarDataUrl(avatarEditor.sourceDataUrl, avatarEditor.zoom);
-      await onSaveAvatar(avatarDataUrl);
-      setAvatarEditor({ sourceDataUrl: '', zoom: 1, isUploading: false, error: '' });
+      setIsAvatarUploading(true);
+      setAvatarError('');
+      await onSaveAvatar(avatarFile);
+      URL.revokeObjectURL(avatarPreview);
+      setAvatarFile(null);
+      setAvatarPreview('');
     } catch (error) {
-      setAvatarEditor((prev) => ({
-        ...prev,
-        isUploading: false,
-        error: error.message || '头像保存失败。',
-      }));
+      setAvatarError(error.message || '头像上传失败。');
+    } finally {
+      setIsAvatarUploading(false);
     }
   };
 
@@ -123,12 +110,11 @@ export default function ProfileView({
           <div className="mt-5 rounded-2xl bg-white/10 p-4">
             <div className="flex items-center gap-4">
               <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/15">
-                {avatarEditor.sourceDataUrl || currentUser.avatarUrl ? (
+                {avatarPreview || currentUser.avatarUrl ? (
                   <img
-                    src={avatarEditor.sourceDataUrl || currentUser.avatarUrl}
+                    src={avatarPreview || currentUser.avatarUrl}
                     alt=""
                     className="h-full w-full object-cover"
-                    style={avatarEditor.sourceDataUrl ? { transform: `scale(${avatarEditor.zoom})` } : undefined}
                   />
                 ) : (
                   <Camera size={28} className="text-cyan-100" />
@@ -136,28 +122,28 @@ export default function ProfileView({
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-white">头像</p>
-                <p className="mt-1 text-xs text-slate-300">上传图片后可缩放裁剪，保存后同步到全局账户信息。</p>
-                {avatarEditor.error ? <p className="mt-2 text-xs text-rose-200">{avatarEditor.error}</p> : null}
+                <p className="mt-1 text-xs text-slate-300">上传后自动压缩为 256×256 JPEG。</p>
+                {avatarError ? <p className="mt-2 text-xs text-rose-200">{avatarError}</p> : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15">
                     <Upload size={14} />
                     选择图片
                     <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleAvatarFileChange} />
                   </label>
-                  {avatarEditor.sourceDataUrl ? (
+                  {avatarFile ? (
                     <>
                       <button
                         type="button"
                         onClick={handleSaveAvatar}
-                        disabled={avatarEditor.isUploading}
+                        disabled={isAvatarUploading}
                         className="inline-flex items-center gap-2 rounded-full bg-cyan-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:bg-cyan-500/60"
                       >
-                        {avatarEditor.isUploading ? <LoaderCircle size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                        {isAvatarUploading ? <LoaderCircle size={14} className="animate-spin" /> : <Upload size={14} />}
                         保存头像
                       </button>
                       <button
                         type="button"
-                        onClick={() => setAvatarEditor({ sourceDataUrl: '', zoom: 1, isUploading: false, error: '' })}
+                        onClick={() => { setAvatarFile(null); setAvatarPreview(''); }}
                         className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
                       >
                         <X size={14} />
@@ -168,22 +154,6 @@ export default function ProfileView({
                 </div>
               </div>
             </div>
-            {avatarEditor.sourceDataUrl ? (
-              <label className="mt-4 block text-xs text-slate-200">
-                缩放
-                <input
-                  type="range"
-                  min="1"
-                  max="3"
-                  step="0.05"
-                  value={avatarEditor.zoom}
-                  onChange={(event) =>
-                    setAvatarEditor((prev) => ({ ...prev, zoom: Number(event.target.value) }))
-                  }
-                  className="mt-2 w-full accent-cyan-300"
-                />
-              </label>
-            ) : null}
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3">

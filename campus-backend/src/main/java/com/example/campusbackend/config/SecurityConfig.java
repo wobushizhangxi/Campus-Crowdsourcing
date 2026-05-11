@@ -72,4 +72,17 @@ public class SecurityConfig {
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
+
+    @Bean
+    org.springframework.web.servlet.config.annotation.WebMvcConfigurer avatarResourceConfigurer() {
+        return new org.springframework.web.servlet.config.annotation.WebMvcConfigurer() {
+            @Override
+            public void addResourceHandlers(
+                    org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry registry
+            ) {
+                registry.addResourceHandler("/avatars/**")
+                        .addResourceLocations("file:./avatars/");
+            }
+        };
+    }
 }

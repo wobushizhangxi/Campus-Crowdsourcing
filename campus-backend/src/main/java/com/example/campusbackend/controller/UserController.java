@@ -25,10 +25,21 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -211,6 +222,59 @@ public class UserController {
         actor.setAvatarUrl(avatarDataUrl);
         User savedUser = userRepository.save(actor);
         return buildResponse(HttpStatus.OK, "头像已更新", buildUserData(savedUser));
+    }
+
+    @PostMapping("/avatar/upload")
+    public ResponseEntity<Map<String, Object>> uploadAvatar(
+            Authentication authentication,
+            @RequestParam("file") MultipartFile file
+    ) {
+        User actor = currentUserService.requireCurrentUser(authentication);
+        if (actor.isBanned()) {
+            return buildResponse(HttpStatus.FORBIDDEN, "账号已被封禁", null);
+        }
+
+        if (file == null || file.isEmpty()) {
+            return buildResponse(HttpStatus.BAD_REQUEST, "请选择头像文件", null);
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || (!contentType.startsWith("image/"))) {
+            return buildResponse(HttpStatus.BAD_REQUEST, "仅支持图片格式", null);
+        }
+
+        try {
+            Path avatarsDir = Paths.get("avatars");
+            Files.createDirectories(avatarsDir);
+
+            // Resize to 256x256 JPEG using Thumbnailator
+            BufferedImage original = ImageIO.read(new ByteArrayInputStream(file.getBytes()));
+            if (original == null) {
+                return buildResponse(HttpStatus.BAD_REQUEST, "无法解析图片", null);
+            }
+
+            BufferedImage resized = net.coobird.thumbnailator.Thumbnails.of(original)
+                    .size(256, 256)
+                    .outputFormat("JPEG")
+                    .outputQuality(0.85)
+                    .asBufferedImage();
+
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            ImageIO.write(resized, "JPEG", output);
+            byte[] resizedBytes = output.toByteArray();
+
+            String filename = actor.getUsername() + ".jpg";
+            Path filePath = avatarsDir.resolve(filename);
+            Files.copy(new ByteArrayInputStream(resizedBytes), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+            String avatarUrl = "/avatars/" + filename;
+            actor.setAvatarUrl(avatarUrl);
+            User savedUser = userRepository.save(actor);
+
+            return buildResponse(HttpStatus.OK, "头像上传成功", buildUserData(savedUser));
+        } catch (IOException e) {
+            return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "头像处理失败", null);
+        }
     }
 
     @DeleteMapping("/me")

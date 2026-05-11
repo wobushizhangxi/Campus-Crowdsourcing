@@ -5,6 +5,7 @@ import com.example.campusbackend.dto.PermissionUpdateRequest;
 import com.example.campusbackend.dto.TaskActionRequest;
 import com.example.campusbackend.dto.VerificationRequest;
 import com.example.campusbackend.entity.BalanceRecord;
+import com.example.campusbackend.entity.Report;
 import com.example.campusbackend.entity.Task;
 import com.example.campusbackend.entity.User;
 import com.example.campusbackend.entity.UserRole;
@@ -12,6 +13,7 @@ import com.example.campusbackend.entity.VerificationStatus;
 import com.example.campusbackend.repository.BalanceRecordRepository;
 import com.example.campusbackend.repository.TaskRepository;
 import com.example.campusbackend.repository.MessageRepository;
+import com.example.campusbackend.repository.ReportRepository;
 import com.example.campusbackend.repository.TaskReviewRepository;
 import com.example.campusbackend.repository.UserRepository;
 import com.example.campusbackend.service.AdminPermissionService;
@@ -49,6 +51,7 @@ public class AdminController {
     private final TaskRepository taskRepository;
     private final TaskReviewRepository taskReviewRepository;
     private final MessageRepository messageRepository;
+    private final ReportRepository reportRepository;
     private final CurrentUserService currentUserService;
     private final AdminPermissionService adminPermissionService;
     private final TaskLifecycleService taskLifecycleService;
@@ -60,6 +63,7 @@ public class AdminController {
             TaskRepository taskRepository,
             TaskReviewRepository taskReviewRepository,
             MessageRepository messageRepository,
+            ReportRepository reportRepository,
             CurrentUserService currentUserService,
             AdminPermissionService adminPermissionService,
             TaskLifecycleService taskLifecycleService,
@@ -70,6 +74,7 @@ public class AdminController {
         this.taskRepository = taskRepository;
         this.taskReviewRepository = taskReviewRepository;
         this.messageRepository = messageRepository;
+        this.reportRepository = reportRepository;
         this.currentUserService = currentUserService;
         this.adminPermissionService = adminPermissionService;
         this.taskLifecycleService = taskLifecycleService;
@@ -273,6 +278,69 @@ public class AdminController {
         taskRepository.delete(task);
 
         return buildResponse(HttpStatus.OK, "帖子已删除", Map.of("id", id));
+    }
+
+    @GetMapping("/reports")
+    public ResponseEntity<Map<String, Object>> listReports(Authentication authentication) {
+        requireAdminAccessActor(authentication);
+        List<Map<String, Object>> reports = reportRepository.findByStatusOrderByCreatedAtAsc("pending")
+                .stream()
+                .map(report -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    Task task = taskRepository.findById(report.getTaskId()).orElse(null);
+                    item.put("id", report.getId());
+                    item.put("taskId", report.getTaskId());
+                    item.put("taskTitle", task == null ? "已删除" : task.getTitle());
+                    item.put("reporterUsername", report.getReporterUsername());
+                    item.put("reason", report.getReason());
+                    item.put("status", report.getStatus());
+                    item.put("createdAt", report.getCreatedAt());
+                    return item;
+                })
+                .toList();
+        return buildResponse(HttpStatus.OK, "成功", reports);
+    }
+
+    @PostMapping("/reports/{id}/resolve")
+    @Transactional
+    public ResponseEntity<Map<String, Object>> resolveReport(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> request,
+            Authentication authentication
+    ) {
+        User actor = requireAdminAccessActor(authentication);
+        Report report = reportRepository.findById(id).orElse(null);
+        if (report == null) {
+            return buildResponse(HttpStatus.NOT_FOUND, "举报不存在", null);
+        }
+        if (!"pending".equals(report.getStatus())) {
+            return buildResponse(HttpStatus.CONFLICT, "举报已处理", null);
+        }
+
+        String action = request.get("action") == null ? "" : request.get("action").toString().trim();
+        String note = request.get("note") == null ? "" : request.get("note").toString().trim();
+
+        if (!action.equals("remove") && !action.equals("ignore")) {
+            return buildResponse(HttpStatus.BAD_REQUEST, "操作无效", null);
+        }
+
+        if ("remove".equals(action)) {
+            Task task = taskRepository.findById(report.getTaskId()).orElse(null);
+            if (task != null) {
+                task.setStatus("removed");
+                taskRepository.save(task);
+            }
+            report.setStatus("resolved_removed");
+        } else {
+            report.setStatus("resolved_ignored");
+        }
+
+        report.setAdminNote(note);
+        report.setReviewedBy(actor.getUsername());
+        report.setReviewedAt(LocalDateTime.now());
+        reportRepository.save(report);
+
+        return buildResponse(HttpStatus.OK, "举报已处理", Map.of("id", id, "action", action));
     }
 
     @GetMapping("/verifications")

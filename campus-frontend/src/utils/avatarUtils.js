@@ -25,6 +25,11 @@ export const getCenteredAvatarCrop = (width, height, zoom = minAvatarZoom) => {
   };
 };
 
+const SUPPORTED_AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+
+export const isSupportedAvatarFile = (file) =>
+  file != null && file.size > 0 && file.size <= 5 * 1024 * 1024 && SUPPORTED_AVATAR_TYPES.includes(file.type);
+
 export const isSupportedAvatarDataUrl = (dataUrl) =>
   typeof dataUrl === 'string' &&
   /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=\r\n]+$/.test(dataUrl.trim()) &&

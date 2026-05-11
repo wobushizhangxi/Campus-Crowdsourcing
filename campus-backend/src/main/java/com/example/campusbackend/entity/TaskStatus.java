@@ -6,7 +6,8 @@ public enum TaskStatus {
     SUBMITTED("submitted"),
     COMPLETED("completed"),
     CANCELLED("cancelled"),
-    DISPUTED("disputed");
+    DISPUTED("disputed"),
+    REMOVED("removed");
 
     private final String storedValue;
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, CheckCircle, ClipboardList, Heart, MapPin, Search, ShieldCheck, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle, ClipboardList, Flag, Heart, MapPin, Search, ShieldCheck, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { filterAndSortOpenTasks, getTaskCategories } from '../../utils/taskFilters';
 import { getVerificationMeta } from '../../utils/formatters';
 
@@ -32,6 +32,7 @@ export default function HomeView({
   handleAcceptTask,
   handleToggleFavoriteTask,
   onAdminDeleteTask,
+  onReportTask,
   selectedTask,
   setSelectedTask,
   taskError,
@@ -337,6 +338,16 @@ export default function HomeView({
                           <Trash2 size={14} />
                         </button>
                       ) : null}
+                      {!isAdmin && currentUser?.studentId !== task.authorUsername ? (
+                        <button
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); onReportTask?.(task.id); }}
+                          className="rounded-full bg-amber-100 p-1.5 text-amber-600 transition hover:bg-amber-200"
+                          title="举报"
+                        >
+                          <Flag size={14} />
+                        </button>
+                      ) : null}
                       <span>任务 #{task.id}</span>
                     </div>
                   </div>
@@ -454,6 +465,16 @@ export default function HomeView({
                             title="删除帖子"
                           >
                             <Trash2 size={14} />
+                          </button>
+                        ) : null}
+                        {!isAdmin && currentUser?.studentId !== task.authorUsername ? (
+                          <button
+                            type="button"
+                            onClick={(event) => { event.stopPropagation(); onReportTask?.(task.id); }}
+                            className="rounded-full bg-amber-100 p-1.5 text-amber-600 transition hover:bg-amber-200"
+                            title="举报"
+                          >
+                            <Flag size={14} />
                           </button>
                         ) : null}
                         <span>任务 #{task.id}</span>

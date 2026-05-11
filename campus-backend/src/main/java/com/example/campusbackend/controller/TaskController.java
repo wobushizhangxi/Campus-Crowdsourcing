@@ -12,6 +12,7 @@ import com.example.campusbackend.repository.BalanceRecordRepository;
 import com.example.campusbackend.repository.TaskRepository;
 import com.example.campusbackend.repository.TaskReviewRepository;
 import com.example.campusbackend.repository.UserRepository;
+import com.example.campusbackend.service.AdminPermissionService;
 import com.example.campusbackend.service.CurrentUserService;
 import com.example.campusbackend.service.TaskAuthorizationService;
 import com.example.campusbackend.service.TaskLifecycleService;
@@ -62,12 +63,19 @@ public class TaskController {
     @Autowired
     private TaskReviewRepository taskReviewRepository;
 
+    @Autowired
+    private AdminPermissionService adminPermissionService;
+
     @GetMapping
     public List<Map<String, Object>> getAllTasks(Authentication authentication) {
         User actor = currentUserService.requireCurrentUser(authentication);
         Map<String, User> usersByUsername = userRepository.findAll().stream()
                 .collect(Collectors.toMap(User::getUsername, user -> user, (first, second) -> first));
+        boolean isAdmin = adminPermissionService.canAccessAdminPanel(actor);
         return taskRepository.findAll().stream()
+                .filter(task -> isAdmin
+                        || !"removed".equals(task.getStatus())
+                        || actor.getUsername().equals(task.getAuthorUsername()))
                 .map(task -> buildTaskData(task, usersByUsername, actor))
                 .toList();
     }
