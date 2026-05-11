@@ -11,6 +11,7 @@ import com.example.campusbackend.entity.UserRole;
 import com.example.campusbackend.entity.VerificationStatus;
 import com.example.campusbackend.repository.BalanceRecordRepository;
 import com.example.campusbackend.repository.TaskRepository;
+import com.example.campusbackend.repository.MessageRepository;
 import com.example.campusbackend.repository.TaskReviewRepository;
 import com.example.campusbackend.repository.UserRepository;
 import com.example.campusbackend.service.AdminPermissionService;
@@ -47,6 +48,7 @@ public class AdminController {
     private final BalanceRecordRepository balanceRecordRepository;
     private final TaskRepository taskRepository;
     private final TaskReviewRepository taskReviewRepository;
+    private final MessageRepository messageRepository;
     private final CurrentUserService currentUserService;
     private final AdminPermissionService adminPermissionService;
     private final TaskLifecycleService taskLifecycleService;
@@ -57,6 +59,7 @@ public class AdminController {
             BalanceRecordRepository balanceRecordRepository,
             TaskRepository taskRepository,
             TaskReviewRepository taskReviewRepository,
+            MessageRepository messageRepository,
             CurrentUserService currentUserService,
             AdminPermissionService adminPermissionService,
             TaskLifecycleService taskLifecycleService,
@@ -66,6 +69,7 @@ public class AdminController {
         this.balanceRecordRepository = balanceRecordRepository;
         this.taskRepository = taskRepository;
         this.taskReviewRepository = taskReviewRepository;
+        this.messageRepository = messageRepository;
         this.currentUserService = currentUserService;
         this.adminPermissionService = adminPermissionService;
         this.taskLifecycleService = taskLifecycleService;
@@ -252,6 +256,23 @@ public class AdminController {
                     null
             );
         }
+    }
+
+    @DeleteMapping("/tasks/{id}")
+    @Transactional
+    public ResponseEntity<Map<String, Object>> deleteTask(@PathVariable Long id, Authentication authentication) {
+        requireAdminAccessActor(authentication);
+        Task task = taskRepository.findById(id).orElse(null);
+        if (task == null) {
+            return buildResponse(HttpStatus.NOT_FOUND, "帖子不存在", null);
+        }
+
+        taskReviewRepository.deleteByTaskId(id);
+        messageRepository.deleteByTaskId(id);
+        balanceRecordRepository.clearRelatedTaskId(id);
+        taskRepository.delete(task);
+
+        return buildResponse(HttpStatus.OK, "帖子已删除", Map.of("id", id));
     }
 
     @GetMapping("/verifications")

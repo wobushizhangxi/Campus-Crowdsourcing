@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, CheckCircle, ClipboardList, Heart, MapPin, Search, ShieldCheck, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, CheckCircle, ClipboardList, Heart, MapPin, Search, ShieldCheck, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { filterAndSortOpenTasks, getTaskCategories } from '../../utils/taskFilters';
 import { getVerificationMeta } from '../../utils/formatters';
 
@@ -31,6 +31,7 @@ export default function HomeView({
   formatRmb,
   handleAcceptTask,
   handleToggleFavoriteTask,
+  onAdminDeleteTask,
   selectedTask,
   setSelectedTask,
   taskError,
@@ -55,6 +56,7 @@ export default function HomeView({
   const desktopSelectedTask = currentSelectedTask;
   const hasAnyOpenTasks = totalOpenTasks.length > 0;
   const isTaskFavorited = (taskId) => favoriteTaskIdSet.has(Number(taskId));
+  const isAdmin = currentUser?.role === 'ADMIN';
   const hasActiveFilters = Boolean(searchKeyword.trim()) || effectiveSelectedCategory !== '全部';
 
   useEffect(() => {
@@ -324,7 +326,19 @@ export default function HomeView({
                       <span className="truncate">发布者：{task.author || '匿名用户'}</span>
                       {renderVerificationBadge(task.authorVerificationStatus)}
                     </span>
-                    <span>任务 #{task.id}</span>
+                    <div className="flex items-center gap-2">
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); onAdminDeleteTask?.(task.id); }}
+                          className="rounded-full bg-rose-100 p-1.5 text-rose-600 transition hover:bg-rose-200"
+                          title="删除帖子"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      ) : null}
+                      <span>任务 #{task.id}</span>
+                    </div>
                   </div>
                 </article>
               ))
@@ -431,7 +445,19 @@ export default function HomeView({
                         <span className="truncate">发布者：{task.author || '匿名用户'}</span>
                         {renderVerificationBadge(task.authorVerificationStatus)}
                       </span>
-                      <span>任务 #{task.id}</span>
+                      <div className="flex items-center gap-2">
+                        {isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={(event) => { event.stopPropagation(); onAdminDeleteTask?.(task.id); }}
+                            className="rounded-full bg-rose-100 p-1.5 text-rose-600 transition hover:bg-rose-200"
+                            title="删除帖子"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        ) : null}
+                        <span>任务 #{task.id}</span>
+                      </div>
                     </div>
                   </article>
                 );

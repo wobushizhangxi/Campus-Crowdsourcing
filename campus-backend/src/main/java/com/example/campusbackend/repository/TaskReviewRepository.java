@@ -38,4 +38,8 @@ public interface TaskReviewRepository extends JpaRepository<TaskReview, Long> {
             where r.revieweeUsername = :username
             """)
     int anonymizeReviewee(@Param("username") String username, @Param("placeholder") String placeholder);
+
+    @Modifying
+    @Query("delete from TaskReview r where r.taskId = :taskId")
+    int deleteByTaskId(@Param("taskId") Long taskId);
 }

@@ -20,4 +20,8 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
             where m.senderUsername = :username
             """)
     int anonymizeSender(@Param("username") String username, @Param("placeholder") String placeholder);
+
+    @Modifying
+    @Query("delete from Message m where m.taskId = :taskId")
+    int deleteByTaskId(@Param("taskId") Long taskId);
 }

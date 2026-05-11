@@ -160,6 +160,7 @@ export default function App() {
     refreshWorkspaceState,
     setLastSyncAt,
     setTasks,
+    setTaskError,
     taskError,
     taskCategories,
     tasks,
@@ -939,6 +940,18 @@ export default function App() {
     }
   };
 
+  const handleAdminDeleteTask = async (taskId) => {
+    if (!window.confirm('确定永久删除该帖子吗？此操作不可撤销。')) {
+      return;
+    }
+    try {
+      await apiDelete(`/api/admin/tasks/${taskId}`);
+      await refreshWorkspaceState({ includeWallet: false, silent: true });
+    } catch (error) {
+      setTaskError(withAuthHandling(error, '删除帖子失败。'));
+    }
+  };
+
   const handleSubmitVerification = async ({ campus, studentId, note }) => {
     if (!campus.trim() || !studentId.trim()) {
       setProfileMessage('校区和学号不能为空。');
@@ -1069,6 +1082,7 @@ export default function App() {
           formatRmb={formatRmb}
           handleAcceptTask={handleAcceptTask}
           handleToggleFavoriteTask={handleToggleFavoriteTask}
+          onAdminDeleteTask={handleAdminDeleteTask}
           selectedTask={selectedTask}
           setSelectedTask={setSelectedTask}
           taskError={taskError}

@@ -22,4 +22,8 @@ public interface BalanceRecordRepository extends JpaRepository<BalanceRecord, Lo
             where b.username = :username
             """)
     int anonymizeUsername(@Param("username") String username, @Param("placeholder") String placeholder);
+
+    @Modifying
+    @Query("update BalanceRecord b set b.relatedTaskId = null where b.relatedTaskId = :taskId")
+    int clearRelatedTaskId(@Param("taskId") Long taskId);
 }
