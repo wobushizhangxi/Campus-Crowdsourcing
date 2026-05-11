@@ -24,17 +24,29 @@ function defaultHeadless() {
 }
 
 async function execute(action, context = {}) {
+  let abortListener = null
   try {
     const payload = action.payload || action
     const { goal, max_steps = 15, start_url } = payload
     const headless = typeof payload.headless === 'boolean' ? payload.headless : defaultHeadless()
     const keep_alive = typeof payload.keep_alive === 'boolean' ? payload.keep_alive : !headless
+    const signal = context.signal
+
+    if (signal?.aborted) {
+      await cancel()
+      return { ok: false, error: { code: 'ABORTED', message: '操作已取消' } }
+    }
+
+    if (signal) {
+      abortListener = () => { void cancel() }
+      signal.addEventListener('abort', abortListener, { once: true })
+    }
 
     const resp = await fetch(`${endpoint()}/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ goal, max_steps, start_url, headless, keep_alive }),
-      signal: context.signal,
+      signal,
     })
 
     if (!resp.ok) {
@@ -53,7 +65,12 @@ async function execute(action, context = {}) {
 
     return { ok: false, error: { code: 'NO_RESULT', message: 'browser-use 未返回结果事件。' } }
   } catch (err) {
+    if (err.name === 'AbortError') {
+      return { ok: false, error: { code: 'ABORTED', message: '操作已取消' } }
+    }
     return { ok: false, error: { code: 'BRIDGE_UNREACHABLE', message: `browser-use bridge 不可达: ${err.message}` } }
+  } finally {
+    if (context.signal && abortListener) context.signal.removeEventListener('abort', abortListener)
   }
 }
 

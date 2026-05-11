@@ -333,3 +333,49 @@ def test_run_task_marks_blank_browser_result_incomplete(monkeypatch):
     assert result.summary == "browser-use did not return a usable page result."
     assert result.final_url == "about:blank"
     assert result.error == "BROWSER_TASK_INCOMPLETE: summary_missing, final_url_about_blank"
+
+
+def test_run_task_stops_when_visible_browser_window_closes(monkeypatch):
+    import browser_agent
+
+    class DisconnectingBrowser(FakeBrowser):
+        def __init__(self, headless=True, keep_alive=None):
+            super().__init__(headless=headless, keep_alive=keep_alive)
+            self.polls = 0
+
+        @property
+        def is_cdp_connected(self):
+            self.polls += 1
+            return self.polls == 1
+
+    class HangingAgent:
+        cancelled = False
+
+        def __init__(self, **kwargs):
+            pass
+
+        async def run(self, max_steps):
+            try:
+                await asyncio.sleep(10)
+            except asyncio.CancelledError:
+                HangingAgent.cancelled = True
+                raise
+
+    reset_fake_browser()
+    monkeypatch.setattr(browser_agent, "Browser", DisconnectingBrowser)
+    monkeypatch.setattr(browser_agent, "Agent", HangingAgent)
+    monkeypatch.setattr(BrowserAgentPool, "_build_llm", lambda self: object())
+
+    pool = BrowserAgentPool()
+    pool._browser_disconnect_poll_seconds = 0.01
+
+    result = asyncio.run(pool.run_task(BrowserTask(
+        goal="Open https://example.com and keep checking the page.",
+        headless=False,
+    )))
+
+    assert result.success is False
+    assert result.summary == "浏览器窗口已关闭，任务已停止。"
+    assert result.error == "BROWSER_CLOSED"
+    assert HangingAgent.cancelled is True
+    assert pool.browser_alive() is False

@@ -141,3 +141,24 @@ test('execute lets explicit keep_alive override visible-browser default', async 
   expect(requestBody.headless).toBe(false)
   expect(requestBody.keep_alive).toBe(false)
 })
+
+test('execute requests bridge cancellation when abort signal fires', async () => {
+  const controller = new AbortController()
+  fetch
+    .mockImplementationOnce((_url, options) => new Promise((_resolve, reject) => {
+      options.signal.addEventListener('abort', () => {
+        reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+      })
+    }))
+    .mockResolvedValueOnce({ ok: true })
+
+  const pending = execute({ goal: 'Keep browsing until cancelled.' }, { signal: controller.signal })
+  controller.abort()
+
+  const result = await pending
+
+  expect(fetch.mock.calls[1][0]).toBe('http://127.0.0.1:8780/cancel')
+  expect(fetch.mock.calls[1][1]).toEqual({ method: 'POST' })
+  expect(result.ok).toBe(false)
+  expect(result.error.code).toBe('ABORTED')
+})

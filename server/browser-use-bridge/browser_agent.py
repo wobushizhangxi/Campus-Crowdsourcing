@@ -85,6 +85,7 @@ class BrowserAgentPool:
         self._browser: Optional[Browser] = None
         self._browser_headless: Optional[bool] = None
         self._browser_keep_alive: Optional[bool] = None
+        self._browser_disconnect_poll_seconds = 0.25
 
     def _build_llm(self):
         endpoint = os.environ.get("BROWSER_USE_MODEL_ENDPOINT", DEFAULT_BROWSER_USE_ENDPOINT)
@@ -111,6 +112,44 @@ class BrowserAgentPool:
     def _initial_actions_for_task(self, task: BrowserTask):
         start_url = task.start_url or extract_single_start_url(task.goal)
         return [{"navigate": {"url": start_url or "about:blank", "new_tab": True}}]
+
+    def _browser_connected_state(self, browser) -> Optional[bool]:
+        try:
+            connected = getattr(browser, "is_cdp_connected", None)
+            if callable(connected):
+                connected = connected()
+            return connected if isinstance(connected, bool) else None
+        except Exception:
+            return False
+
+    async def _wait_for_browser_disconnect(self, browser) -> bool:
+        saw_connected = False
+        while self._browser is browser:
+            connected = self._browser_connected_state(browser)
+            if connected is True:
+                saw_connected = True
+            elif connected is False and saw_connected:
+                return True
+            await asyncio.sleep(self._browser_disconnect_poll_seconds)
+        return False
+
+    def _forget_browser(self, browser):
+        if self._browser is not browser:
+            return
+        self._browser = None
+        self._browser_headless = None
+        self._browser_keep_alive = None
+
+    def _looks_like_browser_closed_error(self, exc: Exception) -> bool:
+        text = f"{type(exc).__name__}: {exc}".lower()
+        markers = (
+            "browser has been closed",
+            "target page, context or browser has been closed",
+            "connection closed",
+            "websocket",
+            "cdp",
+        )
+        return any(marker in text for marker in markers)
 
     async def _close_browser(self):
         if not self._browser:
@@ -187,7 +226,46 @@ class BrowserAgentPool:
                 directly_open_url=False,
             )
 
-            result = await agent.run(max_steps=task.max_steps)
+            agent_task = asyncio.create_task(agent.run(max_steps=task.max_steps))
+            disconnect_task = asyncio.create_task(self._wait_for_browser_disconnect(browser))
+            try:
+                done, _pending = await asyncio.wait(
+                    {agent_task, disconnect_task},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+
+                if disconnect_task in done and disconnect_task.result():
+                    agent_task.cancel()
+                    try:
+                        await agent_task
+                    except asyncio.CancelledError:
+                        pass
+                    self._forget_browser(browser)
+                    return BrowserResult(
+                        success=False,
+                        summary="浏览器窗口已关闭，任务已停止。",
+                        error="BROWSER_CLOSED",
+                        duration_ms=int((time.time() - started) * 1000),
+                    )
+
+                try:
+                    result = await agent_task
+                except Exception as exc:
+                    if self._looks_like_browser_closed_error(exc) or self._browser_connected_state(browser) is False:
+                        self._forget_browser(browser)
+                        return BrowserResult(
+                            success=False,
+                            summary="浏览器窗口已关闭，任务已停止。",
+                            error="BROWSER_CLOSED",
+                            duration_ms=int((time.time() - started) * 1000),
+                        )
+                    raise
+            finally:
+                disconnect_task.cancel()
+                try:
+                    await disconnect_task
+                except asyncio.CancelledError:
+                    pass
 
             return self._normalize_run_result(result, task)
 
