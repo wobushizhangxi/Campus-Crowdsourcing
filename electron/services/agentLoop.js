@@ -80,6 +80,25 @@ function createForcedToolCall(forceTool, messages = []) {
   }
 }
 
+function createForcedSkillCall(forcedSkill) {
+  if (!forcedSkill) return null
+  const args = { name: forcedSkill }
+  const id = `forced-skill-${forcedSkill}-${Date.now()}`
+  return {
+    id,
+    name: 'load_skill',
+    args,
+    raw: {
+      id,
+      type: 'function',
+      function: {
+        name: 'load_skill',
+        arguments: JSON.stringify(args)
+      }
+    }
+  }
+}
+
 function summarizeToolResult(result, failure) {
   if (failure) return `${failure.code}: ${failure.message}`
   if (typeof result === 'string') return result.slice(0, 180)
@@ -88,7 +107,7 @@ function summarizeToolResult(result, failure) {
   return '工具已返回结果。'
 }
 
-async function runTurn({ messages, model, signal, onEvent, onStreamEvent, requestApproval, forceTool }, deps = {}) {
+async function runTurn({ messages, model, signal, onEvent, onStreamEvent, requestApproval, forceTool, forcedSkill, convId }, deps = {}) {
   const { model: selectedModel, chat } = getProvider(model, deps)
   const tools = deps.tools || require('../tools')
   const policy = deps.policy || require('../security/toolPolicy')
@@ -148,7 +167,7 @@ async function runTurn({ messages, model, signal, onEvent, onStreamEvent, reques
         summary: `${call.name} 正在执行。`,
       })
 
-      const result = await tools.execute(call.name, call.args, { signal: ctl.signal, skipInternalConfirm: true })
+      const result = await tools.execute(call.name, call.args, { signal: ctl.signal, skipInternalConfirm: true, convId })
       const failure = normalizeToolFailure(result)
       const content = formatToolContent(result, failure)
       history.push({ role: 'tool', tool_call_id: call.id, content })
@@ -175,6 +194,17 @@ async function runTurn({ messages, model, signal, onEvent, onStreamEvent, reques
       inFlight.delete(ctl)
     }
     return null
+  }
+
+  const forcedSkillCall = createForcedSkillCall(forcedSkill)
+  if (forcedSkillCall) {
+    emitStream('reasoning_summary', {
+      text: `Loading skill ${forcedSkill} before continuing.`,
+    })
+    history.push({ role: 'assistant', content: null, tool_calls: [forcedSkillCall.raw] })
+    onEvent?.('assistant_message', { content: '', toolCalls: [forcedSkillCall] })
+    const forcedSkillResult = await processToolCall(forcedSkillCall)
+    if (forcedSkillResult) return forcedSkillResult
   }
 
   const forcedCall = createForcedToolCall(forceTool, history)

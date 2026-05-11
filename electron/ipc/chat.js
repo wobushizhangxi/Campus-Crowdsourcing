@@ -10,7 +10,8 @@ const {
   classifyConfirmationReply,
   buildConfirmationPrompt,
   buildPendingExplanation,
-  buildNoPendingMessage
+  buildNoPendingMessage,
+  buildMissingSkillMessage
 } = require('./chatConfirmation')
 
 const BASE_PROMPT = '你是 AionUi，一个桌面控制平面助手。请默认使用简体中文，回答要简洁、专业。所有用户输入都在同一个 Agent Loop 中处理：普通问题直接回答，需要本地、浏览器或桌面操作时再调用工具。除非 AionUi 已报告审批通过的执行结果，否则不要暗示本地动作已经运行。'
@@ -97,7 +98,7 @@ function buildSystemPrompt(config, deps) {
 }
 
 async function handleChatSend(evt, payload = {}, deps) {
-  const { convId, messages = [], model, pluginMode } = payload
+  const { convId, messages = [], model, pluginMode, forcedSkill } = payload
   const send = (event, data = {}) => evt.sender.send(event, { convId, ...data })
   if (payload.confirmationReply) {
     return handleConfirmationReply(evt, payload)
@@ -122,11 +123,20 @@ async function handleChatSend(evt, payload = {}, deps) {
     send('chat:delta', { text })
   }
 
+  if (forcedSkill && typeof deps.skillRegistry.findSkill === 'function' && !deps.skillRegistry.findSkill(forcedSkill)) {
+    sendDelta(buildMissingSkillMessage(forcedSkill, deps.skillRegistry.listSkills()))
+    send('chat:done', {})
+    activeControllers.delete(convId)
+    return { ok: true }
+  }
+
   try {
     const result = await deps.runTurn({
       messages: agentMessages,
       model,
       forceTool,
+      forcedSkill,
+      convId,
       signal: ctl.signal,
       onStreamEvent: streamEvent => {
         send('chat:stream', { event: streamEvent })

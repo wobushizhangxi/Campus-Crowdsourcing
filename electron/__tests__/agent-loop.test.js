@@ -152,7 +152,7 @@ test('approval-required tool → denied → USER_DENIED appended', async () => {
   expect(tools.execute).not.toHaveBeenCalled()
 })
 
-test('approval-required tool → approved → executed', async () => {
+test('medium-risk tool executes directly without approval', async () => {
   const deepseek = mockDeepseek([
     {
       content: null,
@@ -162,16 +162,18 @@ test('approval-required tool → approved → executed', async () => {
     { content: 'Command ran successfully.', assistant_message: { role: 'assistant', content: 'Command ran successfully.' }, tool_calls: [] }
   ])
   const tools = mockTools({ run_shell_command: 'hi' })
-  const policy = mockPolicy({ run_shell_command: { risk: 'medium', reason: 'shell', allowed: true, requiresApproval: true } })
+  const policy = mockPolicy({ run_shell_command: { risk: 'medium', reason: 'shell', allowed: true, requiresApproval: false } })
+  const requestApproval = vi.fn(async () => true)
 
-  const result = await runTurn(
+  await runTurn(
     {
       messages: [{ role: 'user', content: 'run echo' }],
-      requestApproval: async () => true // approved
+      requestApproval
     },
     { deepseek, tools, policy }
   )
 
+  expect(requestApproval).not.toHaveBeenCalled()
   expect(tools.execute).toHaveBeenCalledWith('run_shell_command', { command: 'echo hi' }, expect.objectContaining({ skipInternalConfirm: true }))
 })
 
@@ -441,6 +443,63 @@ test('browser plugin mode creates a browser_task tool call', async () => {
   expect(tools.execute).toHaveBeenCalledWith('browser_task', expect.objectContaining({
     goal: expect.stringContaining('https://example.com')
   }), expect.objectContaining({ skipInternalConfirm: true }))
+})
+
+test('forcedSkill loads the skill before the normal model turn', async () => {
+  const calls = []
+  const deepseek = {
+    chat: vi.fn(async ({ messages }) => {
+      calls.push(['chat', messages.map((message) => message.role)])
+      return { content: 'Used skill.', assistant_message: { role: 'assistant', content: 'Used skill.' }, tool_calls: [] }
+    })
+  }
+  const tools = {
+    execute: vi.fn(async (name, args, context) => {
+      calls.push(['tool', name, args, context.convId])
+      return { name: args.name, content: '# Skill body' }
+    }),
+    getAgentLoopToolSchemas: vi.fn(() => [])
+  }
+  const policy = mockPolicy({ load_skill: { risk: 'low', reason: 'skill', allowed: true, requiresApproval: false } })
+
+  const result = await runTurn(
+    { convId: 'conv-skill', messages: [{ role: 'user', content: 'write tests' }], forcedSkill: 'superpowers' },
+    { deepseek, tools, policy }
+  )
+
+  expect(calls[0]).toEqual(['tool', 'load_skill', { name: 'superpowers' }, 'conv-skill'])
+  expect(calls[1][0]).toBe('chat')
+  expect(result.finalText).toBe('Used skill.')
+})
+
+test('forcedSkill and browser forceTool run in skill then browser order', async () => {
+  const order = []
+  const deepseek = mockDeepseek([
+    { content: 'Browser summary', assistant_message: { role: 'assistant', content: 'Browser summary' }, tool_calls: [] }
+  ])
+  const tools = {
+    execute: vi.fn(async (name, args) => {
+      order.push(name)
+      return name === 'load_skill' ? { name: args.name, content: '# Browser skill' } : { ok: true, summary: 'Example Domain' }
+    }),
+    getAgentLoopToolSchemas: vi.fn(() => [])
+  }
+  const policy = mockPolicy({
+    load_skill: { risk: 'low', reason: 'skill', allowed: true, requiresApproval: false },
+    browser_task: { risk: 'medium', reason: 'browser', allowed: true, requiresApproval: false }
+  })
+
+  await runTurn(
+    {
+      convId: 'conv-browser-skill',
+      messages: [{ role: 'user', content: 'open https://example.com' }],
+      forcedSkill: 'browser-skill',
+      forceTool: 'browser_task'
+    },
+    { deepseek, tools, policy }
+  )
+
+  expect(order).toEqual(['load_skill', 'browser_task'])
 })
 
 test('agent loop emits user-visible reasoning and tool stream events', async () => {

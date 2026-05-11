@@ -354,6 +354,66 @@ test('chat:send ignores legacy mode flags and still uses the unified agent loop'
   expect(send).toHaveBeenCalledWith('chat:done', { convId: 'conv-1' })
 })
 
+test('chat:send validates forcedSkill before running the agent loop', async () => {
+  const ipcMain = createIpcMain()
+  const send = vi.fn()
+  const runTurn = vi.fn()
+  const register = createRegister({
+    storeRef: { getConfig: () => ({ permissionMode: 'full' }) },
+    runTurn,
+    userRules: { buildSystemPromptSection: () => '' },
+    skillRegistry: {
+      listSkills: () => [{ name: 'superpowers', description: 'workflow' }],
+      buildSkillIndex: () => 'skills',
+      findSkill: (name) => (name === 'superpowers' ? { name, description: 'workflow' } : null)
+    }
+  })
+  register(ipcMain)
+
+  const result = await ipcMain.handlers.get('chat:send')({ sender: { send } }, {
+    convId: 'conv-missing-skill',
+    forcedSkill: 'missing',
+    messages: [{ role: 'user', content: 'do work' }]
+  })
+
+  expect(result).toEqual({ ok: true })
+  expect(runTurn).not.toHaveBeenCalled()
+  expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-missing-skill', text: expect.stringContaining('missing') })
+  expect(send).toHaveBeenCalledWith('chat:delta', { convId: 'conv-missing-skill', text: expect.stringContaining('/superpowers') })
+  expect(send).toHaveBeenCalledWith('chat:done', { convId: 'conv-missing-skill' })
+})
+
+test('chat:send forwards valid forcedSkill and convId to runTurn', async () => {
+  const ipcMain = createIpcMain()
+  const send = vi.fn()
+  const runTurn = vi.fn(async ({ onEvent }) => {
+    onEvent('assistant_message', { content: 'done', toolCalls: [] })
+    return { finalText: 'done', history: [] }
+  })
+  const register = createRegister({
+    storeRef: { getConfig: () => ({ permissionMode: 'full' }) },
+    runTurn,
+    userRules: { buildSystemPromptSection: () => '' },
+    skillRegistry: {
+      listSkills: () => [{ name: 'superpowers', description: 'workflow' }],
+      buildSkillIndex: () => 'skills',
+      findSkill: (name) => (name === 'superpowers' ? { name, description: 'workflow' } : null)
+    }
+  })
+  register(ipcMain)
+
+  await ipcMain.handlers.get('chat:send')({ sender: { send } }, {
+    convId: 'conv-skill-ok',
+    forcedSkill: 'superpowers',
+    messages: [{ role: 'user', content: 'do work' }]
+  })
+
+  expect(runTurn).toHaveBeenCalledWith(expect.objectContaining({
+    convId: 'conv-skill-ok',
+    forcedSkill: 'superpowers'
+  }))
+})
+
 test('browser plugin mode marks user message for browser task routing', async () => {
   const ipcMain = createIpcMain()
   const send = vi.fn()
