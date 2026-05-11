@@ -122,14 +122,52 @@ class BrowserAgentPool:
         except Exception:
             return False
 
+    def _browser_page_target_ids(self, browser) -> Optional[set[str]]:
+        try:
+            get_page_targets = getattr(browser, "get_page_targets", None)
+            if not callable(get_page_targets):
+                return set()
+            target_ids = set()
+            for target in get_page_targets() or []:
+                if isinstance(target, dict):
+                    target_id = target.get("targetId") or target.get("target_id")
+                else:
+                    target_id = (
+                        getattr(target, "target_id", None)
+                        or getattr(target, "targetId", None)
+                        or getattr(target, "_target_id", None)
+                    )
+                if target_id:
+                    target_ids.add(str(target_id))
+            return target_ids
+        except Exception:
+            return None
+
     async def _wait_for_browser_disconnect(self, browser) -> bool:
         saw_connected = False
+        saw_page_targets = False
+        saw_focused_target = False
         while self._browser is browser:
             connected = self._browser_connected_state(browser)
             if connected is True:
                 saw_connected = True
             elif connected is False and saw_connected:
                 return True
+
+            page_target_ids = self._browser_page_target_ids(browser)
+            if page_target_ids is not None:
+                if page_target_ids:
+                    saw_page_targets = True
+                elif saw_page_targets:
+                    return True
+
+                focused_target_id = getattr(browser, "agent_focus_target_id", None)
+                if focused_target_id:
+                    if str(focused_target_id) in page_target_ids:
+                        saw_focused_target = True
+                    elif saw_focused_target:
+                        return True
+
             await asyncio.sleep(self._browser_disconnect_poll_seconds)
         return False
 
