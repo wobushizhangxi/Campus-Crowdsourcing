@@ -15,7 +15,7 @@ export function matchSkillCommands(input, skills = []) {
   return buildSkillCommands(skills).filter((command) => command.id.toLowerCase().startsWith(query))
 }
 
-export function parseSkillCommandLine(text) {
+export function parseSkillCommandLine(text, skills = []) {
   const trimmed = String(text || '').trim()
   if (!trimmed.startsWith('/')) return null
   const match = trimmed.match(/^\/([^\s/]+)\s+([\s\S]+)$/)
@@ -23,5 +23,7 @@ export function parseSkillCommandLine(text) {
   const skillName = match[1].trim()
   const message = match[2].trim()
   if (!skillName || !message) return null
-  return { forcedSkill: skillName, message }
+  const skill = skills.find((candidate) => candidate?.name?.toLowerCase() === skillName.toLowerCase())
+  if (!skill) return null
+  return { forcedSkill: skill.name, message }
 }

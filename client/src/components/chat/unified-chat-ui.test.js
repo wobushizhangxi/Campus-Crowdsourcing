@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+import { matchSkillCommands, parseSkillCommandLine } from '../../lib/commands.js'
 
 const root = process.cwd()
 
@@ -249,5 +250,26 @@ describe('unified chat UI wiring', () => {
     expect(useCommand).toContain('matchSkillCommands(text, skills)')
     expect(palette).toContain('Sparkles')
     expect(palette).not.toContain('const Icon = command.icon')
+  })
+
+  test('skill slash helpers match and parse installed skills case-insensitively', () => {
+    const skills = [
+      { name: 'superpowers', description: 'Structured development workflows' },
+      { name: 'documents', description: 'Document editing' }
+    ]
+
+    expect(matchSkillCommands('/sup', skills).map((command) => command.id)).toEqual(['superpowers'])
+    expect(matchSkillCommands('/SUP', skills).map((command) => command.id)).toEqual(['superpowers'])
+    expect(parseSkillCommandLine('/superpowers do work', skills)).toEqual({
+      forcedSkill: 'superpowers',
+      message: 'do work'
+    })
+    expect(parseSkillCommandLine('/SUPERPOWERS do work', skills)).toEqual({
+      forcedSkill: 'superpowers',
+      message: 'do work'
+    })
+    expect(parseSkillCommandLine('/missing do work', skills)).toBeNull()
+    expect(parseSkillCommandLine('/superpowers', skills)).toBeNull()
+    expect(parseSkillCommandLine('normal text', skills)).toBeNull()
   })
 })
