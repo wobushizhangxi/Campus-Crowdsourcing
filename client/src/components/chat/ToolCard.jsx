@@ -27,11 +27,19 @@ function JsonBlock({ label, value }) {
   )
 }
 
+function shortSummary(message) {
+  if (message.error?.message) return message.error.message
+  if (message.result?.summary) return message.result.summary
+  if (message.result?.final_url) return message.result.final_url
+  if (typeof message.result === 'string') return message.result
+  return ''
+}
+
 export default function ToolCard({ message, onApproveTool, onDenyTool }) {
   const [open, setOpen] = useState(message.toolStatus === 'error' || message.toolStatus === 'awaiting_approval')
   const status = message.toolStatus || 'running'
-  const logs = message.logs || []
   const retry = message.retry
+  const summary = shortSummary(message)
   const canDecide = status === 'awaiting_approval' && message.toolCallId && onApproveTool && onDenyTool
 
   useEffect(() => {
@@ -44,6 +52,7 @@ export default function ToolCard({ message, onApproveTool, onDenyTool }) {
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         <StatusIcon status={status} />
         <span className="text-sm font-medium">兼容工具：{message.toolName || '工具'}</span>
+        {summary && <span className="min-w-0 flex-1 truncate text-xs text-[color:var(--text-muted)]">{summary}</span>}
         <span className="ml-auto text-xs text-[color:var(--text-muted)]">{STATUS_LABELS[status] || status}</span>
       </button>
       {open && (
@@ -59,8 +68,6 @@ export default function ToolCard({ message, onApproveTool, onDenyTool }) {
               第 {retry.attempt} 次尝试 · 上次失败：{retry.previousError?.code || 'TOOL_ERROR'} · {retry.previousError?.message || '工具未返回有效结果。'}
             </div>
           )}
-          {logs.length > 0 && <JsonBlock label="日志" value={logs.map((item) => `[${item.stream}] ${item.chunk}`).join('')} />}
-          <JsonBlock label="结果" value={message.result} />
           <JsonBlock label="错误" value={message.error} />
           {canDecide && (
             <div className="flex gap-2">

@@ -12,7 +12,7 @@ describe('unified chat UI wiring', () => {
   test('InputBar has no chat/execute mode toggle', () => {
     const source = readProjectFile('client/src/components/chat/InputBar.jsx')
 
-    expect(source).toContain('export default function InputBar({ onSend, disabled, agentRunning, onCancel, selectedModel, onModelChange })')
+    expect(source).toContain('export default function InputBar({ onSend, disabled, agentRunning, onCancel, selectedModel, onModelChange, pluginMode, onPluginModeChange })')
     expect(source).toContain('输入消息或任务')
     expect(source).not.toContain('onModeChange')
     expect(source).not.toContain('MessageSquare')
@@ -23,9 +23,8 @@ describe('unified chat UI wiring', () => {
     const source = readProjectFile('client/src/components/chat/ChatArea.jsx')
 
     expect(source).toContain('export default function ChatArea({ conversationId })')
-    expect(source).toContain('sendUserMessage(text, selectedModel)')
+    expect(source).toContain("sendUserMessage(text, pluginMode === 'browser' ? 'browser-use' : selectedModel, { pluginMode })")
     expect(source).not.toContain('sendAgentMessage')
-    expect(source).not.toContain('mode')
     expect(source).not.toContain('onModeChange')
   })
 
@@ -199,5 +198,39 @@ describe('unified chat UI wiring', () => {
     expect(settings).toContain('nextSteps')
     expect(settings).toContain('stdoutLog')
     expect(settings).toContain('stderrLog')
+  })
+
+  test('InputBar exposes Codex-style plugin menu and Browser plugin label', () => {
+    const source = readProjectFile('client/src/components/chat/InputBar.jsx')
+
+    expect(source).toContain('插件')
+    expect(source).toContain('浏览器')
+    expect(source).toContain('Browser Use')
+    expect(source).toContain('onPluginModeChange')
+  })
+
+  test('ModelSelector can display Browser Use model chip for plugin mode', () => {
+    const source = readProjectFile('client/src/components/chat/ModelSelector.jsx')
+
+    expect(source).toContain('browser-use')
+    expect(source).toContain('openai/gpt-5.5')
+    expect(source).toContain('pluginMode')
+  })
+
+  test('ApprovalCard is limited to confirmation controls', () => {
+    const source = readProjectFile('client/src/components/chat/ApprovalCard.jsx')
+
+    expect(source).toContain('onApprove')
+    expect(source).toContain('onReject')
+    expect(source).not.toContain('final_answer')
+    expect(source).not.toContain('reasoning_summary')
+  })
+
+  test('MessageBubble renders streamed reasoning and tool progress entries', () => {
+    const source = readProjectFile('client/src/components/chat/MessageBubble.jsx')
+
+    expect(source).toContain('reasoning_summary')
+    expect(source).toContain('tool_progress')
+    expect(source).toContain('stream')
   })
 })

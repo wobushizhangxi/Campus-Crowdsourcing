@@ -179,6 +179,96 @@ def test_visible_task_keeps_browser_alive_by_default(monkeypatch):
     assert FakeBrowser.instances[0].requested_keep_alive is True
 
 
+def test_run_task_opens_detected_start_url_in_new_tab(monkeypatch):
+    import browser_agent
+
+    class FakeHistory:
+        def urls(self):
+            return ["https://example.com"]
+
+        def final_result(self):
+            return "Example Domain"
+
+        def number_of_steps(self):
+            return 1
+
+        def total_duration_seconds(self):
+            return 0.25
+
+        def is_successful(self):
+            return True
+
+    captured = {}
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        async def run(self, max_steps):
+            return FakeHistory()
+
+    reset_fake_browser()
+    monkeypatch.setattr(browser_agent, "Browser", FakeBrowser)
+    monkeypatch.setattr(browser_agent, "Agent", FakeAgent)
+    monkeypatch.setattr(BrowserAgentPool, "_build_llm", lambda self: object())
+
+    result = asyncio.run(BrowserAgentPool().run_task(BrowserTask(
+        goal="Open https://example.com and tell me the page title.",
+        headless=False,
+    )))
+
+    assert result.success is True
+    assert captured["initial_actions"] == [
+        {"navigate": {"url": "https://example.com", "new_tab": True}}
+    ]
+    assert captured["directly_open_url"] is False
+
+
+def test_run_task_opens_blank_new_tab_when_no_start_url(monkeypatch):
+    import browser_agent
+
+    class FakeHistory:
+        def urls(self):
+            return ["https://www.google.com/search?q=weather"]
+
+        def final_result(self):
+            return "Weather results"
+
+        def number_of_steps(self):
+            return 2
+
+        def total_duration_seconds(self):
+            return 0.5
+
+        def is_successful(self):
+            return True
+
+    captured = {}
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        async def run(self, max_steps):
+            return FakeHistory()
+
+    reset_fake_browser()
+    monkeypatch.setattr(browser_agent, "Browser", FakeBrowser)
+    monkeypatch.setattr(browser_agent, "Agent", FakeAgent)
+    monkeypatch.setattr(BrowserAgentPool, "_build_llm", lambda self: object())
+
+    result = asyncio.run(BrowserAgentPool().run_task(BrowserTask(
+        goal="Search the web for today's weather.",
+        headless=False,
+    )))
+
+    assert result.success is True
+    assert captured["initial_actions"] == [
+        {"navigate": {"url": "about:blank", "new_tab": True}}
+    ]
+    assert captured["directly_open_url"] is False
+
+
 def test_build_llm_defaults_to_zenmux_endpoint_and_model(monkeypatch):
     import browser_agent
 

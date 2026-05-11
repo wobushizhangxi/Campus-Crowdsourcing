@@ -7,6 +7,13 @@ const MODEL_OPTIONS = [
   { id: 'doubao-vision', label: '豆包 视觉', provider: 'doubao' }
 ]
 
+const BROWSER_USE_OPTION = {
+  id: 'browser-use',
+  label: '浏览器',
+  provider: 'browser-use',
+  model: 'openai/gpt-5.5',
+}
+
 const STORAGE_KEY = 'agentdev-selected-model'
 const LEGACY_MODEL_ALIASES = {
   'doubao-seed-1-6-vision': 'doubao-vision'
@@ -21,11 +28,13 @@ function loadModel() {
   return 'deepseek-chat'
 }
 
-export default function ModelSelector({ value, onChange }) {
+export default function ModelSelector({ value, onChange, pluginMode }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
-  const selected = MODEL_OPTIONS.find(o => o.id === value) || MODEL_OPTIONS[0]
+  const selected = pluginMode === 'browser'
+    ? BROWSER_USE_OPTION
+    : MODEL_OPTIONS.find(o => o.id === value) || MODEL_OPTIONS[0]
 
   useEffect(() => {
     function handleClick(e) {
@@ -40,9 +49,12 @@ export default function ModelSelector({ value, onChange }) {
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="h-7 flex items-center gap-1 rounded-md border border-[color:var(--border)] px-2 text-xs text-[color:var(--text-primary)] bg-[color:var(--bg-secondary)] hover:bg-[color:var(--bg-tertiary)] whitespace-nowrap"
+        className={`h-7 flex items-center gap-1 rounded-md border px-2 text-xs text-[color:var(--text-primary)] hover:bg-[color:var(--bg-tertiary)] whitespace-nowrap ${pluginMode === 'browser' ? 'border-blue-200 bg-blue-50' : 'border-[color:var(--border)] bg-[color:var(--bg-secondary)]'}`}
       >
         <span className="max-w-[100px] truncate">{selected.label}</span>
+        {pluginMode === 'browser' && (
+          <span className="max-w-[110px] truncate text-[color:var(--accent)]">{selected.model}</span>
+        )}
         <ChevronDown size={12} className="text-[color:var(--text-muted)]" />
       </button>
       {open && (

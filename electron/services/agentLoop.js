@@ -45,22 +45,157 @@ function getProvider(modelId, deps = {}) {
   return { model: 'deepseek-chat', chat: deepseek.chat }
 }
 
-async function runTurn({ messages, model, signal, onEvent, requestApproval }, deps = {}) {
+function createStreamEvent(type, patch = {}) {
+  return {
+    id: patch.id || `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    ts: patch.ts || Date.now(),
+    ...patch,
+  }
+}
+
+function latestUserContent(messages = []) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'user' && messages[index].content) return messages[index].content
+  }
+  return ''
+}
+
+function createForcedToolCall(forceTool, messages = []) {
+  if (forceTool !== 'browser_task') return null
+  const args = { goal: latestUserContent(messages) }
+  const id = `forced-browser-task-${Date.now()}`
+  return {
+    id,
+    name: 'browser_task',
+    args,
+    raw: {
+      id,
+      type: 'function',
+      function: {
+        name: 'browser_task',
+        arguments: JSON.stringify(args)
+      }
+    }
+  }
+}
+
+function summarizeToolResult(result, failure) {
+  if (failure) return `${failure.code}: ${failure.message}`
+  if (typeof result === 'string') return result.slice(0, 180)
+  if (result?.summary) return String(result.summary).slice(0, 180)
+  if (result?.final_url) return `完成，最终页面：${result.final_url}`
+  return '工具已返回结果。'
+}
+
+async function runTurn({ messages, model, signal, onEvent, onStreamEvent, requestApproval, forceTool }, deps = {}) {
   const { model: selectedModel, chat } = getProvider(model, deps)
   const tools = deps.tools || require('../tools')
   const policy = deps.policy || require('../security/toolPolicy')
   const history = [...messages]
   const inFlight = new Set()
   const toolAttempts = new Map()
+  const emitStream = (type, patch = {}) => onStreamEvent?.(createStreamEvent(type, patch))
 
   signal?.addEventListener('abort', () => {
     for (const c of inFlight) c.abort()
   })
 
+  async function processToolCall(call) {
+    if (signal?.aborted) return { finalText: '操作已取消', history }
+    const attemptKey = toolAttemptKey(call)
+    const previousAttempt = toolAttempts.get(attemptKey)
+    const attempt = (previousAttempt?.count || 0) + 1
+    const retry = previousAttempt?.lastError ? { attempt, previousError: previousAttempt.lastError } : undefined
+
+    const decision = policy.evaluateToolCall(call.name, call.args)
+    if (decision.risk === 'blocked') {
+      history.push({ role: 'tool', tool_call_id: call.id, content: `POLICY_BLOCKED: ${decision.reason}` })
+      onEvent?.('tool_blocked', { call, reason: decision.reason })
+      emitStream('tool_result', { tool: call.name, summary: `已阻止：${decision.reason}` })
+      toolAttempts.set(attemptKey, { count: attempt, lastError: { code: 'POLICY_BLOCKED', message: decision.reason } })
+      return null
+    }
+
+    emitStream('tool_start', {
+      tool: call.name,
+      summary: `准备调用 ${call.name}`,
+    })
+
+    if (decision.requiresApproval) {
+      if (!requestApproval) {
+        history.push({ role: 'tool', tool_call_id: call.id, content: `POLICY_BLOCKED: 需要用户审批但审批回调未提供 (${decision.reason})` })
+        onEvent?.('tool_blocked', { call, reason: '审批回调缺失' })
+        emitStream('tool_result', { tool: call.name, summary: `审批回调缺失：${decision.reason}` })
+        toolAttempts.set(attemptKey, { count: attempt, lastError: { code: 'POLICY_BLOCKED', message: decision.reason } })
+        return null
+      }
+      onEvent?.('approval_request', { call, decision, ...(retry ? { retry } : {}) })
+      const ok = await requestApproval({ call, decision })
+      if (!ok) {
+        history.push({ role: 'tool', tool_call_id: call.id, content: 'USER_DENIED' })
+        emitStream('tool_result', { tool: call.name, summary: '用户拒绝执行。' })
+        toolAttempts.set(attemptKey, { count: attempt, lastError: { code: 'USER_DENIED', message: 'User denied tool execution.' } })
+        return null
+      }
+    }
+
+    const ctl = new AbortController()
+    inFlight.add(ctl)
+    try {
+      emitStream('tool_progress', {
+        tool: call.name,
+        summary: `${call.name} 正在执行。`,
+      })
+
+      const result = await tools.execute(call.name, call.args, { signal: ctl.signal, skipInternalConfirm: true })
+      const failure = normalizeToolFailure(result)
+      const content = formatToolContent(result, failure)
+      history.push({ role: 'tool', tool_call_id: call.id, content })
+      if (failure) {
+        toolAttempts.set(attemptKey, { count: attempt, lastError: { code: failure.code, message: failure.message } })
+        onEvent?.('tool_error', { call, error: failure, result })
+        emitStream('tool_result', { tool: call.name, summary: summarizeToolResult(result, failure) })
+      } else {
+        toolAttempts.set(attemptKey, { count: attempt })
+        onEvent?.('tool_result', { call, result })
+        emitStream('tool_result', { tool: call.name, summary: summarizeToolResult(result) })
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        history.push({ role: 'tool', tool_call_id: call.id, content: 'CANCELLED' })
+        return { finalText: '操作已取消', history }
+      }
+      const error = { code: err.code || 'TOOL_ERROR', message: err.message }
+      history.push({ role: 'tool', tool_call_id: call.id, content: `ERROR: ${err.message}` })
+      toolAttempts.set(attemptKey, { count: attempt, lastError: error })
+      onEvent?.('tool_error', { call, error })
+      emitStream('tool_result', { tool: call.name, summary: summarizeToolResult(null, error) })
+    } finally {
+      inFlight.delete(ctl)
+    }
+    return null
+  }
+
+  const forcedCall = createForcedToolCall(forceTool, history)
+  if (forcedCall) {
+    emitStream('reasoning_summary', {
+      text: '我正在判断用户意图，并将这条消息交给浏览器任务执行。',
+    })
+    history.push({ role: 'assistant', content: null, tool_calls: [forcedCall.raw] })
+    onEvent?.('assistant_message', { content: '', toolCalls: [forcedCall] })
+    const forcedResult = await processToolCall(forcedCall)
+    if (forcedResult) return forcedResult
+  }
+
   for (let step = 0; step < MAX_STEPS; step++) {
     if (signal?.aborted) {
       return { finalText: '操作已取消', history }
     }
+
+    emitStream('reasoning_summary', {
+      text: '我正在判断当前对话状态，并准备需要的工具或最终回复。',
+    })
 
     const response = await chat({
       model: selectedModel,
@@ -77,64 +212,12 @@ async function runTurn({ messages, model, signal, onEvent, requestApproval }, de
     }
 
     for (const call of response.tool_calls) {
-      if (signal?.aborted) return { finalText: '操作已取消', history }
-      const attemptKey = toolAttemptKey(call)
-      const previousAttempt = toolAttempts.get(attemptKey)
-      const attempt = (previousAttempt?.count || 0) + 1
-      const retry = previousAttempt?.lastError ? { attempt, previousError: previousAttempt.lastError } : undefined
-
-      const decision = policy.evaluateToolCall(call.name, call.args)
-      if (decision.risk === 'blocked') {
-        history.push({ role: 'tool', tool_call_id: call.id, content: `POLICY_BLOCKED: ${decision.reason}` })
-        onEvent?.('tool_blocked', { call, reason: decision.reason })
-        toolAttempts.set(attemptKey, { count: attempt, lastError: { code: 'POLICY_BLOCKED', message: decision.reason } })
-        continue
-      }
-
-      if (decision.requiresApproval) {
-        if (!requestApproval) {
-          history.push({ role: 'tool', tool_call_id: call.id, content: `POLICY_BLOCKED: 需要用户审批但审批回调未提供 (${decision.reason})` })
-          onEvent?.('tool_blocked', { call, reason: '审批回调缺失' })
-          toolAttempts.set(attemptKey, { count: attempt, lastError: { code: 'POLICY_BLOCKED', message: decision.reason } })
-          continue
-        }
-        onEvent?.('approval_request', { call, decision, ...(retry ? { retry } : {}) })
-        const ok = await requestApproval({ call, decision })
-        if (!ok) {
-          history.push({ role: 'tool', tool_call_id: call.id, content: 'USER_DENIED' })
-          toolAttempts.set(attemptKey, { count: attempt, lastError: { code: 'USER_DENIED', message: 'User denied tool execution.' } })
-          continue
-        }
-      }
-
-      const ctl = new AbortController()
-      inFlight.add(ctl)
-      try {
-        const result = await tools.execute(call.name, call.args, { signal: ctl.signal, skipInternalConfirm: true })
-        const failure = normalizeToolFailure(result)
-        const content = formatToolContent(result, failure)
-        history.push({ role: 'tool', tool_call_id: call.id, content })
-        if (failure) {
-          toolAttempts.set(attemptKey, { count: attempt, lastError: { code: failure.code, message: failure.message } })
-          onEvent?.('tool_error', { call, error: failure, result })
-        } else {
-          toolAttempts.set(attemptKey, { count: attempt })
-          onEvent?.('tool_result', { call, result })
-        }
-      } catch (err) {
-        if (err.name === 'AbortError') {
-          history.push({ role: 'tool', tool_call_id: call.id, content: 'CANCELLED' })
-          return { finalText: '操作已取消', history }
-        }
-        history.push({ role: 'tool', tool_call_id: call.id, content: `ERROR: ${err.message}` })
-        toolAttempts.set(attemptKey, { count: attempt, lastError: { code: err.code || 'TOOL_ERROR', message: err.message } })
-      } finally {
-        inFlight.delete(ctl)
-      }
+      const toolResult = await processToolCall(call)
+      if (toolResult) return toolResult
     }
   }
 
   return { finalText: '已达 30 步上限', history }
 }
 
-module.exports = { runTurn, MAX_STEPS, getProvider }
+module.exports = { runTurn, MAX_STEPS, getProvider, createStreamEvent }

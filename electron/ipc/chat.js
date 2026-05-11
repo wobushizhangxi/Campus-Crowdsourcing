@@ -69,11 +69,12 @@ function buildSystemPrompt(config, deps) {
 }
 
 async function handleChatSend(evt, payload = {}, deps) {
-  const { convId, messages = [], model } = payload
+  const { convId, messages = [], model, pluginMode } = payload
   const send = (event, data = {}) => evt.sender.send(event, { convId, ...data })
   const config = deps.storeRef.getConfig()
   const ctl = new AbortController()
   activeControllers.set(convId, ctl)
+  const forceTool = pluginMode === 'browser' ? 'browser_task' : undefined
   const agentMessages = [
     { role: 'system', content: buildSystemPrompt(config, deps) },
     ...messages.filter(m => m.role === 'user' || m.role === 'assistant' || m.role === 'tool')
@@ -90,7 +91,11 @@ async function handleChatSend(evt, payload = {}, deps) {
     const result = await deps.runTurn({
       messages: agentMessages,
       model,
+      forceTool,
       signal: ctl.signal,
+      onStreamEvent: streamEvent => {
+        send('chat:stream', { event: streamEvent })
+      },
       onEvent: (type, data) => {
         if (type === 'assistant_message') {
           sendDelta(data.content)

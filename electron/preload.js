@@ -19,6 +19,11 @@ function createElectronAPI(ipc = ipcRenderer) {
       ipc.on(event, wrapped)
       return () => ipc.off(event, wrapped)
     },
+    onChatStream: (callback) => {
+      const listener = (_event, payload) => callback(payload)
+      ipc.on('chat:stream', listener)
+      return () => ipc.removeListener('chat:stream', listener)
+    },
     selectFile: (options) => ipc.invoke('dialog:selectFile', options),
     selectDirectory: () => ipc.invoke('dialog:selectDirectory'),
     openPath: (filePath) => ipc.invoke('shell:openPath', filePath),

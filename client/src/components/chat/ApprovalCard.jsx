@@ -13,7 +13,9 @@ function JsonBlock({ label, value }) {
   )
 }
 
-export default function ApprovalCard({ call, decision, onApprove, onDeny }) {
+export default function ApprovalCard({ call, decision, onApprove, onReject, onDeny }) {
+  const reject = onReject || onDeny
+
   return (
     <div className="my-3 max-w-[820px] rounded-lg border-2 border-yellow-400 bg-yellow-50 text-[color:var(--text-primary)] animate-in">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-yellow-200">
@@ -36,7 +38,7 @@ export default function ApprovalCard({ call, decision, onApprove, onDeny }) {
           </button>
           <button
             type="button"
-            onClick={onDeny}
+            onClick={reject}
             className="inline-flex items-center gap-1 h-9 px-4 rounded-md bg-white border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-100 transition-colors"
           >
             <X size={14} /> 拒绝

@@ -25,7 +25,7 @@ export default function MessageList({ messages, onApproveTool, onDenyTool, onApp
       )}
       {messages.map((message) => {
         if (message.role === 'user' || message.role === 'assistant') {
-          return <MessageBubble key={message.id} role={message.role} content={message.content} streaming={message.streaming} />
+          return <MessageBubble key={message.id} message={message} role={message.role} content={message.content} streaming={message.streaming} />
         }
         if (message.role === 'tool') {
           return message.toolName === 'run_shell_command'

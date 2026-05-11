@@ -2,7 +2,7 @@ import { test, expect, vi } from 'vitest'
 import { createRequire } from 'module'
 
 const require = createRequire(import.meta.url)
-const { getProvider, runTurn } = require('../services/agentLoop')
+const { createStreamEvent, getProvider, runTurn } = require('../services/agentLoop')
 
 function mockDeepseek(responses) {
   let call = 0
@@ -407,4 +407,71 @@ test('returns history on abort for audit trail', async () => {
 
   expect(result.finalText).toBe('操作已取消')
   expect(result.history.length).toBeGreaterThanOrEqual(2) // user + assistant at minimum
+})
+
+test('browser plugin mode creates a browser_task tool call', async () => {
+  const deepseek = mockDeepseek([
+    { content: 'Browser summary', assistant_message: { role: 'assistant', content: 'Browser summary' }, tool_calls: [] }
+  ])
+  const tools = {
+    execute: vi.fn(async () => ({ ok: true, summary: 'Example Domain' })),
+    getAgentLoopToolSchemas: vi.fn(() => [])
+  }
+  const policy = mockPolicy({ browser_task: { risk: 'medium', reason: 'browser', allowed: true, requiresApproval: false } })
+
+  await runTurn(
+    {
+      messages: [{ role: 'user', content: '打开 https://example.com 看标题' }],
+      model: 'browser-use',
+      forceTool: 'browser_task',
+    },
+    { deepseek, tools, policy }
+  )
+
+  expect(tools.execute).toHaveBeenCalledWith('browser_task', expect.objectContaining({
+    goal: expect.stringContaining('https://example.com')
+  }), expect.objectContaining({ skipInternalConfirm: true }))
+})
+
+test('agent loop emits user-visible reasoning and tool stream events', async () => {
+  const streamEvent = createStreamEvent('reasoning_summary', {
+    text: '我正在判断用户意图并准备需要的工具。',
+    ts: 1,
+    id: 'reasoning-1',
+  })
+
+  expect(streamEvent).toEqual({
+    id: 'reasoning-1',
+    type: 'reasoning_summary',
+    ts: 1,
+    text: '我正在判断用户意图并准备需要的工具。',
+  })
+
+  const deepseek = mockDeepseek([
+    {
+      content: null,
+      assistant_message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'browser_task', arguments: '{"goal":"Open https://example.com"}' } }] },
+      tool_calls: [{ id: 'c1', name: 'browser_task', args: { goal: 'Open https://example.com' }, raw: {} }]
+    },
+    { content: 'Done.', assistant_message: { role: 'assistant', content: 'Done.' }, tool_calls: [] }
+  ])
+  const tools = mockTools({ browser_task: { ok: true, summary: 'Example Domain' } })
+  const policy = mockPolicy({ browser_task: { risk: 'medium', reason: 'browser', allowed: true, requiresApproval: false } })
+  const events = []
+
+  await runTurn(
+    {
+      messages: [{ role: 'user', content: 'open example.com' }],
+      onStreamEvent: event => events.push(event)
+    },
+    { deepseek, tools, policy }
+  )
+
+  expect(events.map(event => event.type)).toEqual(expect.arrayContaining([
+    'reasoning_summary',
+    'tool_start',
+    'tool_progress',
+    'tool_result',
+  ]))
+  expect(events.find(event => event.type === 'reasoning_summary').text).toContain('判断')
 })

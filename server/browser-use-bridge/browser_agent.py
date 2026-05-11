@@ -19,6 +19,40 @@ def env_bool(name: str, default: bool = True) -> bool:
     return raw.strip().lower() not in {"0", "false", "no", "off"}
 
 
+def extract_single_start_url(goal: str) -> Optional[str]:
+    import re
+
+    text = re.sub(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", "", goal or "")
+    patterns = [
+        r"https?://[^\s<>\"']+",
+        r"(?:www\.)?[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}(?:/[^\s<>\"']*)?",
+    ]
+    excluded_extensions = {
+        "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+        "txt", "md", "csv", "json", "xml", "yaml", "yml",
+        "zip", "rar", "7z", "jpg", "jpeg", "png", "gif", "webp",
+        "mp3", "mp4", "avi", "mkv", "mov", "py", "js", "css",
+    }
+
+    found = []
+    for pattern in patterns:
+        for match in re.finditer(pattern, text):
+            url = re.sub(r"[.,;:!?()\[\]]+$", "", match.group(0))
+            url_lower = url.lower()
+            if any(f".{ext}" in url_lower for ext in excluded_extensions):
+                continue
+            context_start = max(0, match.start() - 20)
+            context = text[context_start:match.start()].lower()
+            if any(word in context for word in ("never", "dont", "don't", "not")):
+                continue
+            if not url.startswith(("http://", "https://")):
+                url = "https://" + url
+            found.append(url)
+
+    unique = list(dict.fromkeys(found))
+    return unique[0] if len(unique) == 1 else None
+
+
 @dataclass
 class BrowserTask:
     goal: str
@@ -73,6 +107,10 @@ class BrowserAgentPool:
         if task.keep_alive is not None:
             return task.keep_alive
         return env_bool("BROWSER_USE_KEEP_ALIVE", not task.headless)
+
+    def _initial_actions_for_task(self, task: BrowserTask):
+        start_url = task.start_url or extract_single_start_url(task.goal)
+        return [{"navigate": {"url": start_url or "about:blank", "new_tab": True}}]
 
     async def _close_browser(self):
         if not self._browser:
@@ -145,6 +183,8 @@ class BrowserAgentPool:
                 llm=llm,
                 browser=browser,
                 use_vision=self._use_vision(),
+                initial_actions=self._initial_actions_for_task(task),
+                directly_open_url=False,
             )
 
             result = await agent.run(max_steps=task.max_steps)

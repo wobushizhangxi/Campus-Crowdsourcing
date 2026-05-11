@@ -7,9 +7,10 @@ import { loadModel } from './ModelSelector.jsx'
 export default function ChatArea({ conversationId }) {
   const { messages, streaming, agentRunning, sendUserMessage, handleAbort, handleApproveTool, handleDenyTool, handleApproveAction, handleDenyAction, handleCancelAction, updateCard, addFileCard } = useChat(conversationId)
   const [selectedModel, setSelectedModel] = useState(loadModel)
+  const [pluginMode, setPluginMode] = useState(null)
 
   function handleSend(text) {
-    sendUserMessage(text, selectedModel)
+    sendUserMessage(text, pluginMode === 'browser' ? 'browser-use' : selectedModel, { pluginMode })
   }
 
   return (
@@ -31,6 +32,8 @@ export default function ChatArea({ conversationId }) {
         onCancel={handleAbort}
         selectedModel={selectedModel}
         onModelChange={setSelectedModel}
+        pluginMode={pluginMode}
+        onPluginModeChange={setPluginMode}
       />
     </div>
   )

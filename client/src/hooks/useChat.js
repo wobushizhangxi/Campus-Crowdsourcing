@@ -88,6 +88,24 @@ export function useChat(conversationId) {
     }
   }, [conversationId])
 
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onChatStream?.((payload) => {
+      if (!payload?.event || payload.convId !== conversationIdRef.current) return
+      dispatch({
+        type: 'ADD',
+        msg: {
+          id: payload.event.id || uid(),
+          role: 'assistant',
+          type: payload.event.type,
+          stream: true,
+          content: payload.event.text || payload.event.summary || '',
+          tool: payload.event.tool || null,
+        }
+      })
+    })
+    return () => unsubscribe?.()
+  }, [])
+
   const saveConversation = useCallback(async (convId, messages) => {
     try {
       await api.post('/api/conversations', { id: convId, title: makeTitle(messages), assistant: 'general', messages })
@@ -97,7 +115,7 @@ export function useChat(conversationId) {
     }
   }, [])
 
-  const sendUserMessage = useCallback((text, model) => {
+  const sendUserMessage = useCallback((text, model, options = {}) => {
     const convId = conversationIdRef.current
     if (!convId) return
 
@@ -112,7 +130,7 @@ export function useChat(conversationId) {
     dispatch({ type: 'ADD', msg: { id: assistantId, role: 'assistant', content: '', streaming: true } })
 
     const history = [...state.messages, userMessage]
-      .filter((message) => message.role === 'user' || message.role === 'assistant')
+      .filter((message) => (message.role === 'user' || message.role === 'assistant') && !message.stream)
       .map((message) => ({ role: message.role, content: message.content }))
 
     let assistantContent = ''
@@ -127,7 +145,7 @@ export function useChat(conversationId) {
 
     abortRef.current = api.stream({
       channel: 'chat:send',
-      payload: { convId, messages: history, model },
+      payload: { convId, messages: history, message: text, model, pluginMode: options.pluginMode || null },
       onDelta: (delta) => {
         assistantContent += delta
         dispatch({ type: 'APPEND_DELTA', id: assistantId, delta })
