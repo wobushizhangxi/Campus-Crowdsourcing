@@ -205,7 +205,7 @@ class MarketplaceCoreUpgradeTests {
         User publisher = createUser("publisher006", "Publisher 6", UserRole.USER, new BigDecimal("11.20"));
         createUser("runner006", "Runner 6", UserRole.USER, new BigDecimal("5.50"));
         User delegate = createUser("delegate006", "Delegate 6", UserRole.USER, BigDecimal.ZERO);
-        delegate.setPermissions(Set.of(AdminPermission.ADMIN_ACCESS));
+        delegate.setPermissions(Set.of(AdminPermission.ADMIN_ACCESS, AdminPermission.USER_VIEW));
         userRepository.save(delegate);
         Task task = createTask("accepted", "publisher006", "Publisher 6", "runner006", new BigDecimal("8.80"));
 
