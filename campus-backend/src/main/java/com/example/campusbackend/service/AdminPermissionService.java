@@ -35,8 +35,14 @@ public class AdminPermissionService {
         if (user == null || permission == null) {
             return false;
         }
-
         return user.getRole() == UserRole.ADMIN || user.getPermissions().contains(permission);
+    }
+
+    public boolean canGrantPermission(User actor, AdminPermission permission) {
+        if (actor == null || permission == null) {
+            return false;
+        }
+        return actor.getRole() == UserRole.ADMIN || hasPermission(actor, permission);
     }
 
     public Set<AdminPermission> normalizePermissions(Collection<String> rawPermissions) {
@@ -44,15 +50,12 @@ public class AdminPermissionService {
         if (rawPermissions == null) {
             return permissions;
         }
-
         for (String rawPermission : rawPermissions) {
             if (rawPermission == null || rawPermission.trim().isEmpty()) {
                 continue;
             }
-
             permissions.add(AdminPermission.valueOf(rawPermission.trim().toUpperCase(Locale.ROOT)));
         }
-
         return permissions;
     }
 
