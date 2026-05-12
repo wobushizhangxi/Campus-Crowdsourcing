@@ -19,6 +19,7 @@ import useChat from './hooks/useChat';
 import useTaskActions from './hooks/useTaskActions';
 import useWorkspaceData from './hooks/useWorkspaceData';
 import { apiDelete, apiGet, apiPost, apiPut, getRequestErrorMessage, isUnauthorizedError } from './services/api';
+import { setAdminForbiddenHandler } from './services/forbiddenInterceptor';
 import { clearAuthSession, persistAuthSession, readAuthToken } from './utils/authSession';
 import { formatDateTime, formatRmb, formatSignedRmb, getBalanceRecordMeta } from './utils/formatters';
 import { readFavoriteTaskIds } from './utils/taskFavorites';
@@ -73,6 +74,7 @@ export default function App() {
     isRefreshingProfile,
     isWalletLoading,
     lastSyncAt,
+    refreshCurrentUserSummary,
     refreshWalletData,
     refreshWorkspaceState,
     setLastSyncAt,
@@ -182,6 +184,22 @@ export default function App() {
     openAdminView,
     resetAdminState,
   } = useAdminPanel({ currentUser, refreshWorkspaceState, withAuthHandling });
+
+  // ── Forbidden interceptor ──────────────────────────────
+  const refreshCurrentUserRef = useRef(refreshCurrentUserSummary);
+  refreshCurrentUserRef.current = refreshCurrentUserSummary;
+  const profileSectionRef = useRef(profileSection);
+  profileSectionRef.current = profileSection;
+
+  useEffect(() => {
+    setAdminForbiddenHandler(async () => {
+      await refreshCurrentUserRef.current();
+      if (profileSectionRef.current === 'admin') {
+        setProfileSection('overview');
+      }
+    });
+    return () => setAdminForbiddenHandler(null);
+  }, []);
 
   // ── Chat ───────────────────────────────────────────────
   const {

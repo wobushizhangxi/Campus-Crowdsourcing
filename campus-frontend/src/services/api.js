@@ -2,6 +2,7 @@ import axios from 'axios';
 import { readAuthToken } from '../utils/authSession';
 import { readSavedApiBaseUrl, resolveApiBaseUrlCandidates } from '../config/apiBaseUrl';
 import { buildApiRequestHeaders } from './apiHeaders';
+import { notifyAdminForbidden } from './forbiddenInterceptor';
 
 const bundledApiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '';
 const getApiBaseUrlCandidates = () =>
@@ -45,6 +46,12 @@ const requestApi = async (method, path, data, config = {}) => {
       });
     } catch (error) {
       lastError = error;
+
+      if (error.response && error.response.status === 403) {
+        const requestUrl = error.config?.url || '';
+        notifyAdminForbidden(requestUrl);
+      }
+
       const isLastCandidate = index === apiBaseUrlCandidates.length - 1;
 
       if (isLastCandidate || !shouldRetryApiRequest(error)) {
