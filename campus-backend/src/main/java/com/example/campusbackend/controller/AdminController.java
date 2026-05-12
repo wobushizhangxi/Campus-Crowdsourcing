@@ -8,11 +8,14 @@ import com.example.campusbackend.entity.BalanceRecord;
 import com.example.campusbackend.entity.Report;
 import com.example.campusbackend.entity.Task;
 import com.example.campusbackend.entity.User;
+import com.example.campusbackend.entity.AdminPermission;
+import com.example.campusbackend.entity.PermissionAuditLog;
 import com.example.campusbackend.entity.UserRole;
 import com.example.campusbackend.entity.VerificationStatus;
 import com.example.campusbackend.repository.BalanceRecordRepository;
 import com.example.campusbackend.repository.TaskRepository;
 import com.example.campusbackend.repository.MessageRepository;
+import com.example.campusbackend.repository.PermissionAuditLogRepository;
 import com.example.campusbackend.repository.ReportRepository;
 import com.example.campusbackend.repository.TaskReviewRepository;
 import com.example.campusbackend.repository.UserRepository;
@@ -39,8 +42,11 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -56,6 +62,7 @@ public class AdminController {
     private final AdminPermissionService adminPermissionService;
     private final TaskLifecycleService taskLifecycleService;
     private final UserDeletionService userDeletionService;
+    private final PermissionAuditLogRepository permissionAuditLogRepository;
 
     public AdminController(
             UserRepository userRepository,
@@ -67,7 +74,8 @@ public class AdminController {
             CurrentUserService currentUserService,
             AdminPermissionService adminPermissionService,
             TaskLifecycleService taskLifecycleService,
-            UserDeletionService userDeletionService
+            UserDeletionService userDeletionService,
+            PermissionAuditLogRepository permissionAuditLogRepository
     ) {
         this.userRepository = userRepository;
         this.balanceRecordRepository = balanceRecordRepository;
@@ -79,6 +87,7 @@ public class AdminController {
         this.adminPermissionService = adminPermissionService;
         this.taskLifecycleService = taskLifecycleService;
         this.userDeletionService = userDeletionService;
+        this.permissionAuditLogRepository = permissionAuditLogRepository;
     }
 
     @GetMapping("/users")
@@ -167,21 +176,90 @@ public class AdminController {
             @RequestBody PermissionUpdateRequest request,
             Authentication authentication
     ) {
-        requirePermissionGrantActor(authentication);
-        User user = userRepository.findById(id).orElse(null);
-        if (user == null) {
+        User actor = requirePermissionGrantActor(authentication);
+        User target = userRepository.findById(id).orElse(null);
+        if (target == null) {
             return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
         }
+        if (target.getRole() == UserRole.ADMIN) {
+            return buildResponse(HttpStatus.FORBIDDEN, "不能修改管理员角色的权限", null);
+        }
 
+        Set<AdminPermission> requestedPermissions;
         try {
-            user.setPermissions(adminPermissionService.normalizePermissions(request.getPermissions()));
+            requestedPermissions = adminPermissionService.normalizePermissions(request.getPermissions());
         } catch (IllegalArgumentException error) {
             return buildResponse(HttpStatus.BAD_REQUEST, "权限配置不正确", null);
         }
 
-        User savedUser = userRepository.save(user);
+        Set<AdminPermission> currentPermissions = target.getPermissions();
+
+        // Guard: prevent self-revocation of ADMIN_ACCESS or PERMISSION_GRANT
+        if (actor.getId().equals(target.getId())) {
+            if (currentPermissions.contains(AdminPermission.ADMIN_ACCESS)
+                    && !requestedPermissions.contains(AdminPermission.ADMIN_ACCESS)) {
+                return buildResponse(HttpStatus.FORBIDDEN, "不能撤销自己的后台访问权限", null);
+            }
+            if (currentPermissions.contains(AdminPermission.PERMISSION_GRANT)
+                    && !requestedPermissions.contains(AdminPermission.PERMISSION_GRANT)) {
+                return buildResponse(HttpStatus.FORBIDDEN, "不能撤销自己的授予权限", null);
+            }
+        }
+
+        // Guard: grant-option constraint — only grant permissions you possess
+        if (actor.getRole() != UserRole.ADMIN) {
+            Set<AdminPermission> addedPermissions = new LinkedHashSet<>(requestedPermissions);
+            addedPermissions.removeAll(currentPermissions);
+            for (AdminPermission permission : addedPermissions) {
+                if (!adminPermissionService.canGrantPermission(actor, permission)) {
+                    return buildResponse(HttpStatus.FORBIDDEN,
+                            "无法授予您不具备的权限：" + permission.name(), null);
+                }
+            }
+        }
+
+        // Compute diff and write audit log
+        Set<AdminPermission> removedPermissions = new LinkedHashSet<>(currentPermissions);
+        removedPermissions.removeAll(requestedPermissions);
+
+        Set<AdminPermission> grantedPermissions = new LinkedHashSet<>(requestedPermissions);
+        grantedPermissions.removeAll(currentPermissions);
+
+        LocalDateTime now = LocalDateTime.now();
+        for (AdminPermission permission : grantedPermissions) {
+            PermissionAuditLog log = new PermissionAuditLog();
+            log.setActorUsername(actor.getUsername());
+            log.setTargetUserId(target.getId());
+            log.setTargetUsername(target.getUsername());
+            log.setPermission(permission);
+            log.setAction("GRANT");
+            log.setCreatedAt(now);
+            permissionAuditLogRepository.save(log);
+        }
+        for (AdminPermission permission : removedPermissions) {
+            PermissionAuditLog log = new PermissionAuditLog();
+            log.setActorUsername(actor.getUsername());
+            log.setTargetUserId(target.getId());
+            log.setTargetUsername(target.getUsername());
+            log.setPermission(permission);
+            log.setAction("REVOKE");
+            log.setCreatedAt(now);
+            permissionAuditLogRepository.save(log);
+        }
+
+        // Apply permissions
+        target.setPermissions(requestedPermissions);
+        User savedUser = userRepository.save(target);
+
+        // Cascade: if PERMISSION_GRANT was revoked from target, cascade-revoke
+        if (removedPermissions.contains(AdminPermission.PERMISSION_GRANT)
+                && !requestedPermissions.contains(AdminPermission.PERMISSION_GRANT)) {
+            cascadeRevokePermissionsGrantedBy(target);
+        }
+
         Map<String, Object> data = buildUserSummary(savedUser);
-        data.put("records", buildBalanceRecordsData(balanceRecordRepository.findTop50ByUsernameOrderByCreatedAtDesc(savedUser.getUsername())));
+        data.put("records", buildBalanceRecordsData(
+                balanceRecordRepository.findTop50ByUsernameOrderByCreatedAtDesc(savedUser.getUsername())));
         return buildResponse(HttpStatus.OK, "权限已更新", data);
     }
 
@@ -245,7 +323,7 @@ public class AdminController {
             @RequestBody(required = false) TaskActionRequest request,
             Authentication authentication
     ) {
-        User actor = requireAdminAccessActor(authentication);
+        User actor = requireViewUsersActor(authentication);
         try {
             Task task = taskLifecycleService.resolve(
                     id,
@@ -266,7 +344,7 @@ public class AdminController {
     @DeleteMapping("/tasks/{id}")
     @Transactional
     public ResponseEntity<Map<String, Object>> deleteTask(@PathVariable Long id, Authentication authentication) {
-        requireAdminAccessActor(authentication);
+        requireViewUsersActor(authentication);
         Task task = taskRepository.findById(id).orElse(null);
         if (task == null) {
             return buildResponse(HttpStatus.NOT_FOUND, "帖子不存在", null);
@@ -282,7 +360,7 @@ public class AdminController {
 
     @GetMapping("/reports")
     public ResponseEntity<Map<String, Object>> listReports(Authentication authentication) {
-        requireAdminAccessActor(authentication);
+        requireViewUsersActor(authentication);
         List<Map<String, Object>> reports = reportRepository.findByStatusOrderByCreatedAtAsc("pending")
                 .stream()
                 .map(report -> {
@@ -308,7 +386,7 @@ public class AdminController {
             @RequestBody Map<String, Object> request,
             Authentication authentication
     ) {
-        User actor = requireAdminAccessActor(authentication);
+        User actor = requireViewUsersActor(authentication);
         Report report = reportRepository.findById(id).orElse(null);
         if (report == null) {
             return buildResponse(HttpStatus.NOT_FOUND, "举报不存在", null);
@@ -345,7 +423,7 @@ public class AdminController {
 
     @GetMapping("/verifications")
     public ResponseEntity<Map<String, Object>> listPendingVerifications(Authentication authentication) {
-        requireAdminAccessActor(authentication);
+        requireViewUsersActor(authentication);
         List<Map<String, Object>> users = userRepository
                 .findByVerificationStatusOrderByVerificationSubmittedAtAsc(VerificationStatus.PENDING)
                 .stream()
@@ -361,7 +439,7 @@ public class AdminController {
             @RequestBody(required = false) VerificationRequest request,
             Authentication authentication
     ) {
-        User actor = requireAdminAccessActor(authentication);
+        User actor = requireViewUsersActor(authentication);
         User target = userRepository.findById(userId).orElse(null);
         if (target == null) {
             return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
@@ -382,7 +460,7 @@ public class AdminController {
             @RequestBody(required = false) VerificationRequest request,
             Authentication authentication
     ) {
-        User actor = requireAdminAccessActor(authentication);
+        User actor = requireViewUsersActor(authentication);
         User target = userRepository.findById(userId).orElse(null);
         if (target == null) {
             return buildResponse(HttpStatus.NOT_FOUND, "用户不存在", null);
@@ -399,6 +477,55 @@ public class AdminController {
         target.setVerificationReviewer(actor.getUsername());
         User saved = userRepository.save(target);
         return buildResponse(HttpStatus.OK, "认证申请已驳回", buildUserSummary(saved));
+    }
+
+    private void cascadeRevokePermissionsGrantedBy(User grantor) {
+        List<PermissionAuditLog> grantLogs = permissionAuditLogRepository
+                .findByActorUsernameAndActionOrderByCreatedAtDesc(grantor.getUsername(), "GRANT");
+
+        Set<Long> targetIds = grantLogs.stream()
+                .map(PermissionAuditLog::getTargetUserId)
+                .collect(Collectors.toSet());
+
+        LocalDateTime now = LocalDateTime.now();
+        String cascadeActor = "system";
+
+        for (Long targetId : targetIds) {
+            User cascadeTarget = userRepository.findById(targetId).orElse(null);
+            if (cascadeTarget == null || cascadeTarget.getRole() == UserRole.ADMIN) {
+                continue;
+            }
+
+            Set<AdminPermission> toRevoke = grantLogs.stream()
+                    .filter(log -> log.getTargetUserId().equals(targetId))
+                    .map(PermissionAuditLog::getPermission)
+                    .filter(permission -> cascadeTarget.getPermissions().contains(permission))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+
+            if (toRevoke.isEmpty()) {
+                continue;
+            }
+
+            Set<AdminPermission> remainingPermissions = new LinkedHashSet<>(cascadeTarget.getPermissions());
+            remainingPermissions.removeAll(toRevoke);
+            cascadeTarget.setPermissions(remainingPermissions);
+            userRepository.save(cascadeTarget);
+
+            for (AdminPermission permission : toRevoke) {
+                PermissionAuditLog log = new PermissionAuditLog();
+                log.setActorUsername(cascadeActor);
+                log.setTargetUserId(cascadeTarget.getId());
+                log.setTargetUsername(cascadeTarget.getUsername());
+                log.setPermission(permission);
+                log.setAction("CASCADE_REVOKE");
+                log.setCreatedAt(now);
+                permissionAuditLogRepository.save(log);
+            }
+
+            if (toRevoke.contains(AdminPermission.PERMISSION_GRANT)) {
+                cascadeRevokePermissionsGrantedBy(cascadeTarget);
+            }
+        }
     }
 
     private Map<String, Object> buildUserSummary(User user) {

@@ -32,7 +32,7 @@ public class PermissionAuditLog {
     @Column(nullable = false, length = 40)
     private AdminPermission permission;
 
-    @Column(nullable = false, length = 10)
+    @Column(nullable = false, length = 20)
     private String action;
 
     @Column(nullable = false)
