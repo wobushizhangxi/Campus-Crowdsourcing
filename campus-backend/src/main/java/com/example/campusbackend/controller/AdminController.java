@@ -43,6 +43,7 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,6 +64,10 @@ public class AdminController {
     private final TaskLifecycleService taskLifecycleService;
     private final UserDeletionService userDeletionService;
     private final PermissionAuditLogRepository permissionAuditLogRepository;
+
+    private static final String AUDIT_ACTION_GRANT = "GRANT";
+    private static final String AUDIT_ACTION_REVOKE = "REVOKE";
+    private static final String AUDIT_ACTION_CASCADE_REVOKE = "CASCADE_REVOKE";
 
     public AdminController(
             UserRepository userRepository,
@@ -226,15 +231,16 @@ public class AdminController {
         grantedPermissions.removeAll(currentPermissions);
 
         LocalDateTime now = LocalDateTime.now();
+        List<PermissionAuditLog> auditLogs = new ArrayList<>();
         for (AdminPermission permission : grantedPermissions) {
             PermissionAuditLog log = new PermissionAuditLog();
             log.setActorUsername(actor.getUsername());
             log.setTargetUserId(target.getId());
             log.setTargetUsername(target.getUsername());
             log.setPermission(permission);
-            log.setAction("GRANT");
+            log.setAction(AUDIT_ACTION_GRANT);
             log.setCreatedAt(now);
-            permissionAuditLogRepository.save(log);
+            auditLogs.add(log);
         }
         for (AdminPermission permission : removedPermissions) {
             PermissionAuditLog log = new PermissionAuditLog();
@@ -242,9 +248,12 @@ public class AdminController {
             log.setTargetUserId(target.getId());
             log.setTargetUsername(target.getUsername());
             log.setPermission(permission);
-            log.setAction("REVOKE");
+            log.setAction(AUDIT_ACTION_REVOKE);
             log.setCreatedAt(now);
-            permissionAuditLogRepository.save(log);
+            auditLogs.add(log);
+        }
+        if (!auditLogs.isEmpty()) {
+            permissionAuditLogRepository.saveAll(auditLogs);
         }
 
         // Apply permissions
@@ -481,17 +490,24 @@ public class AdminController {
 
     private void cascadeRevokePermissionsGrantedBy(User grantor) {
         List<PermissionAuditLog> grantLogs = permissionAuditLogRepository
-                .findByActorUsernameAndActionOrderByCreatedAtDesc(grantor.getUsername(), "GRANT");
+                .findByActorUsernameAndActionOrderByCreatedAtDesc(grantor.getUsername(), AUDIT_ACTION_GRANT);
 
         Set<Long> targetIds = grantLogs.stream()
                 .map(PermissionAuditLog::getTargetUserId)
                 .collect(Collectors.toSet());
 
+        if (targetIds.isEmpty()) {
+            return;
+        }
+
+        Map<Long, User> usersById = userRepository.findAllById(targetIds).stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
+
         LocalDateTime now = LocalDateTime.now();
         String cascadeActor = "system";
 
         for (Long targetId : targetIds) {
-            User cascadeTarget = userRepository.findById(targetId).orElse(null);
+            User cascadeTarget = usersById.get(targetId);
             if (cascadeTarget == null || cascadeTarget.getRole() == UserRole.ADMIN) {
                 continue;
             }
@@ -511,15 +527,19 @@ public class AdminController {
             cascadeTarget.setPermissions(remainingPermissions);
             userRepository.save(cascadeTarget);
 
+            List<PermissionAuditLog> cascadeLogs = new ArrayList<>();
             for (AdminPermission permission : toRevoke) {
                 PermissionAuditLog log = new PermissionAuditLog();
                 log.setActorUsername(cascadeActor);
                 log.setTargetUserId(cascadeTarget.getId());
                 log.setTargetUsername(cascadeTarget.getUsername());
                 log.setPermission(permission);
-                log.setAction("CASCADE_REVOKE");
+                log.setAction(AUDIT_ACTION_CASCADE_REVOKE);
                 log.setCreatedAt(now);
-                permissionAuditLogRepository.save(log);
+                cascadeLogs.add(log);
+            }
+            if (!cascadeLogs.isEmpty()) {
+                permissionAuditLogRepository.saveAll(cascadeLogs);
             }
 
             if (toRevoke.contains(AdminPermission.PERMISSION_GRANT)) {
